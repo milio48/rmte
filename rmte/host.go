@@ -10,11 +10,35 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 	"io"
 
 	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
 )
+
+type SafeConn struct {
+	*websocket.Conn
+	mu sync.Mutex
+}
+
+func (c *SafeConn) WriteMessage(messageType int, data []byte) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.Conn.WriteMessage(messageType, data)
+}
+
+func (c *SafeConn) WriteJSON(v interface{}) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.Conn.WriteJSON(v)
+}
+
+func (c *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.Conn.WriteControl(messageType, data, deadline)
+}
 
 type TabSession struct {
 	ReadCloser  io.ReadCloser
@@ -37,10 +61,11 @@ func runHost(serverURL, password string) {
 		log.Fatal(err)
 	}
 
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	rawConn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		log.Fatal("Dial error:", err)
 	}
+	conn := &SafeConn{Conn: rawConn}
 	defer conn.Close()
 
 	if err := setupCrypto(password); err != nil {
@@ -152,7 +177,7 @@ func runHost(serverURL, password string) {
 	}
 }
 
-func createTab(id byte, ws *websocket.Conn) {
+func createTab(id byte, ws *SafeConn) {
 	shell := "bash"
 	if runtime.GOOS == "windows" {
 		shell = "cmd"
@@ -209,7 +234,7 @@ func createTab(id byte, ws *websocket.Conn) {
 	}()
 }
 
-func runWithPipes(id byte, c *exec.Cmd, ws *websocket.Conn) {
+func runWithPipes(id byte, c *exec.Cmd, ws *SafeConn) {
 	stdin, _ := c.StdinPipe()
 	
 	// Create a pipe to merge stdout and stderr

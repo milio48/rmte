@@ -17,8 +17,11 @@
         <button onclick="connect()">Connect</button>
     </div>
     <div id="terminal-container" style="display:none;">
-        <div id="tabs"></div>
-        <div id="terminal"></div>
+        <div id="tabs-bar">
+            <div id="tabs"></div>
+            <button id="new-tab-btn" onclick="requestNewTab()" title="New Tab">+</button>
+        </div>
+        <div id="terminal-wrapper"></div>
     </div>
     <script src="xterm.js"></script>
 </body>

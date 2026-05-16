@@ -18,10 +18,11 @@ func runViewer(serverURL, sessionID, password string) {
 		log.Fatal(err)
 	}
 
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	rawConn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		log.Fatal("Dial error:", err)
 	}
+	conn := &SafeConn{Conn: rawConn}
 	defer conn.Close()
 
 	if err := setupCrypto(password); err != nil {
@@ -133,7 +134,7 @@ func runViewer(serverURL, sessionID, password string) {
 	}
 }
 
-func enterRawTerminal(ws *websocket.Conn, tabID byte) {
+func enterRawTerminal(ws *SafeConn, tabID byte) {
 	fd := int(os.Stdin.Fd())
 	if !term.IsTerminal(fd) {
 		fmt.Println("Not a terminal")

@@ -17,8 +17,8 @@ var upgrader = websocket.Upgrader{
 
 type Session struct {
 	ID      string
-	Host    *websocket.Conn
-	Viewers map[string]map[string]*websocket.Conn // viewerID -> connID -> Conn
+	Host    *SafeConn
+	Viewers map[string]map[string]*SafeConn // viewerID -> connID -> Conn
 	Mutex   sync.RWMutex
 }
 
@@ -38,10 +38,11 @@ func runServer(port int) {
 }
 
 func handleWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	rawConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
 	}
+	conn := &SafeConn{Conn: rawConn}
 	defer conn.Close()
 
 	var role string
@@ -75,7 +76,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		s := &Session{
 			ID:      sessionID,
 			Host:    conn,
-			Viewers: make(map[string]map[string]*websocket.Conn),
+			Viewers: make(map[string]map[string]*SafeConn),
 		}
 		sessionMu.Lock()
 		sessions[sessionID] = s
@@ -107,7 +108,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 
 		s.Mutex.Lock()
 		if s.Viewers[viewerID] == nil {
-			s.Viewers[viewerID] = make(map[string]*websocket.Conn)
+			s.Viewers[viewerID] = make(map[string]*SafeConn)
 		}
 		s.Viewers[viewerID][connID] = conn
 		s.Mutex.Unlock()
