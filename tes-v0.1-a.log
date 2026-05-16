@@ -1,0 +1,47 @@
+Terminal 1
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe serve --port=8080
+Relay Server started on :8080
+Host connected. Session: 3f2101a4
+Viewer v-e29215aa connected to session 3f2101a4
+Viewer v-web-948d419c connected to session 3f2101a4
+
+
+
+Terminal 2
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe share --server="ws://localhost:8080/ws" --pass="rahasia123"  
+Session ID: 3f2101a4
+Share this ID with viewers to join.
+2026/05/17 04:01:11 PTY not supported on Windows, falling back to Pipes for Tab 0
+
+
+
+
+Terminal 3
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe join --server="ws://localhost:8080/ws" --id="3f2101a4" --pass
+="rahasia123"
+Connected as v-e29215aa
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> j
+Joining Tab 0... (Press Ctrl+] to exit back to menu)
+Microsoft Windows [Version 10.0.26200.8457]
+(c) Microsoft Corporation. All rights reserved.
+
+D:\fz\project\rmte\rmte>Microsoft Windows [Version 10.0.26200.8457]       
+(c) Microsoft Corporation. All rights reserved.
+
+D:\fz\project\rmte\rmte>
+
+
+--> Terminal 3 stuck. tidak bisa stdin
+
+
+
+
+Via Web : bisa masuk session, tapi juga tidak bisa stdin
