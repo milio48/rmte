@@ -1,0 +1,202 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/gorilla/websocket"
+)
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
+type Session struct {
+	ID      string
+	Host    *websocket.Conn
+	Viewers map[string]map[string]*websocket.Conn // viewerID -> connID -> Conn
+	Mutex   sync.RWMutex
+}
+
+var (
+	sessions = make(map[string]*Session)
+	sessionMu sync.RWMutex
+)
+
+func runServer(port int) {
+	http.HandleFunc("/ws", handleWS)
+	// Web UI handler will be added in web.go
+	setupWebHandler()
+
+	addr := fmt.Sprintf(":%d", port)
+	fmt.Printf("Relay Server started on %s\n", addr)
+	log.Fatal(http.ListenAndServe(addr, nil))
+}
+
+func handleWS(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	var role string
+	var sessionID string
+	var viewerID string
+	var connID = fmt.Sprintf("c-%d", time.Now().UnixNano())
+
+	// Wait for auth message
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		return
+	}
+
+	var auth struct {
+		Type      string `json:"type"`
+		Role      string `json:"role"`
+		SessionID string `json:"session_id"`
+		ViewerID  string `json:"viewer_id"`
+	}
+
+	if err := json.Unmarshal(msg, &auth); err != nil || auth.Type != "auth" {
+		return
+	}
+
+	role = auth.Role
+	sessionID = auth.SessionID
+	viewerID = auth.ViewerID
+
+	if role == "host" {
+		sessionID = fmt.Sprintf("%x", time.Now().UnixNano())[8:] // Simple random ID
+		s := &Session{
+			ID:      sessionID,
+			Host:    conn,
+			Viewers: make(map[string]map[string]*websocket.Conn),
+		}
+		sessionMu.Lock()
+		sessions[sessionID] = s
+		sessionMu.Unlock()
+
+		// Send back the session ID
+		conn.WriteJSON(map[string]interface{}{
+			"type":       "auth_success",
+			"session_id": sessionID,
+		})
+		
+		fmt.Printf("Host connected. Session: %s\n", sessionID)
+		
+		defer func() {
+			sessionMu.Lock()
+			delete(sessions, sessionID)
+			sessionMu.Unlock()
+			fmt.Printf("Host disconnected. Session %s closed.\n", sessionID)
+		}()
+	} else {
+		sessionMu.RLock()
+		s, ok := sessions[sessionID]
+		sessionMu.RUnlock()
+
+		if !ok {
+			conn.WriteJSON(map[string]string{"type": "error", "message": "session not found"})
+			return
+		}
+
+		s.Mutex.Lock()
+		if s.Viewers[viewerID] == nil {
+			s.Viewers[viewerID] = make(map[string]*websocket.Conn)
+		}
+		s.Viewers[viewerID][connID] = conn
+		s.Mutex.Unlock()
+
+		conn.WriteJSON(map[string]string{"type": "auth_success"})
+		fmt.Printf("Viewer %s connected to session %s\n", viewerID, sessionID)
+
+		defer func() {
+			s.Mutex.Lock()
+			delete(s.Viewers[viewerID], connID)
+			if len(s.Viewers[viewerID]) == 0 {
+				delete(s.Viewers, viewerID)
+			}
+			s.Mutex.Unlock()
+			fmt.Printf("Viewer %s disconnected from session %s\n", viewerID, sessionID)
+		}()
+	}
+
+	// Heartbeat goroutine
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second)); err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	conn.SetReadDeadline(time.Now().Add(35 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(35 * time.Second))
+		return nil
+	})
+
+	// Message loop
+	for {
+		mt, data, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
+
+		sessionMu.RLock()
+		s, ok := sessions[sessionID]
+		sessionMu.RUnlock()
+
+		if !ok {
+			break
+		}
+
+		if mt == websocket.BinaryMessage {
+			// Proxy binary message
+			if role == "host" {
+				// Broadcast to all viewers
+				s.Mutex.RLock()
+				for _, conns := range s.Viewers {
+					for _, vConn := range conns {
+						vConn.WriteMessage(websocket.BinaryMessage, data)
+					}
+				}
+				s.Mutex.RUnlock()
+			} else {
+				// Send to host
+				s.Host.WriteMessage(websocket.BinaryMessage, data)
+			}
+		} else if mt == websocket.TextMessage {
+			// Handle control messages
+			var ctrl struct {
+				Type   string `json:"type"`
+				Action string `json:"action"`
+			}
+			if err := json.Unmarshal(data, &ctrl); err == nil {
+				if role == "viewer" {
+					// Forward control to host
+					s.Host.WriteMessage(websocket.TextMessage, data)
+				} else {
+					// Forward control from host to all viewers (like tab_created)
+					s.Mutex.RLock()
+					for _, conns := range s.Viewers {
+						for _, vConn := range conns {
+							vConn.WriteMessage(websocket.TextMessage, data)
+						}
+					}
+					s.Mutex.RUnlock()
+				}
+			}
+		}
+	}
+}

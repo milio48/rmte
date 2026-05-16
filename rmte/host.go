@@ -1,0 +1,182 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/url"
+	"os"
+	"os/exec"
+	"sync"
+
+	"github.com/creack/pty"
+	"github.com/gorilla/websocket"
+)
+
+type TabSession struct {
+	PTY    *os.File
+	Buffer []byte
+	Mutex  sync.Mutex
+}
+
+var (
+	tabs   = make(map[byte]*TabSession)
+	tabsMu sync.RWMutex
+)
+
+const maxBufferSize = 100 * 1024
+
+func runHost(serverURL, password string) {
+	u, err := url.Parse(serverURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		log.Fatal("Dial error:", err)
+	}
+	defer conn.Close()
+
+	if err := setupCrypto(password); err != nil {
+		log.Fatal(err)
+	}
+
+	// Auth as host
+	auth := map[string]string{
+		"type": "auth",
+		"role": "host",
+	}
+	conn.WriteJSON(auth)
+
+	// Wait for session ID
+	var authResp struct {
+		Type      string `json:"type"`
+		SessionID string `json:"session_id"`
+	}
+	if err := conn.ReadJSON(&authResp); err != nil || authResp.Type != "auth_success" {
+		log.Fatal("Auth failed:", err)
+	}
+
+	fmt.Printf("Session ID: %s\n", authResp.SessionID)
+	fmt.Printf("Share this ID with viewers to join.\n")
+
+	// Create initial tab (ID 0)
+	createTab(0, conn)
+
+	// Message loop
+	for {
+		mt, data, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
+
+		if mt == websocket.BinaryMessage {
+			tabID, plaintext, err := decryptBinary(data)
+			if err != nil {
+				continue
+			}
+
+			tabsMu.RLock()
+			tab, ok := tabs[tabID]
+			tabsMu.RUnlock()
+
+			if ok {
+				tab.PTY.Write(plaintext)
+			}
+		} else if mt == websocket.TextMessage {
+			var ctrl struct {
+				Type   string `json:"type"`
+				Action string `json:"action"`
+				TabID  byte   `json:"tab_id"`
+				Cols   uint16 `json:"cols"`
+				Rows   uint16 `json:"rows"`
+			}
+			if err := json.Unmarshal(data, &ctrl); err == nil {
+				switch ctrl.Action {
+				case "request_new_tab":
+					newID := byte(len(tabs))
+					createTab(newID, conn)
+					conn.WriteJSON(map[string]interface{}{
+						"type":   "control",
+						"action": "tab_created",
+						"tab_id": newID,
+					})
+				case "resize":
+					tabsMu.RLock()
+					tab, ok := tabs[ctrl.TabID]
+					tabsMu.RUnlock()
+					if ok {
+						pty.Setsize(tab.PTY, &pty.Winsize{Cols: ctrl.Cols, Rows: ctrl.Rows})
+					}
+				case "req_sync":
+					// Sync history to viewer
+					tabsMu.RLock()
+					tab, ok := tabs[ctrl.TabID]
+					tabsMu.RUnlock()
+					if ok {
+						tab.Mutex.Lock()
+						history := make([]byte, len(tab.Buffer))
+						copy(history, tab.Buffer)
+						tab.Mutex.Unlock()
+						
+						// In a real multi-user scenario, we might want to send only to the requesting viewer.
+						// But for simplicity, we just broadcast or the server handles it.
+						// The server doesn't know who requested it in this simple model.
+						// We'll just send it back.
+						payload, _ := encryptBinary(ctrl.TabID, history)
+						conn.WriteMessage(websocket.BinaryMessage, payload)
+					}
+				}
+			}
+		}
+	}
+}
+
+func createTab(id byte, ws *websocket.Conn) {
+	c := exec.Command("bash")
+	if os.Getenv("SHELL") != "" {
+		c = exec.Command(os.Getenv("SHELL"))
+	}
+	// For Windows
+	if os.Getenv("COMSPEC") != "" && os.Getenv("OS") == "Windows_NT" {
+		c = exec.Command(os.Getenv("COMSPEC"))
+	}
+
+	f, err := pty.Start(c)
+	if err != nil {
+		log.Printf("Failed to start PTY for tab %d: %v", id, err)
+		return
+	}
+
+	tab := &TabSession{
+		PTY: f,
+	}
+
+	tabsMu.Lock()
+	tabs[id] = tab
+	tabsMu.Unlock()
+
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := f.Read(buf)
+			if err != nil {
+				break
+			}
+			data := buf[:n]
+
+			tab.Mutex.Lock()
+			tab.Buffer = append(tab.Buffer, data...)
+			if len(tab.Buffer) > maxBufferSize {
+				tab.Buffer = tab.Buffer[len(tab.Buffer)-maxBufferSize:]
+			}
+			tab.Mutex.Unlock()
+
+			payload, err := encryptBinary(id, data)
+			if err == nil {
+				ws.WriteMessage(websocket.BinaryMessage, payload)
+			}
+		}
+	}()
+}

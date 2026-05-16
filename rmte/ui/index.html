@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RMTE - Remote Terminal Relay</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css" />
+    <link rel="stylesheet" href="xterm.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.js"></script>
+</head>
+<body>
+    <div id="setup">
+        <h1>RMTE Join</h1>
+        <input type="text" id="server" placeholder="ws://localhost:8080/ws" value="ws://localhost:8080/ws">
+        <input type="text" id="sessionId" placeholder="Session ID">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="connect()">Connect</button>
+    </div>
+    <div id="terminal-container" style="display:none;">
+        <div id="tabs"></div>
+        <div id="terminal"></div>
+    </div>
+    <script src="xterm.js"></script>
+</body>
+</html>
