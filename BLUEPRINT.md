@@ -28,6 +28,8 @@ Plaintext yang dibaca oleh Relay Server untuk mengurus rute dan antarmuka.
 * **Presence (Broadcast ke Viewer):** `{"type": "control", "action": "presence", "tabs": {"1": ["Muflihun"]}}`
 * **Resize:** `{"type": "control", "action": "resize", "tab_id": 1, "cols": 120, "rows": 40}`
 * **Request Sync (Sinkronisasi Layar):** `{"type": "control", "action": "req_sync", "tab_id": 1, "target_conn": "c-992"}`
+* **Request New Tab (Viewer ke Host):** `{"type": "control", "action": "request_new_tab"}`
+* **Tab Created (Host ke Viewer):** `{"type": "control", "action": "tab_created", "tab_id": 2}`
 
 #### B. Lalu Lintas Terminal (Binary Frame - Terenkripsi E2EE)
 
