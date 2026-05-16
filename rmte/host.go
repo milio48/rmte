@@ -7,16 +7,19 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"sync"
+	"io"
 
 	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
 )
 
 type TabSession struct {
-	PTY    *os.File
-	Buffer []byte
-	Mutex  sync.Mutex
+	ReadCloser  io.ReadCloser
+	WriteCloser io.WriteCloser
+	Buffer      []byte
+	Mutex       sync.Mutex
 }
 
 var (
@@ -82,7 +85,7 @@ func runHost(serverURL, password string) {
 			tabsMu.RUnlock()
 
 			if ok {
-				tab.PTY.Write(plaintext)
+				tab.WriteCloser.Write(plaintext)
 			}
 		} else if mt == websocket.TextMessage {
 			var ctrl struct {
@@ -107,7 +110,9 @@ func runHost(serverURL, password string) {
 					tab, ok := tabs[ctrl.TabID]
 					tabsMu.RUnlock()
 					if ok {
-						pty.Setsize(tab.PTY, &pty.Winsize{Cols: ctrl.Cols, Rows: ctrl.Rows})
+						if f, isFile := tab.ReadCloser.(*os.File); isFile {
+							pty.Setsize(f, &pty.Winsize{Cols: ctrl.Cols, Rows: ctrl.Rows})
+						}
 					}
 				case "req_sync":
 					// Sync history to viewer
@@ -134,23 +139,31 @@ func runHost(serverURL, password string) {
 }
 
 func createTab(id byte, ws *websocket.Conn) {
-	c := exec.Command("bash")
-	if os.Getenv("SHELL") != "" {
-		c = exec.Command(os.Getenv("SHELL"))
-	}
-	// For Windows
-	if os.Getenv("COMSPEC") != "" && os.Getenv("OS") == "Windows_NT" {
-		c = exec.Command(os.Getenv("COMSPEC"))
+	shell := "bash"
+	if runtime.GOOS == "windows" {
+		shell = "cmd"
+		if os.Getenv("COMSPEC") != "" {
+			shell = os.Getenv("COMSPEC")
+		}
+	} else if os.Getenv("SHELL") != "" {
+		shell = os.Getenv("SHELL")
 	}
 
+	c := exec.Command(shell)
 	f, err := pty.Start(c)
 	if err != nil {
+		if runtime.GOOS == "windows" {
+			log.Printf("PTY not supported on Windows, falling back to Pipes for Tab %d", id)
+			runWithPipes(id, c, ws)
+			return
+		}
 		log.Printf("Failed to start PTY for tab %d: %v", id, err)
 		return
 	}
 
 	tab := &TabSession{
-		PTY: f,
+		ReadCloser:  f,
+		WriteCloser: f,
 	}
 
 	tabsMu.Lock()
@@ -160,7 +173,53 @@ func createTab(id byte, ws *websocket.Conn) {
 	go func() {
 		buf := make([]byte, 4096)
 		for {
-			n, err := f.Read(buf)
+			n, err := tab.ReadCloser.Read(buf)
+			if err != nil {
+				break
+			}
+			data := buf[:n]
+
+			tab.Mutex.Lock()
+			tab.Buffer = append(tab.Buffer, data...)
+			if len(tab.Buffer) > maxBufferSize {
+				tab.Buffer = tab.Buffer[len(tab.Buffer)-maxBufferSize:]
+			}
+			tab.Mutex.Unlock()
+
+			payload, err := encryptBinary(id, data)
+			if err == nil {
+				ws.WriteMessage(websocket.BinaryMessage, payload)
+			}
+		}
+	}()
+}
+
+func runWithPipes(id byte, c *exec.Cmd, ws *websocket.Conn) {
+	stdin, _ := c.StdinPipe()
+	stdout, _ := c.StdoutPipe()
+	stderr, _ := c.StderrPipe()
+
+	if err := c.Start(); err != nil {
+		log.Printf("Failed to start process with pipes: %v", err)
+		return
+	}
+
+	// Merge stdout and stderr
+	mergedReader := io.MultiReader(stdout, stderr)
+
+	tab := &TabSession{
+		ReadCloser:  io.NopCloser(mergedReader),
+		WriteCloser: stdin,
+	}
+
+	tabsMu.Lock()
+	tabs[id] = tab
+	tabsMu.Unlock()
+
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := tab.ReadCloser.Read(buf)
 			if err != nil {
 				break
 			}
