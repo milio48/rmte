@@ -2,6 +2,17 @@ let ws;
 let aesKey;
 let currentTab = 0;
 let terminals = {}; // tabID -> { term, container }
+let debugLogs = [];
+
+function logDebug(direction, type, payload) {
+    const entry = { time: new Date().toISOString(), direction, type, payload };
+    debugLogs.push(entry);
+    console.debug("[RMTE_DEBUG]", JSON.stringify(entry));
+}
+
+window.dumpDebug = () => {
+    console.log(JSON.stringify(debugLogs, null, 2));
+}
 
 async function connect() {
 	const server = document.getElementById('server').value;
@@ -26,17 +37,20 @@ async function connect() {
 	ws.binaryType = 'arraybuffer';
 
 	ws.onopen = () => {
-		ws.send(JSON.stringify({
+        const authMsg = {
 			type: "auth",
 			role: "viewer",
 			session_id: sessionId,
 			viewer_id: "v-web-" + Math.random().toString(16).slice(2, 10)
-		}));
+		};
+        logDebug("OUT", "auth", authMsg);
+		ws.send(JSON.stringify(authMsg));
 	};
 
 	ws.onmessage = async (event) => {
 		if (typeof event.data === 'string') {
 			const msg = JSON.parse(event.data);
+            logDebug("IN", "json", msg);
 			if (msg.type === 'auth_success') {
 				document.getElementById('setup').style.display = 'none';
 				document.getElementById('terminal-container').style.display = 'flex';
@@ -57,6 +71,8 @@ async function connect() {
 					aesKey,
 					ciphertext
 				);
+                const decodedStr = new TextDecoder().decode(decryptedBuffer);
+                logDebug("IN", "binary_text", { tabId, text: decodedStr });
 				if (!terminals[tabId]) initTerminal(tabId);
 				terminals[tabId].term.write(new Uint8Array(decryptedBuffer));
 			} catch (e) {
@@ -68,7 +84,9 @@ async function connect() {
 
 function requestNewTab() {
     if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "control", action: "request_new_tab" }));
+        const msg = { type: "control", action: "request_new_tab" };
+        logDebug("OUT", "json", msg);
+        ws.send(JSON.stringify(msg));
     }
 }
 
@@ -97,11 +115,9 @@ function initTerminal(tabId) {
 	addTabButton(tabId);
     
     if (tabId === currentTab) {
-        ws.send(JSON.stringify({
-            type: "control",
-            action: "req_sync",
-            tab_id: tabId
-        }));
+        const msg = { type: "control", action: "req_sync", tab_id: tabId };
+        logDebug("OUT", "json", msg);
+        ws.send(JSON.stringify(msg));
     }
 }
 
@@ -127,14 +143,13 @@ function switchTab(tabId) {
     });
     
     // Request sync
-    ws.send(JSON.stringify({
-        type: "control",
-        action: "req_sync",
-        tab_id: tabId
-    }));
+    const msg = { type: "control", action: "req_sync", tab_id: tabId };
+    logDebug("OUT", "json", msg);
+    ws.send(JSON.stringify(msg));
 }
 
 async function sendInput(tabId, data) {
+    logDebug("OUT", "binary_text_input", { tabId, text: data });
     const enc = new TextEncoder();
     const plaintext = enc.encode(data);
     const iv = crypto.getRandomValues(new Uint8Array(12));

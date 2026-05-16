@@ -121,7 +121,9 @@ func runHost(serverURL, password string) {
 					input = []byte(str)
 
 					// Manual echo for pipe mode since the shell won't do it
-					payload, _ := encryptBinary(tabID, plaintext)
+					echoStr := string(plaintext)
+					echoStr = strings.ReplaceAll(echoStr, "\r", "\r\n")
+					payload, _ := encryptBinary(tabID, []byte(echoStr))
 					conn.WriteMessage(websocket.BinaryMessage, payload)
 				}
 				tab.WriteCloser.Write(input)

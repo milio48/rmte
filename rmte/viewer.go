@@ -51,6 +51,8 @@ func runViewer(serverURL, sessionID, password string) {
 	var currentTab byte = 0
 	var tabs []byte = []byte{0}
 	var tabsMu sync.Mutex
+	var isJoined bool = false
+	var isJoinedMu sync.RWMutex
 
 	// Goroutine to handle incoming messages
 	go func() {
@@ -67,7 +69,11 @@ func runViewer(serverURL, sessionID, password string) {
 					continue
 				}
 
-				if tabID == currentTab {
+				isJoinedMu.RLock()
+				j := isJoined
+				isJoinedMu.RUnlock()
+
+				if tabID == currentTab && j {
 					os.Stdout.Write(plaintext)
 				}
 			} else if mt == websocket.TextMessage {
@@ -116,7 +122,15 @@ func runViewer(serverURL, sessionID, password string) {
 				"action": "req_sync",
 				"tab_id": currentTab,
 			})
+			isJoinedMu.Lock()
+			isJoined = true
+			isJoinedMu.Unlock()
+			
 			enterRawTerminal(conn, currentTab)
+			
+			isJoinedMu.Lock()
+			isJoined = false
+			isJoinedMu.Unlock()
 		case "n":
 			fmt.Println("Requesting new tab...")
 			conn.WriteJSON(map[string]interface{}{
