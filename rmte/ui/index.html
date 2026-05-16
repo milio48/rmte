@@ -22,12 +22,23 @@
         <div id="tabs-bar">
             <div id="tabs"></div>
             <button id="new-tab-btn" onclick="requestNewTab()" title="New Tab">+</button>
+            <button id="toggle-sidebar-btn" onclick="toggleSidebar()" title="Toggle Sidebar">👥</button>
+            <button id="disconnect-btn" onclick="disconnectSession()" title="Disconnect">🚪</button>
         </div>
         <div id="workspace">
             <div id="terminal-wrapper"></div>
             <div id="users-sidebar">
-                <h3>Collaborators</h3>
-                <div id="users-list"></div>
+                <div id="users-section">
+                    <h3>Collaborators</h3>
+                    <div id="users-list"></div>
+                </div>
+                <div id="chat-section">
+                    <h3>Chat Room</h3>
+                    <div id="chat-messages"></div>
+                    <div id="chat-input-container">
+                        <input type="text" id="chat-input" placeholder="Type a message..." onkeydown="handleChatKey(event)">
+                    </div>
+                </div>
             </div>
         </div>
     </div>

@@ -60,6 +60,14 @@ async function connect() {
 			if (msg.type === 'auth_success') {
 				document.getElementById('setup').style.display = 'none';
 				document.getElementById('terminal-container').style.display = 'flex';
+                
+                // Persist session for autoconnect upon reload
+                localStorage.setItem('rmte_autoconnect', 'true');
+                localStorage.setItem('rmte_server', server);
+                localStorage.setItem('rmte_sessionId', sessionId);
+                localStorage.setItem('rmte_password', password);
+                localStorage.setItem('rmte_username', myUsername);
+
                 // Request active tabs immediately
                 const getTabsMsg = { type: "control", action: "get_tabs" };
                 logDebug("OUT", "json", getTabsMsg);
@@ -155,6 +163,8 @@ async function connect() {
                         }
                     });
                 }
+            } else if (msg.type === 'control' && msg.action === 'chat') {
+                appendChatMessage(msg.sender, msg.message, msg.time);
             }
 		} else {
 			// Binary Frame
@@ -354,5 +364,97 @@ window.addEventListener('resize', () => {
             logDebug("OUT", "json", resizeMsg);
             ws.send(JSON.stringify(resizeMsg));
         }
+    }
+});
+
+function toggleSidebar() {
+    const wsEl = document.getElementById('workspace');
+    if (wsEl) {
+        wsEl.classList.toggle('sidebar-collapsed');
+    }
+}
+
+function disconnectSession() {
+    localStorage.setItem('rmte_autoconnect', 'false');
+    window.location.reload();
+}
+
+function handleChatKey(event) {
+    if (event.key === 'Enter') {
+        sendChatMessage();
+    }
+}
+
+function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+    
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        const msg = {
+            type: "control",
+            action: "chat",
+            sender: myUsername,
+            message: text,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        logDebug("OUT", "json", msg);
+        ws.send(JSON.stringify(msg));
+        input.value = '';
+    }
+}
+
+function appendChatMessage(sender, message, timeStr) {
+    const msgsDiv = document.getElementById('chat-messages');
+    if (msgsDiv) {
+        const msgEl = document.createElement('div');
+        msgEl.className = 'chat-msg';
+        
+        const header = document.createElement('div');
+        header.className = 'chat-msg-header';
+        
+        const senderSpan = document.createElement('span');
+        senderSpan.className = 'chat-msg-sender';
+        senderSpan.innerText = sender;
+        if (sender === myUsername) {
+            senderSpan.classList.add('self');
+        }
+        
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'chat-msg-time';
+        timeSpan.innerText = timeStr || '';
+        
+        header.appendChild(senderSpan);
+        header.appendChild(timeSpan);
+        
+        const body = document.createElement('div');
+        body.className = 'chat-msg-body';
+        body.innerText = message;
+        
+        msgEl.appendChild(header);
+        msgEl.appendChild(body);
+        msgsDiv.appendChild(msgEl);
+        msgsDiv.scrollTop = msgsDiv.scrollHeight;
+    }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    const autoconnect = localStorage.getItem('rmte_autoconnect');
+    if (localStorage.getItem('rmte_server')) {
+        document.getElementById('server').value = localStorage.getItem('rmte_server');
+    }
+    if (localStorage.getItem('rmte_sessionId')) {
+        document.getElementById('sessionId').value = localStorage.getItem('rmte_sessionId');
+    }
+    if (localStorage.getItem('rmte_password')) {
+        document.getElementById('password').value = localStorage.getItem('rmte_password');
+    }
+    if (localStorage.getItem('rmte_username')) {
+        document.getElementById('username').value = localStorage.getItem('rmte_username');
+    }
+    
+    if (autoconnect === 'true') {
+        connect();
     }
 });

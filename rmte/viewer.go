@@ -16,6 +16,17 @@ import (
 )
 
 func runViewer(serverURL, sessionID, password, displayName string) {
+	myDispName := displayName
+	if myDispName == "" {
+		fmt.Print("Enter your display name: ")
+		var name string
+		fmt.Scanln(&name)
+		myDispName = strings.TrimSpace(name)
+		if myDispName == "" {
+			myDispName = generateViewerID()
+		}
+	}
+
 	u, err := url.Parse(serverURL)
 	if err != nil {
 		log.Fatal(err)
@@ -33,11 +44,6 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 	}
 
 	viewerID := generateViewerID()
-	myDispName := displayName
-	if myDispName == "" {
-		myDispName = viewerID
-	}
-
 	auth := map[string]string{
 		"type":        "auth",
 		"role":        "viewer",
@@ -58,6 +64,8 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 	}
 
 	fmt.Printf("Connected as %s\n", authSuccess.ViewerID)
+
+	tabsSynced := make(chan bool, 1)
 
 	// Sync tabs
 	conn.WriteJSON(map[string]interface{}{
@@ -157,6 +165,10 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 							tabs = append(tabs, byte(t))
 						}
 						tabsMu.Unlock()
+						select {
+						case tabsSynced <- true:
+						default:
+						}
 					} else if ctrl.Action == "sync_data" {
 						payload, err := base64.StdEncoding.DecodeString(ctrl.Data)
 						if err == nil {
@@ -181,6 +193,12 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 			}
 		}
 	}()
+
+	// Wait up to 1 second for initial tabs list synchronization
+	select {
+	case <-tabsSynced:
+	case <-time.After(1 * time.Second):
+	}
 
 	// Main loop for TUI menu
 	for {

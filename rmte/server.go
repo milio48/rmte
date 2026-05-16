@@ -123,11 +123,22 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			s.Mutex.Lock()
 			delete(s.Viewers[viewerID], connID)
+			hasOtherConn := false
 			if len(s.Viewers[viewerID]) == 0 {
 				delete(s.Viewers, viewerID)
+			} else {
+				hasOtherConn = true
 			}
 			s.Mutex.Unlock()
 			fmt.Printf("Viewer %s disconnected from session %s\n", viewerID, sessionID)
+
+			if !hasOtherConn {
+				s.Host.WriteJSON(map[string]interface{}{
+					"type":      "control",
+					"action":    "viewer_disconnected",
+					"viewer_id": viewerID,
+				})
+			}
 		}()
 	}
 

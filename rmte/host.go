@@ -273,6 +273,26 @@ func runHost(serverURL, password string) {
 						"action": "presence",
 						"tabs":   tabsPresence,
 					})
+				case "viewer_disconnected":
+					viewerID, _ := ctrl["viewer_id"].(string)
+					presenceMutex.Lock()
+					delete(presenceMap, viewerID)
+					
+					tabsPresence := make(map[string][]string)
+					for _, p := range presenceMap {
+						tabKey := fmt.Sprintf("%d", p.TabID)
+						tabsPresence[tabKey] = append(tabsPresence[tabKey], p.ViewerName)
+					}
+					presenceMutex.Unlock()
+
+					conn.WriteJSON(map[string]interface{}{
+						"type":   "control",
+						"action": "presence",
+						"tabs":   tabsPresence,
+					})
+				case "chat":
+					// Broadcast to all viewers
+					conn.WriteMessage(websocket.TextMessage, data)
 				}
 			}
 		}
