@@ -1,0 +1,999 @@
+Terminal 1
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe serve --port=8080
+Relay Server started on :8080
+Host connected. Session: 0575f06c
+Viewer v-e29215aa connected to session 0575f06c
+Viewer v-web-322f06ba connected to session 0575f06c
+
+
+
+
+review terminal 1 :
+
+
+
+Terminal 2
+
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe share --server="ws://localhost:8080/ws" --pass="rahasia123"
+Session ID: 0575f06c
+Share this ID with viewers to join.
+2026/05/17 04:26:39 PTY not supported on Windows, falling back to Pipes for Tab 0
+2026/05/17 04:28:03 PTY not supported on Windows, falling back to Pipes for Tab 1
+2026/05/17 04:28:09 PTY not supported on Windows, falling back to Pipes for Tab 2
+
+
+
+review terminal 2 : apa maksud pty not supported?
+
+
+
+Terminal 3
+
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe join --server="ws://localhost:8080/ws" --id="0575f06c" --pass
+="rahasia123"
+Connected as v-e29215aa
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> j
+Joining Tab 0... (Press Ctrl+] to exit back to menu)
+Microsoft Windows [Version 10.0.26200.8457]
+(c) Microsoft Corporation. All rights reserved.
+
+D:\fz\project\rmte\rmte>ls
+ls
+crypto.go
+go.mod
+go.sum
+host.go
+identity.go
+main.go
+rmte.exe
+server.go
+ui
+viewer.go
+web.go
+
+D:\fz\project\rmte\rmte>Microsoft Windows [Version 10.0.26200.8457]
+(c) Microsoft Corporation. All rights reserved.
+
+D:\fz\project\rmte\rmte>ls
+crypto.go
+go.mod
+go.sum
+host.go
+identity.go
+main.go
+rmte.exe
+server.go
+ui
+viewer.go
+web.go
+
+D:\fz\project\rmte\rmte>whoami
+whoami
+milio48
+
+D:\fz\project\rmte\rmte>
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> n
+Requesting new tab...
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> n
+Requesting new tab...
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0 1]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> 1
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0 1 2]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> 2
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0 1 2]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> j
+Joining Tab 0... (Press Ctrl+] to exit back to menu)
+Microsoft Windows [Version 10.0.26200.8457]
+(c) Microsoft Corporation. All rights reserved.
+
+D:\fz\project\rmte\rmte>ls
+crypto.go
+go.mod
+go.sum
+host.go
+identity.go
+main.go
+rmte.exe
+server.go
+ui
+viewer.go
+web.go
+
+D:\fz\project\rmte\rmte>whoami
+milio48
+
+D:\fz\project\rmte\rmte>
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0 1 2]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> 2 j
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0 1 2]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+>
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0 1 2]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> j 2
+Joining Tab 0... (Press Ctrl+] to exit back to menu)
+Microsoft Windows [Version 10.0.26200.8457]
+(c) Microsoft Corporation. All rights reserved.
+
+D:\fz\project\rmte\rmte>ls
+crypto.go
+go.mod
+go.sum
+host.go
+identity.go
+main.go
+rmte.exe
+server.go
+ui
+viewer.go
+web.go
+
+D:\fz\project\rmte\rmte>whoami
+milio48
+
+D:\fz\project\rmte\rmte>
+
+
+'' is not recognized as an internal or external command,
+operable program or batch file.
+
+D:\fz\project\rmte\rmte>
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0 1 2]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> s
+Enter Tab ID: 2
+
+--- RMTE MENU ---
+Current Tab: 2
+Available Tabs: [0 1 2]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> j
+Joining Tab 2... (Press Ctrl+] to exit back to menu)
+Microsoft Windows [Version 10.0.26200.8457]
+(c) Microsoft Corporation. All rights reserved.
+
+D:\fz\project\rmte\rmte>ls
+crypto.go
+go.mod
+go.sum
+host.go
+identity.go
+main.go
+rmte.exe
+server.go
+ui
+viewer.go
+web.go
+
+D:\fz\project\rmte\rmte>l
+--- RMTE MENU ---
+Current Tab: 2
+Available Tabs: [0 1 2]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> j
+Joining Tab 2... (Press Ctrl+] to exit back to menu)
+Microsoft Windows [Version 10.0.26200.8457]
+(c) Microsoft Corporation. All rights reserved.
+
+D:\fz\project\rmte\rmte>ls
+crypto.go
+go.mod
+go.sum
+host.go
+identity.go
+main.go
+rmte.exe
+server.go
+ui
+viewer.go
+web.go
+
+D:\fz\project\rmte\rmte>lswdad//tidak bisa backspace?
+llswdad//tidak bisa backspace?
+'llswdad' is not recognized as an internal or external command,
+operable program or batch file.
+
+D:\fz\project\rmte\rmte>adad
+adad
+'adad' is not recognized as an internal or external command,
+operable program or batch file.
+
+D:\fz\project\rmte\rmte>
+--- RMTE MENU ---
+Current Tab: 2
+Available Tabs: [0 1 2]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> q
+
+Disconnected from server.
+
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$
+review terminal 3 : aneh ketika tambah tab. dan backspace tidak berfungsi.
+
+
+
+
+
+
+Via Web :
+[RMTE_DEBUG] {"time":"2026-05-16T21:27:16.387Z","direction":"OUT","type":"auth","payload":{"type":"auth","role":"viewer","session_id":"0575f06c","viewer_id":"v-web-322f06ba"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:16.391Z","direction":"IN","type":"json","payload":{"type":"auth_success"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:16.414Z","direction":"OUT","type":"json","payload":{"type":"control","action":"req_sync","tab_id":0}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:16.462Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"Microsoft Windows [Version 10.0.26200.8457]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\fz\\project\\rmte\\rmte>ls\ncrypto.go\ngo.mod\ngo.sum\nhost.go\nidentity.go\nmain.go\nrmte.exe\nserver.go\nui\nviewer.go\nweb.go\n\r\nD:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:44.345Z","direction":"OUT","type":"binary_text_input","payload":{"tabId":0,"text":"w"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:44.354Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"w"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:44.458Z","direction":"OUT","type":"binary_text_input","payload":{"tabId":0,"text":"h"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:44.468Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"h"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:44.560Z","direction":"OUT","type":"binary_text_input","payload":{"tabId":0,"text":"o"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:44.569Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"o"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:44.681Z","direction":"OUT","type":"binary_text_input","payload":{"tabId":0,"text":"a"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:44.685Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"a"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:44.800Z","direction":"OUT","type":"binary_text_input","payload":{"tabId":0,"text":"m"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:44.802Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"m"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:44.921Z","direction":"OUT","type":"binary_text_input","payload":{"tabId":0,"text":"i"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:44.935Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"i"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:46.543Z","direction":"OUT","type":"binary_text_input","payload":{"tabId":0,"text":"\r"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:46.554Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"\r\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:46.555Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"whoami\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:46.600Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"milio48\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:46.616Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"\r\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:46.617Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"D:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:27:58.075Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"\u0003"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:28:03.285Z","direction":"IN","type":"json","payload":{"action":"tab_created","tab_id":1,"type":"control"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:28:03.297Z","direction":"IN","type":"binary_text","payload":{"tabId":1,"text":"Microsoft Windows [Version 10.0.26200.8457]"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:28:03.311Z","direction":"IN","type":"binary_text","payload":{"tabId":1,"text":"\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:28:09.380Z","direction":"IN","type":"json","payload":{"action":"tab_created","tab_id":2,"type":"control"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:28:09.392Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"Microsoft Windows [Version 10.0.26200.8457]"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:28:09.405Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:47.593Z","direction":"OUT","type":"json","payload":{"type":"control","action":"req_sync","tab_id":1}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:47.616Z","direction":"IN","type":"binary_text","payload":{"tabId":1,"text":"Microsoft Windows [Version 10.0.26200.8457]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:49.611Z","direction":"OUT","type":"json","payload":{"type":"control","action":"req_sync","tab_id":2}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:49.621Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"Microsoft Windows [Version 10.0.26200.8457]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:52.780Z","direction":"OUT","type":"binary_text_input","payload":{"tabId":2,"text":"l"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:52.785Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"l"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:52.938Z","direction":"OUT","type":"binary_text_input","payload":{"tabId":2,"text":"s"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:52.951Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"s"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:53.628Z","direction":"OUT","type":"binary_text_input","payload":{"tabId":2,"text":"\r"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:53.635Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"\r\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:53.636Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"ls\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:53.672Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"crypto.go\ngo.mod\ngo.sum\nhost.go\nidentity.go\nmain.go\nrmte.exe\nserver.go\nui\nviewer.go\nweb.go\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:53.675Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"\r\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:29:53.675Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"D:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:30:03.546Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"Microsoft Windows [Version 10.0.26200.8457]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\fz\\project\\rmte\\rmte>ls\ncrypto.go\ngo.mod\ngo.sum\nhost.go\nidentity.go\nmain.go\nrmte.exe\nserver.go\nui\nviewer.go\nweb.go\n\r\nD:\\fz\\project\\rmte\\rmte>whoami\nmilio48\n\r\nD:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:30:18.297Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"Microsoft Windows [Version 10.0.26200.8457]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\fz\\project\\rmte\\rmte>ls\ncrypto.go\ngo.mod\ngo.sum\nhost.go\nidentity.go\nmain.go\nrmte.exe\nserver.go\nui\nviewer.go\nweb.go\n\r\nD:\\fz\\project\\rmte\\rmte>whoami\nmilio48\n\r\nD:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:30:18.303Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"\r\n\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:30:18.303Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"\u0003\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:30:18.304Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"'\u0003' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:30:18.305Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"\r\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:30:18.306Z","direction":"IN","type":"binary_text","payload":{"tabId":0,"text":"D:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:14.680Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"Microsoft Windows [Version 10.0.26200.8457]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\fz\\project\\rmte\\rmte>ls\ncrypto.go\ngo.mod\ngo.sum\nhost.go\nidentity.go\nmain.go\nrmte.exe\nserver.go\nui\nviewer.go\nweb.go\n\r\nD:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:15.119Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"l"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:16.836Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:18.381Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:20.920Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:21.751Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:30.920Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"Microsoft Windows [Version 10.0.26200.8457]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\fz\\project\\rmte\\rmte>ls\ncrypto.go\ngo.mod\ngo.sum\nhost.go\nidentity.go\nmain.go\nrmte.exe\nserver.go\nui\nviewer.go\nweb.go\n\r\nD:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:31.451Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"l"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:31.876Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"s"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:32.293Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:32.510Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:33.063Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:33.781Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:34.201Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"w"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:34.338Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"d"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:34.805Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:35.059Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:35.357Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:35.652Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"a"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:35.844Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"d"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:36.276Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:38.298Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"/"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:38.471Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"/"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:38.881Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"t"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:39.003Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"i"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:39.151Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"d"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:39.220Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"a"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:39.277Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"k"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:39.605Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":" "}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:39.920Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"b"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:40.026Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"i"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:40.081Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"s"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:40.139Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"a"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:40.268Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":" "}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:40.368Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"b"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:40.439Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"a"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:40.540Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"c"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:40.636Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"k"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:41.077Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"s"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:41.178Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"p"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:41.289Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"a"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:41.507Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"c"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:41.583Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"e"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:41.889Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"?"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:42.235Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"\r\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:42.236Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"llswdad//tidak bisa backspace?\n"}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 1, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 2, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 3, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 4, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 7, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 8, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 9, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 10, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 13, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 14, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 15, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 18, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:42.243Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"'llswdad' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 2, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 3, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 4, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 5, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 8, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 9, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 10, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 11, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 14, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 15, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 16, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 19, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:42.247Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"\r\nD:\\fz\\project\\rmte\\rmte>"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:44.489Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"a"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:44.616Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"d"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:44.711Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"a"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:44.803Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"d"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:44.981Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:45.280Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:45.541Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":""}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 0, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:47.683Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"\r\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:47.684Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"adad\n"}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 4, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 5, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 6, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:47.689Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"'adad' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n"}}
+LogService.ts:60 xterm.js: Parsing error:  {position: 5, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 6, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+LogService.ts:60 xterm.js: Parsing error:  {position: 7, code: 127, currentState: 0, collect: 0, params: s, …}
+_log @ LogService.ts:60
+error @ LogService.ts:83
+(anonymous) @ InputHandler.ts:374
+parse @ EscapeSequenceParser.ts:661
+parse @ InputHandler.ts:485
+(anonymous) @ CoreTerminal.ts:145
+_innerWrite @ WriteBuffer.ts:164
+(anonymous) @ WriteBuffer.ts:124
+setTimeout
+write @ WriteBuffer.ts:124
+write @ CoreTerminal.ts:155
+write @ Terminal.ts:217
+ws.onmessage @ xterm.js:77Understand this error
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:47.690Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"\r\n"}}
+xterm.js:10 [RMTE_DEBUG] {"time":"2026-05-16T21:31:47.691Z","direction":"IN","type":"binary_text","payload":{"tabId":2,"text":"D:\\fz\\project\\rmte\\rmte>"}}
+review web : ui di terminal jelek, tidak seperti terminal.
