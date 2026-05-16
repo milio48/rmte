@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"sync"
 	"io"
 
@@ -18,6 +19,7 @@ import (
 type TabSession struct {
 	ReadCloser  io.ReadCloser
 	WriteCloser io.WriteCloser
+	IsPipe      bool
 	Buffer      []byte
 	Mutex       sync.Mutex
 }
@@ -85,7 +87,19 @@ func runHost(serverURL, password string) {
 			tabsMu.RUnlock()
 
 			if ok {
-				tab.WriteCloser.Write(plaintext)
+				input := plaintext
+				if tab.IsPipe && runtime.GOOS == "windows" {
+					// Normalize line endings to avoid double newlines
+					str := string(plaintext)
+					str = strings.ReplaceAll(str, "\r\n", "\n")
+					str = strings.ReplaceAll(str, "\r", "\n")
+					input = []byte(str)
+
+					// Manual echo for pipe mode since the shell won't do it
+					payload, _ := encryptBinary(tabID, plaintext)
+					conn.WriteMessage(websocket.BinaryMessage, payload)
+				}
+				tab.WriteCloser.Write(input)
 			}
 		} else if mt == websocket.TextMessage {
 			var ctrl struct {
@@ -164,6 +178,7 @@ func createTab(id byte, ws *websocket.Conn) {
 	tab := &TabSession{
 		ReadCloser:  f,
 		WriteCloser: f,
+		IsPipe:      false,
 	}
 
 	tabsMu.Lock()
@@ -196,27 +211,30 @@ func createTab(id byte, ws *websocket.Conn) {
 
 func runWithPipes(id byte, c *exec.Cmd, ws *websocket.Conn) {
 	stdin, _ := c.StdinPipe()
-	stdout, _ := c.StdoutPipe()
-	stderr, _ := c.StderrPipe()
+	
+	// Create a pipe to merge stdout and stderr
+	pr, pw := io.Pipe()
+	c.Stdout = pw
+	c.Stderr = pw
 
 	if err := c.Start(); err != nil {
 		log.Printf("Failed to start process with pipes: %v", err)
 		return
 	}
 
-	// Merge stdout and stderr
-	mergedReader := io.MultiReader(stdout, stderr)
-
 	tab := &TabSession{
-		ReadCloser:  io.NopCloser(mergedReader),
+		ReadCloser:  pr,
 		WriteCloser: stdin,
+		IsPipe:      true,
 	}
 
 	tabsMu.Lock()
 	tabs[id] = tab
 	tabsMu.Unlock()
 
+	// Goroutine to read from merged output and stream to WS
 	go func() {
+		defer pw.Close()
 		buf := make([]byte, 4096)
 		for {
 			n, err := tab.ReadCloser.Read(buf)
@@ -237,5 +255,6 @@ func runWithPipes(id byte, c *exec.Cmd, ws *websocket.Conn) {
 				ws.WriteMessage(websocket.BinaryMessage, payload)
 			}
 		}
+		c.Wait()
 	}()
 }
