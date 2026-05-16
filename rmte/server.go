@@ -113,8 +113,12 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		s.Viewers[viewerID][connID] = conn
 		s.Mutex.Unlock()
 
-		conn.WriteJSON(map[string]string{"type": "auth_success"})
-		fmt.Printf("Viewer %s connected to session %s\n", viewerID, sessionID)
+		conn.WriteJSON(map[string]interface{}{
+			"type":      "auth_success",
+			"viewer_id": viewerID,
+			"conn_id":   connID,
+		})
+		fmt.Printf("Viewer %s connected to session %s (Conn: %s)\n", viewerID, sessionID, connID)
 
 		defer func() {
 			s.Mutex.Lock()
@@ -179,20 +183,36 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			}
 		} else if mt == websocket.TextMessage {
 			// Handle control messages
-			var ctrl struct {
-				Type   string `json:"type"`
-				Action string `json:"action"`
-			}
+			var ctrl map[string]interface{}
 			if err := json.Unmarshal(data, &ctrl); err == nil {
+				action, _ := ctrl["action"].(string)
+				
 				if role == "viewer" {
-					// Forward control to host
-					s.Host.WriteMessage(websocket.TextMessage, data)
+					if action == "req_sync" {
+						ctrl["target_conn"] = connID
+						newData, _ := json.Marshal(ctrl)
+						s.Host.WriteMessage(websocket.TextMessage, newData)
+					} else {
+						s.Host.WriteMessage(websocket.TextMessage, data)
+					}
 				} else {
-					// Forward control from host to all viewers (like tab_created)
+					targetConn, hasTarget := ctrl["target_conn"].(string)
+					
 					s.Mutex.RLock()
-					for _, conns := range s.Viewers {
-						for _, vConn := range conns {
-							vConn.WriteMessage(websocket.TextMessage, data)
+					if hasTarget {
+						// Route specific JSON message to target_conn
+						for _, conns := range s.Viewers {
+							if vConn, exists := conns[targetConn]; exists {
+								vConn.WriteMessage(websocket.TextMessage, data)
+								break
+							}
+						}
+					} else {
+						// Broadcast to all viewers
+						for _, conns := range s.Viewers {
+							for _, vConn := range conns {
+								vConn.WriteMessage(websocket.TextMessage, data)
+							}
 						}
 					}
 					s.Mutex.RUnlock()

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -146,15 +147,10 @@ func runHost(serverURL, password string) {
 				}
 			}
 		} else if mt == websocket.TextMessage {
-			var ctrl struct {
-				Type   string `json:"type"`
-				Action string `json:"action"`
-				TabID  byte   `json:"tab_id"`
-				Cols   uint16 `json:"cols"`
-				Rows   uint16 `json:"rows"`
-			}
+			var ctrl map[string]interface{}
 			if err := json.Unmarshal(data, &ctrl); err == nil {
-				switch ctrl.Action {
+				action, _ := ctrl["action"].(string)
+				switch action {
 				case "get_tabs":
 					tabsMu.RLock()
 					var activeTabs []int
@@ -179,18 +175,25 @@ func runHost(serverURL, password string) {
 						"tab_id": newID,
 					})
 				case "resize":
+					tabIDFloat, _ := ctrl["tab_id"].(float64)
+					tabID := byte(tabIDFloat)
+					colsFloat, _ := ctrl["cols"].(float64)
+					rowsFloat, _ := ctrl["rows"].(float64)
 					tabsMu.RLock()
-					tab, ok := tabs[ctrl.TabID]
+					tab, ok := tabs[tabID]
 					tabsMu.RUnlock()
 					if ok {
 						if f, isFile := tab.ReadCloser.(*os.File); isFile {
-							pty.Setsize(f, &pty.Winsize{Cols: ctrl.Cols, Rows: ctrl.Rows})
+							pty.Setsize(f, &pty.Winsize{Cols: uint16(colsFloat), Rows: uint16(rowsFloat)})
 						}
 					}
 				case "req_sync":
-					// Sync history to viewer
+					tabIDFloat, _ := ctrl["tab_id"].(float64)
+					tabID := byte(tabIDFloat)
+					targetConn, _ := ctrl["target_conn"].(string)
+
 					tabsMu.RLock()
-					tab, ok := tabs[ctrl.TabID]
+					tab, ok := tabs[tabID]
 					tabsMu.RUnlock()
 					if ok {
 						tab.Mutex.Lock()
@@ -198,13 +201,32 @@ func runHost(serverURL, password string) {
 						copy(history, tab.Buffer)
 						tab.Mutex.Unlock()
 						
-						// In a real multi-user scenario, we might want to send only to the requesting viewer.
-						// But for simplicity, we just broadcast or the server handles it.
-						// The server doesn't know who requested it in this simple model.
-						// We'll just send it back.
-						payload, _ := encryptBinary(ctrl.TabID, history)
-						conn.WriteMessage(websocket.BinaryMessage, payload)
+						payload, _ := encryptBinary(tabID, history)
+						encoded := base64.StdEncoding.EncodeToString(payload)
+						conn.WriteJSON(map[string]interface{}{
+							"type":        "control",
+							"action":      "sync_data",
+							"target_conn": targetConn,
+							"data":        encoded,
+						})
 					}
+				case "set_focus":
+					// Simple presence broadcast
+					viewerName, _ := ctrl["viewer_name"].(string)
+					if viewerName == "" {
+						viewerName, _ = ctrl["viewer_id"].(string)
+					}
+					tabIDFloat, _ := ctrl["tab_id"].(float64)
+					
+					// Just echo a dummy presence for now
+					presenceMap := map[string][]string{
+						fmt.Sprintf("%d", int(tabIDFloat)): {viewerName},
+					}
+					conn.WriteJSON(map[string]interface{}{
+						"type":   "control",
+						"action": "presence",
+						"tabs":   presenceMap,
+					})
 				}
 			}
 		}

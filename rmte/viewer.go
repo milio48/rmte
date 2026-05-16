@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -94,6 +95,7 @@ func runViewer(serverURL, sessionID, password string) {
 					Action string `json:"action"`
 					TabID  byte   `json:"tab_id"`
 					Tabs   []int  `json:"tabs"`
+					Data   string `json:"data"`
 				}
 				if err := json.Unmarshal(data, &ctrl); err == nil {
 					if ctrl.Action == "tab_created" {
@@ -116,6 +118,23 @@ func runViewer(serverURL, sessionID, password string) {
 							tabs = append(tabs, byte(t))
 						}
 						tabsMu.Unlock()
+					} else if ctrl.Action == "sync_data" {
+						payload, err := base64.StdEncoding.DecodeString(ctrl.Data)
+						if err == nil {
+							tabID, plaintext, err := decryptBinary(payload)
+							if err == nil {
+								isJoinedMu.RLock()
+								j := isJoined
+								isJoinedMu.RUnlock()
+
+								if tabID == currentTab && j {
+									str := string(plaintext)
+									str = strings.ReplaceAll(str, "\r\n", "\n")
+									str = strings.ReplaceAll(str, "\n", "\r\n")
+									os.Stdout.Write([]byte(str))
+								}
+							}
+						}
 					}
 				}
 			}

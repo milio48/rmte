@@ -72,29 +72,52 @@ async function connect() {
                         initTerminal(currentTab);
                     }
                 }
+            } else if (msg.type === 'control' && msg.action === 'sync_data') {
+                const binaryString = window.atob(msg.data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                await handleBinaryBytes(bytes);
+            } else if (msg.type === 'control' && msg.action === 'presence') {
+                Object.keys(msg.tabs).forEach(tabId => {
+                    const btn = document.getElementById(`tab-btn-${tabId}`);
+                    if (btn) {
+                        const users = msg.tabs[tabId];
+                        if (users && users.length > 0) {
+                            btn.innerText = `Tab ${tabId} (${users.join(', ')})`;
+                        } else {
+                            btn.innerText = `Tab ${tabId}`;
+                        }
+                    }
+                });
             }
 		} else {
 			// Binary Frame
 			const rawBytes = new Uint8Array(event.data);
-			const tabId = rawBytes[0];
-			const iv = rawBytes.slice(1, 13);
-			const ciphertext = rawBytes.slice(13);
-
-			try {
-				const decryptedBuffer = await crypto.subtle.decrypt(
-					{ name: "AES-GCM", iv: iv },
-					aesKey,
-					ciphertext
-				);
-                const decodedStr = new TextDecoder().decode(decryptedBuffer);
-                logDebug("IN", "binary_text", { tabId, text: decodedStr });
-				if (!terminals[tabId]) initTerminal(tabId);
-				terminals[tabId].term.write(new Uint8Array(decryptedBuffer));
-			} catch (e) {
-				console.error("Decryption failed", e);
-			}
+            await handleBinaryBytes(rawBytes);
 		}
 	};
+}
+
+async function handleBinaryBytes(rawBytes) {
+    const tabId = rawBytes[0];
+    const iv = rawBytes.slice(1, 13);
+    const ciphertext = rawBytes.slice(13);
+
+    try {
+        const decryptedBuffer = await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv: iv },
+            aesKey,
+            ciphertext
+        );
+        const decodedStr = new TextDecoder().decode(decryptedBuffer);
+        logDebug("IN", "binary_text", { tabId, text: decodedStr });
+        if (!terminals[tabId]) initTerminal(tabId);
+        terminals[tabId].term.write(new Uint8Array(decryptedBuffer));
+    } catch (e) {
+        console.error("Decryption failed", e);
+    }
 }
 
 function requestNewTab() {
@@ -131,6 +154,16 @@ function initTerminal(tabId) {
 	addTabButton(tabId);
     
     if (tabId === currentTab) {
+        const focusMsg = {
+            type: "control",
+            action: "set_focus",
+            viewer_id: "web-user",
+            viewer_name: "Guest-Web",
+            tab_id: tabId
+        };
+        logDebug("OUT", "json", focusMsg);
+        ws.send(JSON.stringify(focusMsg));
+
         const msg = { type: "control", action: "req_sync", tab_id: tabId };
         logDebug("OUT", "json", msg);
         ws.send(JSON.stringify(msg));
@@ -158,6 +191,17 @@ function switchTab(tabId) {
         terminals[id].container.style.display = (id == tabId) ? 'block' : 'none';
     });
     
+    // Send set_focus
+    const focusMsg = {
+        type: "control",
+        action: "set_focus",
+        viewer_id: "web-user",
+        viewer_name: "Guest-Web",
+        tab_id: tabId
+    };
+    logDebug("OUT", "json", focusMsg);
+    ws.send(JSON.stringify(focusMsg));
+
     // Request sync
     const msg = { type: "control", action: "req_sync", tab_id: tabId };
     logDebug("OUT", "json", msg);
