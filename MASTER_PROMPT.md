@@ -32,8 +32,8 @@
 > Kamu WAJIB memisahkan jenis pesan berdasarkan tipe *frame* WebSocket:
 > **A. TEXT FRAME (Manajemen Sesi - Plaintext JSON):**
 > Digunakan untuk kontrol. Format JSON mengikuti blueprint dengan tambahan fitur multi-tab:
-> * **Auth:** `{"type": "auth", "role": "viewer", "session_id": "...", ...}`
-> * **Control:** `{"type": "control", "action": "...", ...}` (Event: `presence`, `resize`, `req_sync`, `request_new_tab`, `tab_created`). Logika multi-tab: Viewer mengirim `request_new_tab`, Host membalas dengan `tab_created` (plus `tab_id`).
+> * **Auth:** `{"type": "auth", "role": "viewer", "session_id": "...", ...}` dan Server membalas dengan `{"type": "auth_success", "viewer_id": "...", "conn_id": "c-992"}`
+> * **Control:** `{"type": "control", "action": "...", ...}` (Event: `presence`, `set_focus`, `resize`, `req_sync` (dengan `target_conn`), `request_new_tab`, `tab_created`). Logika multi-tab: Viewer mengirim `request_new_tab`, Host membalas dengan `tab_created` (plus `tab_id`).
 > 
 > **B. BINARY FRAME (Aliran Terminal - Terenkripsi AES-GCM):**
 > Digunakan untuk ketikan *user* dan *output* PTY. Total *overhead* mutlak konstan sebesar 28 byte. Struktur *byte* WAJIB:

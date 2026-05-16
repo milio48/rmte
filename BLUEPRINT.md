@@ -25,7 +25,9 @@ Pengiriman dipisah menjadi dua jenis *frame* WebSocket untuk optimasi performa t
 Plaintext yang dibaca oleh Relay Server untuk mengurus rute dan antarmuka.
 
 * **Auth:** `{"type": "auth", "role": "viewer", "session_id": "fneoql", "viewer_id": "v-8a1f9c2d", "name": "Muflihun"}`
-* **Presence (Broadcast ke Viewer):** `{"type": "control", "action": "presence", "tabs": {"1": ["Muflihun"]}}`
+* **Auth Success (Server ke Viewer):** `{"type": "auth_success", "viewer_id": "v-8a1f9c2d", "conn_id": "c-992"}`
+* **Set Focus (Viewer ke Server -> Host):** `{"type": "control", "action": "set_focus", "viewer_id": "v-8a1f9c2d", "viewer_name": "Muflihun", "tab_id": 1}`
+* **Presence (Host ke Server -> Broadcast ke Viewer):** `{"type": "control", "action": "presence", "tabs": {"1": ["Muflihun"]}}`
 * **Resize:** `{"type": "control", "action": "resize", "tab_id": 1, "cols": 120, "rows": 40}`
 * **Request Sync (Sinkronisasi Layar):** `{"type": "control", "action": "req_sync", "tab_id": 1, "target_conn": "c-992"}`
 * **Request New Tab (Viewer ke Host):** `{"type": "control", "action": "request_new_tab"}`
