@@ -1,0 +1,228 @@
+Terminal 1
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe serve --port=8080
+Relay Server started on :8080
+Host connected. Session: 778246e0
+Viewer v-e29215aa connected to session 778246e0
+Viewer v-web-0108c6ba connected to session 778246e0
+
+
+Terminal 2
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe share --server="ws://localhost:8080/ws" --pass="rahasia123"
+Session ID: 778246e0
+Share this ID with viewers to join.
+2026/05/17 04:06:47 PTY not supported on Windows, falling back to Pipes for Tab 0
+2026/05/17 04:07:18 PTY not supported on Windows, falling back to Pipes for Tab 1
+
+
+Terminal 3
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe join --server="ws://localhost:8080/ws" --id="778246e0" --pass
+="rahasia123"
+Connected as v-e29215aa
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> j
+Joining Tab 0... (Press Ctrl+] to exit back to menu)
+Microsoft Windows [Version 10.0.26200.8457]
+(c) Microsoft Corporation. All rights reserved.
+
+ls\fz\project\rmte\rmte>ls
+crypto.go
+go.mod
+go.sum
+host.go
+identity.go
+main.go
+rmte.exe
+server.go
+ui
+viewer.go
+web.go
+
+whoamiproject\rmte\rmte>whoami
+milio48
+
+dirfz\project\rmte\rmte>dir
+ Volume in drive D is Data
+ Volume Serial Number is E6D6-CF85
+
+ Directory of D:\fz\project\rmte\rmte
+
+17/05/2026  04:05    <DIR>          .
+17/05/2026  04:06    <DIR>          ..
+17/05/2026  03:48             1.105 crypto.go
+17/05/2026  03:48               205 go.mod
+17/05/2026  03:48               646 go.sum
+17/05/2026  04:05             5.638 host.go
+17/05/2026  03:48             1.066 identity.go
+17/05/2026  03:49             1.257 main.go
+17/05/2026  04:05         9.710.592 rmte.exe
+17/05/2026  03:48             4.466 server.go
+17/05/2026  03:49    <DIR>          ui
+17/05/2026  03:49             3.660 viewer.go
+17/05/2026  03:49               246 web.go
+              10 File(s)      9.728.881 bytes
+               3 Dir(s)  17.725.587.456 bytes free
+
+D:\fz\project\rmte\rmte>
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> n
+Requesting new tab...
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> Microsoft Windows [Version 10.0.26200.8457]
+(c) Microsoft Corporation. All rights reserved.
+
+D:\fz\project\rmte\rmte>ls
+crypto.go
+go.mod
+go.sum
+host.go
+identity.go
+main.go
+rmte.exe
+server.go
+ui
+viewer.go
+web.go
+
+D:\fz\project\rmte\rmte>whoami
+milio48
+
+D:\fz\project\rmte\rmte>dir
+ Volume in drive D is Data
+ Volume Serial Number is E6D6-CF85
+
+ Directory of D:\fz\project\rmte\rmte
+
+17/05/2026  04:05    <DIR>          .
+17/05/2026  04:06    <DIR>          ..
+17/05/2026  03:48             1.105 crypto.go
+17/05/2026  03:48               205 go.mod
+17/05/2026  03:48               646 go.sum
+17/05/2026  04:05             5.638 host.go
+17/05/2026  03:48             1.066 identity.go
+17/05/2026  03:49             1.257 main.go
+17/05/2026  04:05         9.710.592 rmte.exe
+17/05/2026  03:48             4.466 server.go
+17/05/2026  03:49    <DIR>          ui
+17/05/2026  03:49             3.660 viewer.go
+17/05/2026  03:49               246 web.go
+              10 File(s)      9.728.881 bytes
+               3 Dir(s)  17.725.587.456 bytes free
+
+whoamiproject\rmte\rmte>whoami
+milio48
+
+D:\fz\project\rmte\rmte>Microsoft Windows [Version 10.0.26200.8457]
+(c) Microsoft Corporation. All rights reserved.
+
+D:\fz\project\rmte\rmte>ls
+crypto.go
+go.mod
+go.sum
+host.go
+identity.go
+main.go
+rmte.exe
+server.go
+ui
+viewer.go
+web.go
+
+D:\fz\project\rmte\rmte>whoami
+milio48
+
+D:\fz\project\rmte\rmte>dir
+ Volume in drive D is Data
+ Volume Serial Number is E6D6-CF85
+
+ Directory of D:\fz\project\rmte\rmte
+
+17/05/2026  04:05    <DIR>          .
+17/05/2026  04:06    <DIR>          ..
+17/05/2026  03:48             1.105 crypto.go
+17/05/2026  03:48               205 go.mod
+17/05/2026  03:48               646 go.sum
+17/05/2026  04:05             5.638 host.go
+17/05/2026  03:48             1.066 identity.go
+17/05/2026  03:49             1.257 main.go
+17/05/2026  04:05         9.710.592 rmte.exe
+17/05/2026  03:48             4.466 server.go
+17/05/2026  03:49    <DIR>          ui
+17/05/2026  03:49             3.660 viewer.go
+17/05/2026  03:49               246 web.go
+              10 File(s)      9.728.881 bytes
+               3 Dir(s)  17.725.587.456 bytes free
+
+D:\fz\project\rmte\rmte>whoami
+milio48
+
+D:\fz\project\rmte\rmte>Microsoft Windows [Version 10.0.26200.8457]
+(c) Microsoft Corporation. All rights reserved.
+
+D:\fz\project\rmte\rmte>ls
+crypto.go
+go.mod
+go.sum
+host.go
+identity.go
+main.go
+rmte.exe
+server.go
+ui
+viewer.go
+web.go
+
+D:\fz\project\rmte\rmte>whoami
+milio48
+
+D:\fz\project\rmte\rmte>dir
+ Volume in drive D is Data
+ Volume Serial Number is E6D6-CF85
+
+ Directory of D:\fz\project\rmte\rmte
+
+17/05/2026  04:05    <DIR>          .
+17/05/2026  04:06    <DIR>          ..
+17/05/2026  03:48             1.105 crypto.go
+17/05/2026  03:48               205 go.mod
+17/05/2026  03:48               646 go.sum
+17/05/2026  04:05             5.638 host.go
+17/05/2026  03:48             1.066 identity.go
+17/05/2026  03:49             1.257 main.go
+17/05/2026  04:05         9.710.592 rmte.exe
+17/05/2026  03:48             4.466 server.go
+17/05/2026  03:49    <DIR>          ui
+17/05/2026  03:49             3.660 viewer.go
+17/05/2026  03:49               246 web.go
+              10 File(s)      9.728.881 bytes
+               3 Dir(s)  17.725.587.456 bytes free
+
+D:\fz\project\rmte\rmte>whoami
+milio48
+
+echo "from webrmte\rmte>echo "from web
+"from web
+
+D:\fz\project\rmte\rmte>
+
+
+
+
+via web :
+sudah oke, dan realtime echo ke terminal 3.
+
+
+Problem : Masih tidak bisa manajemen tabs. dan ui web masih sangat kurang.
