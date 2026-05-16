@@ -66,6 +66,27 @@ async function connect() {
                 ws.send(JSON.stringify(getTabsMsg));
 			} else if (msg.type === 'control' && msg.action === 'tab_created') {
 				addTabButton(msg.tab_id);
+			} else if (msg.type === 'control' && msg.action === 'tab_deleted') {
+				const container = document.getElementById(`tab-container-${msg.tab_id}`);
+				if (container) {
+					container.remove();
+				}
+				
+				if (terminals[msg.tab_id]) {
+					terminals[msg.tab_id].term.dispose();
+					const wrapper = document.getElementById(`term-container-${msg.tab_id}`);
+					if (wrapper) wrapper.remove();
+					delete terminals[msg.tab_id];
+				}
+				
+				if (currentTab === msg.tab_id) {
+					const remainingTabIds = Object.keys(terminals);
+					if (remainingTabIds.length > 0) {
+						switchTab(parseInt(remainingTabIds[0]));
+					} else {
+						currentTab = 0;
+					}
+				}
 			} else if (msg.type === 'control' && msg.action === 'tabs_list') {
                 msg.tabs.forEach(tabId => {
                     addTabButton(tabId);
@@ -182,20 +203,47 @@ function initTerminal(tabId) {
 
 function addTabButton(tabId) {
     const tabsDiv = document.getElementById('tabs');
-    if (document.getElementById(`tab-btn-${tabId}`)) return;
+    if (document.getElementById(`tab-container-${tabId}`)) return;
+    
+    const btnContainer = document.createElement('div');
+    btnContainer.id = `tab-container-${tabId}`;
+    btnContainer.className = 'tab-btn-container' + (tabId === currentTab ? ' active' : '');
     
     const btn = document.createElement('button');
     btn.id = `tab-btn-${tabId}`;
-    btn.className = 'tab-btn' + (tabId === currentTab ? ' active' : '');
+    btn.className = 'tab-btn-text';
     btn.innerText = `Tab ${tabId}`;
     btn.onclick = () => switchTab(tabId);
-    tabsDiv.appendChild(btn);
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'tab-close-btn';
+    closeBtn.innerText = '×';
+    closeBtn.title = "Delete Tab";
+    closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (confirm(`Are you sure you want to delete Tab ${tabId}?`)) {
+            deleteTab(tabId);
+        }
+    };
+    
+    btnContainer.appendChild(btn);
+    btnContainer.appendChild(closeBtn);
+    tabsDiv.appendChild(btnContainer);
+}
+
+function deleteTab(tabId) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        const msg = { type: "control", action: "delete_tab", tab_id: tabId };
+        logDebug("OUT", "json", msg);
+        ws.send(JSON.stringify(msg));
+    }
 }
 
 function switchTab(tabId) {
     currentTab = tabId;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(`tab-btn-${tabId}`).classList.add('active');
+    document.querySelectorAll('.tab-btn-container').forEach(b => b.classList.remove('active'));
+    const activeContainer = document.getElementById(`tab-container-${tabId}`);
+    if (activeContainer) activeContainer.classList.add('active');
     
     Object.keys(terminals).forEach(id => {
         terminals[id].container.style.display = (id == tabId) ? 'block' : 'none';

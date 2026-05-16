@@ -42,6 +42,7 @@ func (c *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time
 }
 
 type TabSession struct {
+	Cmd         *exec.Cmd
 	ReadCloser  io.ReadCloser
 	WriteCloser io.WriteCloser
 	IsPipe      bool
@@ -52,9 +53,17 @@ type TabSession struct {
 	LineBuffer []byte
 }
 
+type ViewersPresence struct {
+	ViewerName string
+	TabID      byte
+}
+
 var (
 	tabs   = make(map[byte]*TabSession)
 	tabsMu sync.RWMutex
+
+	presenceMap   = make(map[string]ViewersPresence)
+	presenceMutex sync.Mutex
 )
 
 const maxBufferSize = 100 * 1024
@@ -210,22 +219,59 @@ func runHost(serverURL, password string) {
 							"data":        encoded,
 						})
 					}
+				case "delete_tab":
+					tabIDFloat, _ := ctrl["tab_id"].(float64)
+					tabID := byte(tabIDFloat)
+					
+					tabsMu.Lock()
+					tab, ok := tabs[tabID]
+					if ok {
+						if tab.Cmd != nil && tab.Cmd.Process != nil {
+							tab.Cmd.Process.Kill()
+						}
+						if tab.ReadCloser != nil {
+							tab.ReadCloser.Close()
+						}
+						if tab.WriteCloser != nil {
+							tab.WriteCloser.Close()
+						}
+						delete(tabs, tabID)
+					}
+					tabsMu.Unlock()
+
+					// Broadcast tab_deleted to all viewers
+					conn.WriteJSON(map[string]interface{}{
+						"type":   "control",
+						"action": "tab_deleted",
+						"tab_id": tabID,
+					})
 				case "set_focus":
-					// Simple presence broadcast
+					viewerID, _ := ctrl["viewer_id"].(string)
 					viewerName, _ := ctrl["viewer_name"].(string)
 					if viewerName == "" {
-						viewerName, _ = ctrl["viewer_id"].(string)
+						viewerName = viewerID
 					}
 					tabIDFloat, _ := ctrl["tab_id"].(float64)
+					tabID := byte(tabIDFloat)
 					
-					// Just echo a dummy presence for now
-					presenceMap := map[string][]string{
-						fmt.Sprintf("%d", int(tabIDFloat)): {viewerName},
+					presenceMutex.Lock()
+					presenceMap[viewerID] = ViewersPresence{
+						ViewerName: viewerName,
+						TabID:      tabID,
 					}
+					
+					// Build tab -> users map
+					tabsPresence := make(map[string][]string)
+					for _, p := range presenceMap {
+						tabKey := fmt.Sprintf("%d", p.TabID)
+						tabsPresence[tabKey] = append(tabsPresence[tabKey], p.ViewerName)
+					}
+					presenceMutex.Unlock()
+
 					conn.WriteJSON(map[string]interface{}{
 						"type":   "control",
 						"action": "presence",
-						"tabs":   presenceMap,
+						"tabs":   tabsPresence,
 					})
 				}
 			}
@@ -259,6 +305,7 @@ func createTab(id byte, ws *SafeConn) {
 	}
 
 	tab := &TabSession{
+		Cmd:         c,
 		ReadCloser:  f,
 		WriteCloser: f,
 		IsPipe:      false,
@@ -306,6 +353,7 @@ func runWithPipes(id byte, c *exec.Cmd, ws *SafeConn) {
 	}
 
 	tab := &TabSession{
+		Cmd:         c,
 		ReadCloser:  pr,
 		WriteCloser: stdin,
 		IsPipe:      true,

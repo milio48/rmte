@@ -9,12 +9,13 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"golang.org/x/term"
 )
 
-func runViewer(serverURL, sessionID, password string) {
+func runViewer(serverURL, sessionID, password, displayName string) {
 	u, err := url.Parse(serverURL)
 	if err != nil {
 		log.Fatal(err)
@@ -32,11 +33,17 @@ func runViewer(serverURL, sessionID, password string) {
 	}
 
 	viewerID := generateViewerID()
+	myDispName := displayName
+	if myDispName == "" {
+		myDispName = viewerID
+	}
+
 	auth := map[string]string{
-		"type":       "auth",
-		"role":       "viewer",
-		"session_id": sessionID,
-		"viewer_id":  viewerID,
+		"type":        "auth",
+		"role":        "viewer",
+		"session_id":  sessionID,
+		"viewer_id":   viewerID,
+		"viewer_name": myDispName,
 	}
 	conn.WriteJSON(auth)
 
@@ -76,6 +83,7 @@ func runViewer(serverURL, sessionID, password string) {
 			if mt == websocket.BinaryMessage {
 				tabID, plaintext, err := decryptBinary(data)
 				if err != nil {
+					fmt.Fprintln(os.Stderr, "\n[E2EE Error: Decryption failed. Please check if --pass matches the host's password exactly!]")
 					continue
 				}
 
@@ -117,6 +125,31 @@ func runViewer(serverURL, sessionID, password string) {
 							}
 						}
 						tabsMu.Unlock()
+					} else if ctrl.Action == "tab_deleted" {
+						tabsMu.Lock()
+						newTabs := []byte{}
+						for _, t := range tabs {
+							if t != ctrl.TabID {
+								newTabs = append(newTabs, t)
+							}
+						}
+						tabs = newTabs
+						
+						if currentTab == ctrl.TabID {
+							if len(tabs) > 0 {
+								currentTab = tabs[0]
+							} else {
+								currentTab = 0
+							}
+						}
+						
+						isJoinedMu.RLock()
+						joined := isJoined
+						isJoinedMu.RUnlock()
+						if !joined {
+							fmt.Printf("\n[System: Tab %d Deleted! Press Enter to refresh.]\n> ", ctrl.TabID)
+						}
+						tabsMu.Unlock()
 					} else if ctrl.Action == "tabs_list" {
 						tabsMu.Lock()
 						tabs = []byte{}
@@ -128,7 +161,9 @@ func runViewer(serverURL, sessionID, password string) {
 						payload, err := base64.StdEncoding.DecodeString(ctrl.Data)
 						if err == nil {
 							tabID, plaintext, err := decryptBinary(payload)
-							if err == nil {
+							if err != nil {
+								fmt.Fprintln(os.Stderr, "\n[E2EE Error: Sync data decryption failed. Please check if --pass matches the host's password exactly!]")
+							} else {
 								isJoinedMu.RLock()
 								j := isJoined
 								isJoinedMu.RUnlock()
@@ -151,8 +186,10 @@ func runViewer(serverURL, sessionID, password string) {
 	for {
 		fmt.Println("\n--- RMTE MENU ---")
 		fmt.Printf("Current Tab: %d\n", currentTab)
+		tabsMu.Lock()
 		fmt.Println("Available Tabs:", tabs)
-		fmt.Println("Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit")
+		tabsMu.Unlock()
+		fmt.Println("Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [d] Delete Tab, [q] Quit")
 		fmt.Print("> ")
 
 		var cmd string
@@ -161,6 +198,14 @@ func runViewer(serverURL, sessionID, password string) {
 		switch cmd {
 		case "j":
 			fmt.Printf("Joining Tab %d... (Press Ctrl+] to exit back to menu)\n", currentTab)
+			// Send presence set_focus first
+			conn.WriteJSON(map[string]interface{}{
+				"type":        "control",
+				"action":      "set_focus",
+				"viewer_id":   viewerID,
+				"viewer_name": myDispName,
+				"tab_id":      currentTab,
+			})
 			// Request sync for current tab
 			conn.WriteJSON(map[string]interface{}{
 				"type":   "control",
@@ -182,11 +227,30 @@ func runViewer(serverURL, sessionID, password string) {
 				"type":   "control",
 				"action": "request_new_tab",
 			})
+			// Let background thread receive tab_created and populate available tabs list
+			time.Sleep(200 * time.Millisecond)
 		case "s":
 			fmt.Print("Enter Tab ID: ")
 			var id int
 			fmt.Scanln(&id)
 			currentTab = byte(id)
+			// Update presence set_focus for new tab
+			conn.WriteJSON(map[string]interface{}{
+				"type":        "control",
+				"action":      "set_focus",
+				"viewer_id":   viewerID,
+				"viewer_name": myDispName,
+				"tab_id":      currentTab,
+			})
+		case "d":
+			fmt.Print("Enter Tab ID to Delete: ")
+			var id int
+			fmt.Scanln(&id)
+			conn.WriteJSON(map[string]interface{}{
+				"type":   "control",
+				"action": "delete_tab",
+				"tab_id": id,
+			})
 		case "q":
 			return
 		}

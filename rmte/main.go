@@ -33,12 +33,13 @@ func main() {
 		server := flag.String("server", "ws://localhost:8080/ws", "Relay server URL")
 		sessionID := flag.String("id", "", "Session ID to join")
 		pass := flag.String("pass", "", "Password for E2EE")
+		name := flag.String("name", "", "Display name of the viewer")
 		flag.Parse()
 		if *sessionID == "" || *pass == "" {
 			fmt.Println("Error: --id and --pass are required")
 			return
 		}
-		runViewer(*server, *sessionID, *pass)
+		runViewer(*server, *sessionID, *pass, *name)
 	default:
 		printUsage()
 	}
@@ -49,5 +50,5 @@ func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  rmte serve --port=8080")
 	fmt.Println("  rmte share --server=\"ws://...\" --pass=\"secret\"")
-	fmt.Println("  rmte join --server=\"ws://...\" --id=\"...\" --pass=\"secret\"")
+	fmt.Println("  rmte join --server=\"ws://...\" --id=\"...\" --pass=\"secret\" [--name=\"name\"]")
 }
