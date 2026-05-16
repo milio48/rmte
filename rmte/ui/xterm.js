@@ -54,10 +54,25 @@ async function connect() {
 			if (msg.type === 'auth_success') {
 				document.getElementById('setup').style.display = 'none';
 				document.getElementById('terminal-container').style.display = 'flex';
-				initTerminal(0);
+                // Request active tabs immediately
+                const getTabsMsg = { type: "control", action: "get_tabs" };
+                logDebug("OUT", "json", getTabsMsg);
+                ws.send(JSON.stringify(getTabsMsg));
 			} else if (msg.type === 'control' && msg.action === 'tab_created') {
 				addTabButton(msg.tab_id);
-			}
+			} else if (msg.type === 'control' && msg.action === 'tabs_list') {
+                msg.tabs.forEach(tabId => {
+                    addTabButton(tabId);
+                });
+                if (msg.tabs.length > 0 && !terminals[currentTab]) {
+                    if (msg.tabs.includes(0)) {
+                        initTerminal(0);
+                    } else {
+                        currentTab = msg.tabs[0];
+                        initTerminal(currentTab);
+                    }
+                }
+            }
 		} else {
 			// Binary Frame
 			const rawBytes = new Uint8Array(event.data);
@@ -102,7 +117,8 @@ function initTerminal(tabId) {
 
 	const t = new Terminal({
 		cursorBlink: true,
-		theme: { background: 'transparent', foreground: '#cccccc' },
+		convertEol: true,
+		theme: { background: '#000', foreground: '#cccccc' },
         fontFamily: "'Consolas', 'Courier New', monospace",
         fontSize: 14
 	});

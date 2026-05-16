@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 	"io"
@@ -154,6 +155,21 @@ func runHost(serverURL, password string) {
 			}
 			if err := json.Unmarshal(data, &ctrl); err == nil {
 				switch ctrl.Action {
+				case "get_tabs":
+					tabsMu.RLock()
+					var activeTabs []int
+					for id := range tabs {
+						activeTabs = append(activeTabs, int(id))
+					}
+					tabsMu.RUnlock()
+					
+					sort.Ints(activeTabs)
+					
+					conn.WriteJSON(map[string]interface{}{
+						"type":   "control",
+						"action": "tabs_list",
+						"tabs":   activeTabs,
+					})
 				case "request_new_tab":
 					newID := byte(len(tabs))
 					createTab(newID, conn)

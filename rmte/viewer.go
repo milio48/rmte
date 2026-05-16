@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -38,15 +39,23 @@ func runViewer(serverURL, sessionID, password string) {
 	}
 	conn.WriteJSON(auth)
 
-	var authResp struct {
-		Type    string `json:"type"`
-		Message string `json:"message"`
+	// Wait for auth success
+	var authSuccess struct {
+		Type     string `json:"type"`
+		ViewerID string `json:"viewer_id"`
+		Message  string `json:"message"`
 	}
-	if err := conn.ReadJSON(&authResp); err != nil || authResp.Type == "error" {
-		log.Fatal("Auth failed:", authResp.Message)
+	if err := conn.ReadJSON(&authSuccess); err != nil || authSuccess.Type != "auth_success" {
+		log.Fatal("Auth failed:", authSuccess.Message)
 	}
 
-	fmt.Printf("Connected as %s\n", viewerID)
+	fmt.Printf("Connected as %s\n", authSuccess.ViewerID)
+
+	// Sync tabs
+	conn.WriteJSON(map[string]interface{}{
+		"type":   "control",
+		"action": "get_tabs",
+	})
 
 	var currentTab byte = 0
 	var tabs []byte = []byte{0}
@@ -74,13 +83,17 @@ func runViewer(serverURL, sessionID, password string) {
 				isJoinedMu.RUnlock()
 
 				if tabID == currentTab && j {
-					os.Stdout.Write(plaintext)
+					str := string(plaintext)
+					str = strings.ReplaceAll(str, "\r\n", "\n")
+					str = strings.ReplaceAll(str, "\n", "\r\n")
+					os.Stdout.Write([]byte(str))
 				}
 			} else if mt == websocket.TextMessage {
 				var ctrl struct {
 					Type   string `json:"type"`
 					Action string `json:"action"`
 					TabID  byte   `json:"tab_id"`
+					Tabs   []int  `json:"tabs"`
 				}
 				if err := json.Unmarshal(data, &ctrl); err == nil {
 					if ctrl.Action == "tab_created" {
@@ -94,6 +107,13 @@ func runViewer(serverURL, sessionID, password string) {
 						}
 						if !exists {
 							tabs = append(tabs, ctrl.TabID)
+						}
+						tabsMu.Unlock()
+					} else if ctrl.Action == "tabs_list" {
+						tabsMu.Lock()
+						tabs = []byte{}
+						for _, t := range ctrl.Tabs {
+							tabs = append(tabs, byte(t))
 						}
 						tabsMu.Unlock()
 					}
