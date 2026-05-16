@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css" />
     <link rel="stylesheet" href="xterm.css" />
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
 </head>
 <body>
     <div id="setup">
@@ -14,6 +15,7 @@
         <input type="text" id="server" placeholder="ws://localhost:8080/ws" value="ws://localhost:8080/ws">
         <input type="text" id="sessionId" placeholder="Session ID">
         <input type="password" id="password" placeholder="Password">
+        <input type="text" id="username" placeholder="Your Name">
         <button onclick="connect()">Connect</button>
     </div>
     <div id="terminal-container" style="display:none;">

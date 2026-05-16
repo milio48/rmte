@@ -1,7 +1,9 @@
 let ws;
 let aesKey;
 let currentTab = 0;
-let terminals = {}; // tabID -> { term, container }
+let terminals = {}; // tabID -> { term, container, fitAddon }
+let myUsername = "";
+const myViewerId = "v-web-" + Math.random().toString(16).slice(2, 10);
 let debugLogs = [];
 
 function logDebug(direction, type, payload) {
@@ -18,8 +20,11 @@ async function connect() {
 	const server = document.getElementById('server').value;
 	const sessionId = document.getElementById('sessionId').value;
 	const password = document.getElementById('password').value;
+	const usernameInput = document.getElementById('username').value.trim();
 
 	if (!sessionId || !password) return alert("Session ID and Password required");
+
+	myUsername = usernameInput || ("Web-" + Math.random().toString(36).slice(2, 6).toUpperCase());
 
 	// Derive Key using SHA-256 to match Go's sha256.Sum256
 	const enc = new TextEncoder();
@@ -41,7 +46,8 @@ async function connect() {
 			type: "auth",
 			role: "viewer",
 			session_id: sessionId,
-			viewer_id: "v-web-" + Math.random().toString(16).slice(2, 10)
+			viewer_id: myViewerId,
+			viewer_name: myUsername
 		};
         logDebug("OUT", "auth", authMsg);
 		ws.send(JSON.stringify(authMsg));
@@ -146,9 +152,13 @@ function initTerminal(tabId) {
         fontSize: 14
 	});
 	
-	terminals[tabId] = { term: t, container: termContainer };
+	const fitAddon = new FitAddon.FitAddon();
+	t.loadAddon(fitAddon);
+	
+	terminals[tabId] = { term: t, container: termContainer, fitAddon: fitAddon };
 	
     t.open(termContainer);
+	fitAddon.fit();
     t.onData(data => sendInput(tabId, data));
 
 	addTabButton(tabId);
@@ -157,8 +167,8 @@ function initTerminal(tabId) {
         const focusMsg = {
             type: "control",
             action: "set_focus",
-            viewer_id: "web-user",
-            viewer_name: "Guest-Web",
+            viewer_id: myViewerId,
+            viewer_name: myUsername,
             tab_id: tabId
         };
         logDebug("OUT", "json", focusMsg);
@@ -191,12 +201,16 @@ function switchTab(tabId) {
         terminals[id].container.style.display = (id == tabId) ? 'block' : 'none';
     });
     
+    if (terminals[tabId] && terminals[tabId].fitAddon) {
+        terminals[tabId].fitAddon.fit();
+    }
+
     // Send set_focus
     const focusMsg = {
         type: "control",
         action: "set_focus",
-        viewer_id: "web-user",
-        viewer_name: "Guest-Web",
+        viewer_id: myViewerId,
+        viewer_name: myUsername,
         tab_id: tabId
     };
     logDebug("OUT", "json", focusMsg);
@@ -226,3 +240,23 @@ async function sendInput(tabId, data) {
 
     ws.send(payload);
 }
+
+window.addEventListener('resize', () => {
+    if (terminals[currentTab]) {
+        const active = terminals[currentTab];
+        if (active.fitAddon) {
+            active.fitAddon.fit();
+        }
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            const resizeMsg = {
+                type: "control",
+                action: "resize",
+                tab_id: currentTab,
+                cols: active.term.cols,
+                rows: active.term.rows
+            };
+            logDebug("OUT", "json", resizeMsg);
+            ws.send(JSON.stringify(resizeMsg));
+        }
+    }
+});
