@@ -107,17 +107,54 @@ async function connect() {
                 }
                 await handleBinaryBytes(bytes);
             } else if (msg.type === 'control' && msg.action === 'presence') {
+                // Clear all tab subtexts
+                document.querySelectorAll('.tab-subtext').forEach(el => {
+                    el.innerText = '';
+                });
+
+                // Update subtexts for tabs with users
                 Object.keys(msg.tabs).forEach(tabId => {
-                    const btn = document.getElementById(`tab-btn-${tabId}`);
-                    if (btn) {
+                    const sub = document.getElementById(`tab-subtext-${tabId}`);
+                    if (sub) {
                         const users = msg.tabs[tabId];
                         if (users && users.length > 0) {
-                            btn.innerText = `Tab ${tabId} (${users.join(', ')})`;
-                        } else {
-                            btn.innerText = `Tab ${tabId}`;
+                            sub.innerText = users.join(', ');
                         }
                     }
                 });
+
+                // Update Sidebar
+                const usersListDiv = document.getElementById('users-list');
+                if (usersListDiv) {
+                    usersListDiv.innerHTML = '';
+                    
+                    // Collect all active users across tabs
+                    Object.keys(msg.tabs).forEach(tabId => {
+                        const users = msg.tabs[tabId];
+                        if (users && users.length > 0) {
+                            users.forEach(username => {
+                                const item = document.createElement('div');
+                                item.className = 'user-item';
+                                
+                                const dot = document.createElement('span');
+                                dot.className = 'dot';
+                                
+                                const nameSpan = document.createElement('span');
+                                nameSpan.className = 'user-name';
+                                nameSpan.innerText = username;
+                                
+                                const badge = document.createElement('span');
+                                badge.className = 'user-tab-badge';
+                                badge.innerText = `Tab ${tabId}`;
+                                
+                                item.appendChild(dot);
+                                item.appendChild(nameSpan);
+                                item.appendChild(badge);
+                                usersListDiv.appendChild(item);
+                            });
+                        }
+                    });
+                }
             }
 		} else {
 			// Binary Frame
@@ -209,11 +246,22 @@ function addTabButton(tabId) {
     btnContainer.id = `tab-container-${tabId}`;
     btnContainer.className = 'tab-btn-container' + (tabId === currentTab ? ' active' : '');
     
-    const btn = document.createElement('button');
-    btn.id = `tab-btn-${tabId}`;
-    btn.className = 'tab-btn-text';
-    btn.innerText = `Tab ${tabId}`;
-    btn.onclick = () => switchTab(tabId);
+    const btnContent = document.createElement('div');
+    btnContent.className = 'tab-btn-content';
+    btnContent.onclick = () => switchTab(tabId);
+    
+    const titleText = document.createElement('span');
+    titleText.id = `tab-title-${tabId}`;
+    titleText.className = 'tab-title-text';
+    titleText.innerText = `Tab ${tabId}`;
+    
+    const subtext = document.createElement('span');
+    subtext.id = `tab-subtext-${tabId}`;
+    subtext.className = 'tab-subtext';
+    subtext.innerText = '';
+    
+    btnContent.appendChild(titleText);
+    btnContent.appendChild(subtext);
     
     const closeBtn = document.createElement('button');
     closeBtn.className = 'tab-close-btn';
@@ -226,7 +274,7 @@ function addTabButton(tabId) {
         }
     };
     
-    btnContainer.appendChild(btn);
+    btnContainer.appendChild(btnContent);
     btnContainer.appendChild(closeBtn);
     tabsDiv.appendChild(btnContainer);
 }

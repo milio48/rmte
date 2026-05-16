@@ -106,12 +106,12 @@ button:hover {
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-bottom: none;
     border-radius: 8px 8px 0 0;
-    padding: 4px 10px 4px 16px;
+    padding: 6px 12px 6px 16px;
     color: #94a3b8;
     cursor: pointer;
     transition: all 0.2s;
     margin: 0;
-    gap: 8px;
+    gap: 12px;
 }
 
 .tab-btn-container:hover {
@@ -125,22 +125,36 @@ button:hover {
     border-color: rgba(56, 189, 248, 0.3);
 }
 
-.tab-btn-text {
-    background: transparent;
-    border: none;
-    color: inherit;
-    padding: 0;
-    margin: 0;
+.tab-btn-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
     cursor: pointer;
-    font-family: inherit;
-    font-size: 14px;
-    font-weight: 600;
+    flex-grow: 1;
 }
 
-.tab-btn-text:hover {
-    color: #fff;
-    transform: none;
-    box-shadow: none;
+.tab-title-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: inherit;
+    line-height: 1.2;
+}
+
+.tab-subtext {
+    font-size: 10px;
+    color: #64748b;
+    font-weight: 400;
+    line-height: 1;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tab-btn-container.active .tab-subtext {
+    color: #38bdf8;
+    opacity: 0.8;
 }
 
 .tab-close-btn {
@@ -194,4 +208,89 @@ button:hover {
 
 .xterm {
     padding: 10px;
+}
+
+#workspace {
+    display: flex;
+    flex-direction: row;
+    flex-grow: 1;
+    overflow: hidden;
+    width: 100%;
+    height: calc(100% - 48px);
+}
+
+#users-sidebar {
+    width: 220px;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(10px);
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 20px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+#users-sidebar h3 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #38bdf8;
+    border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+    padding-bottom: 8px;
+}
+
+#users-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.user-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.user-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.user-item .dot {
+    width: 8px;
+    height: 8px;
+    background-color: #10b981;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #10b981;
+    flex-shrink: 0;
+}
+
+.user-item .user-name {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-grow: 1;
+}
+
+.user-item .user-tab-badge {
+    font-size: 10px;
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    flex-shrink: 0;
 }
