@@ -1,0 +1,114 @@
+Terminal 1
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe serve --port=8080
+Relay Server started on :8080
+Host connected. Session: c79bb908
+Viewer v-e29215aa connected to session c79bb908
+
+
+Terminal 2
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe share --server="ws://localhost:8080/ws" --pass="rah
+asia123"
+Session ID: c79bb908
+Share this ID with viewers to join.
+2026/05/17 03:52:34 Failed to start PTY for tab 0: unsupported
+
+
+Terminal 3
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe join --server="ws://localhost:8080/ws" --id="c79bb908" --pass
+="rahasia123"
+Connected as v-e29215aa
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> ls
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> 0
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> j
+Joining Tab 0... (Press Ctrl+] to exit back to menu)
+
+
+
+
+Via Web
+http://localhost:8080/
+
+Send : {"type":"auth","role":"viewer","session_id":"c79bb908","viewer_id":"v-web-1a582b50"}
+Recieve : {"type":"auth_success"}
+Send : {"type":"control","action":"req_sync","tab_id":0}
+
+
+
+
+
+
+AFTER EXIT 
+Terminal 1 :
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe serve --port=8080
+Relay Server started on :8080
+Host connected. Session: c79bb908
+Viewer v-e29215aa connected to session c79bb908
+Viewer v-web-4a80ef34 connected to session c79bb908
+Viewer v-web-4a80ef34 disconnected from session c79bb908
+Viewer v-web-1a582b50 connected to session c79bb908
+Viewer v-e29215aa disconnected from session c79bb908
+Host disconnected. Session c79bb908 closed.
+
+
+
+TERMINAL 2
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe share --server="ws://localhost:8080/ws" --pass="rah
+asia123"
+Session ID: c79bb908
+Share this ID with viewers to join.
+2026/05/17 03:52:34 Failed to start PTY for tab 0: unsupported
+
+
+
+Terminal 3
+milio48@INBook_X1 MINGW64 /d/fz/project/rmte/rmte (main)
+$ ./rmte.exe join --server="ws://localhost:8080/ws" --id="c79bb908" --pass
+="rahasia123"
+Connected as v-e29215aa
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> ls
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> 0
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> j
+Joining Tab 0... (Press Ctrl+] to exit back to menu)
+
+--- RMTE MENU ---
+Current Tab: 0
+Available Tabs: [0]
+Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [q] Quit
+> q
+
+Disconnected from server.
