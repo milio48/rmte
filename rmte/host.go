@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 	"io"
@@ -46,6 +45,9 @@ type TabSession struct {
 	IsPipe      bool
 	Buffer      []byte
 	Mutex       sync.Mutex
+
+	// LineBuffer for Windows Pipe mode to emulate PTY backspace
+	LineBuffer []byte
 }
 
 var (
@@ -112,21 +114,35 @@ func runHost(serverURL, password string) {
 			tabsMu.RUnlock()
 
 			if ok {
-				input := plaintext
 				if tab.IsPipe && runtime.GOOS == "windows" {
-					// Normalize line endings to avoid double newlines
-					str := string(plaintext)
-					str = strings.ReplaceAll(str, "\r\n", "\n")
-					str = strings.ReplaceAll(str, "\r", "\n")
-					input = []byte(str)
-
-					// Manual echo for pipe mode since the shell won't do it
-					echoStr := string(plaintext)
-					echoStr = strings.ReplaceAll(echoStr, "\r", "\r\n")
-					payload, _ := encryptBinary(tabID, []byte(echoStr))
-					conn.WriteMessage(websocket.BinaryMessage, payload)
+					// Emulate PTY line buffering for Windows pipe fallback
+					for _, b := range plaintext {
+						if b == '\r' || b == '\n' {
+							// Echo newline
+							payload, _ := encryptBinary(tabID, []byte("\r\n"))
+							conn.WriteMessage(websocket.BinaryMessage, payload)
+							
+							// Send to process
+							tab.LineBuffer = append(tab.LineBuffer, '\n')
+							tab.WriteCloser.Write(tab.LineBuffer)
+							tab.LineBuffer = nil
+						} else if b == '\x7f' || b == '\x08' {
+							// Backspace: remove last character and erase visually
+							if len(tab.LineBuffer) > 0 {
+								tab.LineBuffer = tab.LineBuffer[:len(tab.LineBuffer)-1]
+								payload, _ := encryptBinary(tabID, []byte("\b \b"))
+								conn.WriteMessage(websocket.BinaryMessage, payload)
+							}
+						} else {
+							// Normal character
+							tab.LineBuffer = append(tab.LineBuffer, b)
+							payload, _ := encryptBinary(tabID, []byte{b})
+							conn.WriteMessage(websocket.BinaryMessage, payload)
+						}
+					}
+				} else {
+					tab.WriteCloser.Write(plaintext)
 				}
-				tab.WriteCloser.Write(input)
 			}
 		} else if mt == websocket.TextMessage {
 			var ctrl struct {

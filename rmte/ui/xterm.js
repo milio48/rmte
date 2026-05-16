@@ -102,8 +102,8 @@ function initTerminal(tabId) {
 
 	const t = new Terminal({
 		cursorBlink: true,
-		theme: { background: 'transparent' },
-        fontFamily: "'Inter', monospace",
+		theme: { background: 'transparent', foreground: '#cccccc' },
+        fontFamily: "'Consolas', 'Courier New', monospace",
         fontSize: 14
 	});
 	

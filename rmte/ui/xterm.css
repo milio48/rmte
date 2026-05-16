@@ -147,6 +147,7 @@ button:hover {
     flex-grow: 1;
     padding: 15px;
     position: relative;
+    background-color: #000;
 }
 
 .xterm {
