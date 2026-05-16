@@ -235,16 +235,18 @@ func runHost(serverURL, password string) {
 
 func createTab(id byte, ws *SafeConn) {
 	shell := "bash"
+	var args []string
 	if runtime.GOOS == "windows" {
 		shell = "cmd"
 		if os.Getenv("COMSPEC") != "" {
 			shell = os.Getenv("COMSPEC")
 		}
+		args = []string{"/q"}
 	} else if os.Getenv("SHELL") != "" {
 		shell = os.Getenv("SHELL")
 	}
 
-	c := exec.Command(shell)
+	c := exec.Command(shell, args...)
 	f, err := pty.Start(c)
 	if err != nil {
 		if runtime.GOOS == "windows" {

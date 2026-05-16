@@ -109,6 +109,12 @@ func runViewer(serverURL, sessionID, password string) {
 						}
 						if !exists {
 							tabs = append(tabs, ctrl.TabID)
+							isJoinedMu.RLock()
+							joined := isJoined
+							isJoinedMu.RUnlock()
+							if !joined {
+								fmt.Printf("\n[System: Tab %d Created! Press Enter to refresh.]\n> ", ctrl.TabID)
+							}
 						}
 						tabsMu.Unlock()
 					} else if ctrl.Action == "tabs_list" {
