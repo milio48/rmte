@@ -72,6 +72,16 @@ async function connect() {
                 const getTabsMsg = { type: "control", action: "get_tabs" };
                 logDebug("OUT", "json", getTabsMsg);
                 ws.send(JSON.stringify(getTabsMsg));
+			} else if (msg.type === 'control' && msg.action === 'chat_history') {
+				const msgsDiv = document.getElementById('chat-messages');
+				if (msgsDiv) {
+					msgsDiv.innerHTML = '';
+				}
+				if (msg.history) {
+					msg.history.forEach(chatMsg => {
+						appendChatMessage(chatMsg.sender, chatMsg.message, chatMsg.time);
+					});
+				}
 			} else if (msg.type === 'control' && msg.action === 'tab_created') {
 				addTabButton(msg.tab_id);
 			} else if (msg.type === 'control' && msg.action === 'tab_deleted') {

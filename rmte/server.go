@@ -16,10 +16,11 @@ var upgrader = websocket.Upgrader{
 }
 
 type Session struct {
-	ID      string
-	Host    *SafeConn
-	Viewers map[string]map[string]*SafeConn // viewerID -> connID -> Conn
-	Mutex   sync.RWMutex
+	ID          string
+	Host        *SafeConn
+	Viewers     map[string]map[string]*SafeConn // viewerID -> connID -> Conn
+	ChatHistory []map[string]interface{}
+	Mutex       sync.RWMutex
 }
 
 var (
@@ -74,9 +75,10 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 	if role == "host" {
 		sessionID = fmt.Sprintf("%x", time.Now().UnixNano())[8:] // Simple random ID
 		s := &Session{
-			ID:      sessionID,
-			Host:    conn,
-			Viewers: make(map[string]map[string]*SafeConn),
+			ID:          sessionID,
+			Host:        conn,
+			Viewers:     make(map[string]map[string]*SafeConn),
+			ChatHistory: make([]map[string]interface{}, 0),
 		}
 		sessionMu.Lock()
 		sessions[sessionID] = s
@@ -118,6 +120,15 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			"viewer_id": viewerID,
 			"conn_id":   connID,
 		})
+
+		s.Mutex.RLock()
+		historyMsg := map[string]interface{}{
+			"type":    "control",
+			"action":  "chat_history",
+			"history": s.ChatHistory,
+		}
+		s.Mutex.RUnlock()
+		conn.WriteJSON(historyMsg)
 		fmt.Printf("Viewer %s connected to session %s (Conn: %s)\n", viewerID, sessionID, connID)
 
 		defer func() {
@@ -219,6 +230,14 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 							}
 						}
 					} else {
+						if action == "chat" {
+							s.Mutex.Lock()
+							s.ChatHistory = append(s.ChatHistory, ctrl)
+							if len(s.ChatHistory) > 50 {
+								s.ChatHistory = s.ChatHistory[1:]
+							}
+							s.Mutex.Unlock()
+						}
 						// Broadcast to all viewers
 						for _, conns := range s.Viewers {
 							for _, vConn := range conns {

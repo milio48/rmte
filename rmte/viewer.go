@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -65,6 +66,11 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 
 	fmt.Printf("Connected as %s\n", authSuccess.ViewerID)
 
+	var chatHistory []map[string]interface{}
+	var chatHistoryMu sync.Mutex
+	var inChatMode bool = false
+	var inChatModeMu sync.RWMutex
+
 	tabsSynced := make(chan bool, 1)
 
 	// Sync tabs
@@ -107,14 +113,44 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 				}
 			} else if mt == websocket.TextMessage {
 				var ctrl struct {
-					Type   string `json:"type"`
-					Action string `json:"action"`
-					TabID  byte   `json:"tab_id"`
-					Tabs   []int  `json:"tabs"`
-					Data   string `json:"data"`
+					Type    string                   `json:"type"`
+					Action  string                   `json:"action"`
+					TabID   byte                     `json:"tab_id"`
+					Tabs    []int                    `json:"tabs"`
+					Data    string                   `json:"data"`
+					Sender  string                   `json:"sender"`
+					Message string                   `json:"message"`
+					Time    string                   `json:"time"`
+					History []map[string]interface{} `json:"history"`
 				}
 				if err := json.Unmarshal(data, &ctrl); err == nil {
-					if ctrl.Action == "tab_created" {
+					if ctrl.Action == "chat_history" {
+						chatHistoryMu.Lock()
+						chatHistory = ctrl.History
+						chatHistoryMu.Unlock()
+					} else if ctrl.Action == "chat" {
+						chatHistoryMu.Lock()
+						chatHistory = append(chatHistory, map[string]interface{}{
+							"sender":  ctrl.Sender,
+							"message": ctrl.Message,
+							"time":    ctrl.Time,
+						})
+						chatHistoryMu.Unlock()
+
+						isJoinedMu.RLock()
+						joined := isJoined
+						isJoinedMu.RUnlock()
+
+						inChatModeMu.RLock()
+						chatting := inChatMode
+						inChatModeMu.RUnlock()
+
+						if chatting {
+							fmt.Printf("[%s] %s: %s\n", ctrl.Time, ctrl.Sender, ctrl.Message)
+						} else if !joined {
+							fmt.Printf("\n[Chat] %s: %s\n> ", ctrl.Sender, ctrl.Message)
+						}
+					} else if ctrl.Action == "tab_created" {
 						tabsMu.Lock()
 						exists := false
 						for _, t := range tabs {
@@ -207,7 +243,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 		tabsMu.Lock()
 		fmt.Println("Available Tabs:", tabs)
 		tabsMu.Unlock()
-		fmt.Println("Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [d] Delete Tab, [q] Quit")
+		fmt.Println("Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [d] Delete Tab, [c] Chat, [q] Quit")
 		fmt.Print("> ")
 
 		var cmd string
@@ -269,6 +305,52 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 				"action": "delete_tab",
 				"tab_id": id,
 			})
+		case "c":
+			inChatModeMu.Lock()
+			inChatMode = true
+			inChatModeMu.Unlock()
+
+			fmt.Println("\n=======================================================")
+			fmt.Println("   RMTE CHAT ROOM - Press Enter empty or type /exit to leave")
+			fmt.Println("=======================================================")
+			
+			// Show past history
+			chatHistoryMu.Lock()
+			for _, m := range chatHistory {
+				t, _ := m["time"].(string)
+				s, _ := m["sender"].(string)
+				msgText, _ := m["message"].(string)
+				fmt.Printf("[%s] %s: %s\n", t, s, msgText)
+			}
+			chatHistoryMu.Unlock()
+			fmt.Println("-------------------------------------------------------")
+
+			scanner := bufio.NewScanner(os.Stdin)
+			for {
+				fmt.Print("Chat > ")
+				if !scanner.Scan() {
+					break
+				}
+				msgInput := scanner.Text()
+				msgInput = strings.TrimSpace(msgInput)
+				if msgInput == "" || msgInput == "/exit" {
+					break
+				}
+
+				// Send message via websocket
+				conn.WriteJSON(map[string]interface{}{
+					"type":    "control",
+					"action":  "chat",
+					"sender":  myDispName,
+					"message": msgInput,
+					"time":    time.Now().Format("15:04"),
+				})
+			}
+
+			inChatModeMu.Lock()
+			inChatMode = false
+			inChatModeMu.Unlock()
+			fmt.Println("\nExited chat room.")
 		case "q":
 			return
 		}
