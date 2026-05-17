@@ -299,7 +299,6 @@ function addTabButton(tabId) {
     tabsDiv.appendChild(btnContainer);
 }
 
-// ... rest of the file
 function deleteTab(tabId) {
     if (ws && ws.readyState === WebSocket.OPEN) {
         const msg = { type: "control", action: "delete_tab", tab_id: tabId };
