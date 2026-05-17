@@ -21,7 +21,7 @@ Berikut adalah skenario pengujian lengkap untuk mensimulasikan sesi kolaborasi d
 ### Langkah 1: Jalankan Relay Server
 Server Relay berfungsi sebagai perantara lalu lintas data antara Host dan Viewer.
 ```bash
-./rmte.exe serve --port=8080
+./rmte/rmte.exe serve --port=8080
 ```
 > [!NOTE]
 > Server akan mulai mendengarkan koneksi masuk pada port `8080`.
@@ -31,7 +31,7 @@ Server Relay berfungsi sebagai perantara lalu lintas data antara Host dan Viewer
 ### Langkah 2: Jalankan Host Sharing
 Host Sharing adalah mesin yang terminalnya akan dibagikan ke Viewer. Jalankan perintah ini dari terminal Host:
 ```bash
-./rmte.exe share --server="ws://localhost:8080/ws" --pass="rahasia123"
+./rmte/rmte.exe share --server="ws://localhost:8080/ws" --pass="rahasia123"
 ```
 > [!IMPORTANT]
 > Opsi `--pass` wajib diisi dan digunakan sebagai kunci enkripsi AES-GCM 256-bit. Kunci ini **tidak pernah dikirim ke server relay** (E2EE sejati).
@@ -43,7 +43,7 @@ Host Sharing adalah mesin yang terminalnya akan dibagikan ke Viewer. Jalankan pe
 ### Langkah 3: Menghubungkan Viewer via CLI (Interaktif)
  Viewer CLI dapat bergabung ke sesi aktif dan berinteraksi langsung melalui terminal. Jalankan perintah ini di mesin Viewer:
 ```bash
-./rmte.exe join --server="ws://localhost:8080/ws" --id="[SessionID]" --pass="rahasia123"
+./rmte/rmte.exe join --server="ws://localhost:8080/ws" --id="[SessionID]" --pass="rahasia123"
 ```
 
 #### Fitur & Verifikasi Uji CLI:
