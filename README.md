@@ -58,7 +58,11 @@ Host Sharing adalah mesin yang terminalnya akan dibagikan ke Viewer. Jalankan pe
     *   `[n] New Tab` — Membuat tab terminal baru di sisi Host.
     *   `[s] Switch Tab` — Berpindah ke tab terminal lain.
     *   `[d] Delete Tab` — Menghapus tab terminal aktif.
+    *   `[c] Chat` — Masuk ke ruang obrolan real-time (Chat Room) untuk mengobrol dengan kolaborator di Web UI maupun CLI lain. (Ketik `/exit` atau kosongkan pesan untuk kembali ke menu utama).
     *   `[q] Quit` — Keluar dan memutuskan koneksi.
+
+> [!TIP]
+> **Riwayat Percakapan (Chat History):** Seluruh pesan chat (maksimal 50 pesan terakhir) disimpan dengan aman di memori sesi Server Relay. Siapa saja yang baru bergabung (baik via browser web baru maupun CLI baru) akan otomatis menerima riwayat pesan lengkap secara instan!
 
 ---
 
