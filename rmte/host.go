@@ -134,19 +134,33 @@ func runHost(serverURL, password string) {
 							conn.WriteMessage(websocket.BinaryMessage, payload)
 							
 							// Send to process
+							tab.Mutex.Lock()
 							tab.LineBuffer = append(tab.LineBuffer, '\n')
-							tab.WriteCloser.Write(tab.LineBuffer)
+							sendData := make([]byte, len(tab.LineBuffer))
+							copy(sendData, tab.LineBuffer)
 							tab.LineBuffer = nil
+							tab.Mutex.Unlock()
+
+							tab.WriteCloser.Write(sendData)
 						} else if b == '\x7f' || b == '\x08' {
 							// Backspace: remove last character and erase visually
-							if len(tab.LineBuffer) > 0 {
+							tab.Mutex.Lock()
+							hasChars := len(tab.LineBuffer) > 0
+							if hasChars {
 								tab.LineBuffer = tab.LineBuffer[:len(tab.LineBuffer)-1]
+							}
+							tab.Mutex.Unlock()
+
+							if hasChars {
 								payload, _ := encryptBinary(tabID, []byte("\b \b"))
 								conn.WriteMessage(websocket.BinaryMessage, payload)
 							}
 						} else {
 							// Normal character
+							tab.Mutex.Lock()
 							tab.LineBuffer = append(tab.LineBuffer, b)
+							tab.Mutex.Unlock()
+
 							payload, _ := encryptBinary(tabID, []byte{b})
 							conn.WriteMessage(websocket.BinaryMessage, payload)
 						}

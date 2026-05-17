@@ -61,12 +61,12 @@ async function connect() {
 				document.getElementById('setup').style.display = 'none';
 				document.getElementById('terminal-container').style.display = 'flex';
                 
-                // Persist session for autoconnect upon reload
-                localStorage.setItem('rmte_autoconnect', 'true');
-                localStorage.setItem('rmte_server', server);
-                localStorage.setItem('rmte_sessionId', sessionId);
-                localStorage.setItem('rmte_password', password);
-                localStorage.setItem('rmte_username', myUsername);
+                // Persist session for autoconnect upon reload using sessionStorage
+                sessionStorage.setItem('rmte_autoconnect', 'true');
+                sessionStorage.setItem('rmte_server', server);
+                sessionStorage.setItem('rmte_sessionId', sessionId);
+                sessionStorage.setItem('rmte_password', password);
+                sessionStorage.setItem('rmte_username', myUsername);
 
                 // Request active tabs immediately
                 const getTabsMsg = { type: "control", action: "get_tabs" };
@@ -299,6 +299,7 @@ function addTabButton(tabId) {
     tabsDiv.appendChild(btnContainer);
 }
 
+// ... rest of the file
 function deleteTab(tabId) {
     if (ws && ws.readyState === WebSocket.OPEN) {
         const msg = { type: "control", action: "delete_tab", tab_id: tabId };
@@ -381,11 +382,31 @@ function toggleSidebar() {
     const wsEl = document.getElementById('workspace');
     if (wsEl) {
         wsEl.classList.toggle('sidebar-collapsed');
+        // Fit term canvas and send resize command after animation completes
+        setTimeout(() => {
+            if (terminals[currentTab]) {
+                const active = terminals[currentTab];
+                if (active.fitAddon) {
+                    active.fitAddon.fit();
+                }
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    const resizeMsg = {
+                        type: "control",
+                        action: "resize",
+                        tab_id: currentTab,
+                        cols: active.term.cols,
+                        rows: active.term.rows
+                    };
+                    logDebug("OUT", "json", resizeMsg);
+                    ws.send(JSON.stringify(resizeMsg));
+                }
+            }
+        }, 250);
     }
 }
 
 function disconnectSession() {
-    localStorage.setItem('rmte_autoconnect', 'false');
+    sessionStorage.setItem('rmte_autoconnect', 'false');
     window.location.reload();
 }
 
@@ -450,18 +471,18 @@ function appendChatMessage(sender, message, timeStr) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-    const autoconnect = localStorage.getItem('rmte_autoconnect');
-    if (localStorage.getItem('rmte_server')) {
-        document.getElementById('server').value = localStorage.getItem('rmte_server');
+    const autoconnect = sessionStorage.getItem('rmte_autoconnect');
+    if (sessionStorage.getItem('rmte_server')) {
+        document.getElementById('server').value = sessionStorage.getItem('rmte_server');
     }
-    if (localStorage.getItem('rmte_sessionId')) {
-        document.getElementById('sessionId').value = localStorage.getItem('rmte_sessionId');
+    if (sessionStorage.getItem('rmte_sessionId')) {
+        document.getElementById('sessionId').value = sessionStorage.getItem('rmte_sessionId');
     }
-    if (localStorage.getItem('rmte_password')) {
-        document.getElementById('password').value = localStorage.getItem('rmte_password');
+    if (sessionStorage.getItem('rmte_password')) {
+        document.getElementById('password').value = sessionStorage.getItem('rmte_password');
     }
-    if (localStorage.getItem('rmte_username')) {
-        document.getElementById('username').value = localStorage.getItem('rmte_username');
+    if (sessionStorage.getItem('rmte_username')) {
+        document.getElementById('username').value = sessionStorage.getItem('rmte_username');
     }
     
     if (autoconnect === 'true') {
