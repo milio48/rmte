@@ -1,100 +1,128 @@
-# RMTE - Remote Terminal Relay (v0.1)
+# RMTE - Remote Terminal Relay
 
-RMTE adalah sistem remote terminal sharing multi-user yang tangguh, aman, dan real-time. Didesain dengan arsitektur relay terpusat berbasis WebSocket dan sistem enkripsi ujung-ke-ujung (E2EE) berbasis AES-GCM 256-bit untuk menjamin kerahasiaan sesi terminal Anda.
+RMTE is a secure, real-time, multi-user remote terminal sharing system. It is built in Go with a centralized WebSocket relay architecture and secures all terminal traffic with **AES-GCM 256-bit End-to-End Encryption (E2EE)**.
 
-Sistem ini mendukung kolaborasi multi-user secara simultan, lengkap dengan kesadaran kehadiran tab (Tab Presence Awareness), daftar kolaborator, dan ruang obrolan (Chat Room) terintegrasi pada antarmuka Web UI.
-
----
-
-## 🛠️ Persyaratan Sistem
-
-*   **Sistem Operasi:** Windows, Linux, atau macOS (Khusus Windows menggunakan Pipes fallback).
-*   **Jaringan:** Akses ke server relay RMTE (lokal maupun publik).
-*   **Web Browser:** Chrome, Edge, Firefox, Safari (versi terbaru) untuk akses Web UI.
+It allows hosts to share terminal sessions, manage multiple terminal tabs concurrently, and collaborate with viewers via a premium Web UI or an interactive TUI-based CLI client.
 
 ---
 
-## 🚀 Panduan Cepat Cara Penggunaan & Pengujian
+## Key Features
 
-Berikut adalah skenario pengujian lengkap untuk mensimulasikan sesi kolaborasi dengan 1 Relay Server, 1 Host Sharing, dan beberapa Viewer (CLI & Web UI).
+*   **End-to-End Encryption (AES-GCM 256-bit):** Keys and terminal inputs/outputs are encrypted locally before being transmitted. The central relay server only routes encrypted binary frames and never accesses plaintext data or your password.
+*   **Multi-Tab Collaboration:** Create, switch, navigate, and close multiple concurrent terminal sessions or tabs on the shared host.
+*   **Premium Web UI:** Includes a responsive xterm.js terminal, collaborator presence indicators per tab, glowing collaborator sidebar list, and real-time custom scrollbars.
+*   **State Persistence & Auto-Reconnect:** Web client connection details are stored securely in sessionStorage. Reloading or refreshing the page reconnects the session in milliseconds.
+*   **TUI CLI Client:** Interactive terminal joining with automated presence synchronization, tab navigation menu, and chat room access.
+*   **Real-time Integrated Chat:** Connects Web and CLI clients with a memory-cached chat room showing up to the last 50 messages.
 
-### Langkah 1: Jalankan Relay Server
-Server Relay berfungsi sebagai perantara lalu lintas data antara Host dan Viewer.
+---
+
+## Installation
+
+### From Pre-built Binaries
+Download the binary for your OS and CPU architecture from the [Releases](https://github.com/your-username/rmte/releases) page.
+
+### Building from Source
+Ensure you have Go installed (v1.18 or higher):
 ```bash
-./rmte/rmte.exe serve --port=8080
-```
-> [!NOTE]
-> Server akan mulai mendengarkan koneksi masuk pada port `8080`.
-
----
-
-### Langkah 2: Jalankan Host Sharing
-Host Sharing adalah mesin yang terminalnya akan dibagikan ke Viewer. Jalankan perintah ini dari terminal Host:
-```bash
-./rmte/rmte.exe share --server="ws://localhost:8080/ws" --pass="rahasia123"
-```
-> [!IMPORTANT]
-> Opsi `--pass` wajib diisi dan digunakan sebagai kunci enkripsi AES-GCM 256-bit. Kunci ini **tidak pernah dikirim ke server relay** (E2EE sejati).
->
-> Setelah tersambung, Host akan menampilkan **Session ID** unik (misalnya: `75537488`). Bagikan ID ini kepada kolaborator Anda.
-
----
-
-### Langkah 3: Menghubungkan Viewer via CLI (Interaktif)
- Viewer CLI dapat bergabung ke sesi aktif dan berinteraksi langsung melalui terminal. Jalankan perintah ini di mesin Viewer:
-```bash
-./rmte/rmte.exe join --server="ws://localhost:8080/ws" --id="[SessionID]" --pass="rahasia123"
+git clone https://github.com/your-username/rmte.git
+cd rmte/rmte
+go build -o rmte
 ```
 
-#### Fitur & Verifikasi Uji CLI:
-1.  **Prompt Nama Interaktif:** Tepat sebelum terhubung, CLI akan menanyakan nama Anda secara interaktif:
-    ```bash
-    Enter your display name: BudiGanteng
+---
+
+## CLI Reference
+
+### 1. Start the Relay Server
+The relay server acts as a central broker forwarding encrypted traffic between the host and viewers, and hosts the web interface.
+```bash
+rmte serve [options]
+```
+**Options:**
+*   `--port`: The port to listen on (default: `8080`).
+
+---
+
+### 2. Share a Terminal Session (Host)
+Run this command on the machine you want to share. This initiates a session and displays a unique **Session ID**.
+```bash
+rmte share --server=<relay-websocket-url> --pass=<encryption-password>
+```
+**Options:**
+*   `--server`: The relay server WebSocket endpoint (e.g., `ws://localhost:8080/ws`). (Required)
+*   `--pass`: The E2EE password. This key is processed locally using SHA-256 and **never** leaves your computer. (Required)
+
+---
+
+### 3. Join a Session via CLI (Viewer)
+Run this command on the viewer's machine to connect to an active session interactively.
+```bash
+rmte join --server=<relay-websocket-url> --id=<session-id> --pass=<encryption-password>
+```
+**Options:**
+*   `--server`: The relay server WebSocket endpoint (e.g., `ws://localhost:8080/ws`). (Required)
+*   `--id`: The active Session ID shared by the host. (Required)
+*   `--pass`: The decryption password used by the host. (Required)
+
+---
+
+## Quick Start Guide
+
+### Step 1: Run the Server
+```bash
+rmte serve --port=8080
+```
+
+### Step 2: Share your Host Terminal
+Run this on the host machine:
+```bash
+rmte share --server="ws://localhost:8080/ws" --pass="mypassword123"
+```
+The client fallback on Windows uses pipes, while Linux/macOS uses PTY. 
+Upon successful connection, it will output:
+```text
+Session ID: a1b2c3d4
+Share this ID with viewers to join.
+```
+
+### Step 3: Connect as a CLI Viewer
+On a viewer machine:
+```bash
+rmte join --server="ws://localhost:8080/ws" --id="a1b2c3d4" --pass="mypassword123"
+```
+1.  Enter your display name when prompted:
+    ```text
+    Enter your display name: Alex
     ```
-    *(Ketik nama Anda lalu tekan Enter untuk bergabung dengan identitas Anda sendiri).*
-2.  **Sinkronisasi Tab Awal yang Akurat:** TUI menu utama RMTE akan memblokir dan memastikan seluruh daftar tab aktif dari server relay telah tersinkronisasi sebelum mencetak menu pertama kali (mencegah *race condition*).
-3.  **Navigasi TUI Menu:**
-    *   `[j] Join Tab` — Masuk ke sesi terminal interaktif pada tab saat ini (Keluar kembali ke menu dengan menekan `Ctrl + ]`).
-    *   `[n] New Tab` — Membuat tab terminal baru di sisi Host.
-    *   `[s] Switch Tab` — Berpindah ke tab terminal lain.
-    *   `[d] Delete Tab` — Menghapus tab terminal aktif.
-    *   `[c] Chat` — Masuk ke ruang obrolan real-time (Chat Room) untuk mengobrol dengan kolaborator di Web UI maupun CLI lain. (Ketik `/exit` atau kosongkan pesan untuk kembali ke menu utama).
-    *   `[q] Quit` — Keluar dan memutuskan koneksi.
+2.  Navigate the interactive Text User Interface (TUI):
+    *   `[j] Join Tab` – Join the shared active terminal shell (Press `Ctrl + ]` to exit back to the menu).
+    *   `[n] New Tab` – Spawn a new concurrent terminal session/tab on the host.
+    *   `[s] Switch Tab` – Switch to another active tab.
+    *   `[d] Delete Tab` – Terminate and delete the current tab.
+    *   `[c] Chat` – Enter the chat room (Type `/exit` or send an empty message to return to the menu).
+    *   `[q] Quit` – Safely disconnect from the session.
 
-> [!TIP]
-> **Riwayat Percakapan (Chat History):** Seluruh pesan chat (maksimal 50 pesan terakhir) disimpan dengan aman di memori sesi Server Relay. Siapa saja yang baru bergabung (baik via browser web baru maupun CLI baru) akan otomatis menerima riwayat pesan lengkap secara instan!
-
----
-
-### Langkah 4: Menghubungkan Viewer via Web UI (Premium Browser Experience)
-Buka browser Anda dan navigasikan ke alamat server relay:
-```
+### Step 4: Connect as a Web Viewer
+Open a web browser and navigate to the relay server:
+```text
 http://localhost:8080/
 ```
-
-#### Fitur & Verifikasi Uji Web UI:
-1.  **Form Login & Auto-Reconnect Pintar:**
-    *   Masukkan isian Server URL, Session ID, Password (E2EE), dan Nama Anda pada halaman login, lalu klik **Connect**.
-    *   **Uji Persistensi:** Lakukan reload halaman (`F5` atau `Ctrl + R`). Sistem akan secara otomatis mengisi seluruh isian dan menyambungkan kembali koneksi Anda dalam hitungan milidetik secara instan!
-    *   **Disconnect:** Klik tombol keluar (`🚪`) di bar tab sebelah kanan untuk keluar secara bersih dan menghapus riwayat auto-connect.
-2.  **Kesadaran Presensi Tab (Tab Presence):**
-    *   Di tombol bar tab, Anda akan melihat subtext kecil di bawah judul tab utama (misalnya di bawah `Tab 0` tertulis: `BudiGanteng, webganteng1`).
-    *   Subtext ini menunjukkan kolaborator mana saja yang sedang aktif melihat tab tersebut secara real-time.
-3.  **Show/Hide Sidebar Kolaborator:**
-    *   Klik tombol ikon pengguna (`👥`) di sebelah kanan bar tab untuk menyembunyikan atau memunculkan panel daftar kolaborator sebelah kanan.
-4.  **Daftar Kolaborator Aktif (Collaborators Sidebar):**
-    *   Menampilkan seluruh daftar kolaborator dengan dot hijau menyala dinamis yang berdenyut (glowing pulse).
-    *   Menampilkan badge penanda tab aktif masing-masing kolaborator (misal: `[Tab 0]`).
-5.  **Fitur Chat Room Terintegrasi:**
-    *   Di bagian bawah sidebar, ketik pesan Anda pada kolom chat input dan tekan `Enter`.
-    *   Seluruh kolaborator (baik di Web browser lain maupun CLI yang tersambung) akan menerima pesan obrolan secara real-time.
-    *   Pesan Anda sendiri akan diwarnai dengan ungu premium (`#a78bfa`) dan pesan kolaborator lain berwarna biru cerah (`#38bdf8`).
+1.  Enter the Server URL (`ws://localhost:8080/ws`), **Session ID** (`a1b2c3d4`), E2EE **Password** (`mypassword123`), and your display name.
+2.  Click **Connect**. The button status will update to `Connecting...` and seamlessly load the terminal layout.
+3.  **Features on the Web UI:**
+    *   **Tab Presence Subtext:** View active collaborators under each tab title.
+    *   **Collaborators Sidebar:** Click the user icon (`👥`) to toggle a sidebar showing a glowing green presence list of active users.
+    *   **Premium Custom Scrollbar:** Fully customized styling for scrollable elements that aligns with the premium dark theme.
+    *   **Real-time Chat Pane:** Send messages instantly by typing in the chat container and clicking the new send icon `➤` or pressing Enter.
+    *   **Page Persistence:** Feel free to refresh the browser page. The state will automatically persist and reconnect in milliseconds.
 
 ---
 
-## 🔒 Keamanan & Enkripsi (AES-GCM E2EE)
+## Security Model
 
-Seluruh input keyboard dan output terminal dienkripsi menggunakan algoritma **AES-256-GCM** di sisi klien sebelum dikirimkan melalui server relay.
-*   **Host** mengenkripsi output terminal sebelum dikirim ke server relay.
-*   **Viewer** menerima data terenkripsi, mendekripsinya secara lokal menggunakan kata sandi sesi, lalu merendernya di layar.
-*   **Server Relay** hanya bertindak sebagai broker paket biner terenkripsi dan **tidak pernah memiliki akses ke plaintext data terminal maupun kata sandi Anda**.
+The system ensures strict privacy using standard **AES-256-GCM** encryption:
+1.  The password is encoded into a raw 256-bit key using **SHA-256** entirely client-side.
+2.  The host encrypts all binary terminal outputs using this key along with a dynamically generated random IV for each frame.
+3.  The viewers receive these encrypted byte arrays, read the IV, decrypt the payload locally using the shared key, and feed it into the renderer.
+4.  The relay server only acts as a fast WebSocket conduit for the encrypted data, ensuring **true Zero-Knowledge End-to-End Encryption**.
