@@ -230,6 +230,7 @@ button:hover {
     gap: 15px;
     flex-shrink: 0;
     overflow: hidden;
+    transition: width 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
 }
 
 #users-sidebar h3 {
@@ -387,7 +388,11 @@ button:hover {
 }
 
 #workspace.sidebar-collapsed #users-sidebar {
-    display: none !important;
+    width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    opacity: 0;
+    border: none;
 }
 
 #toggle-sidebar-btn, #disconnect-btn {
@@ -423,3 +428,8 @@ button:hover {
     transform: none;
     box-shadow: none;
 }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.5); }

@@ -210,7 +210,22 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 				action, _ := ctrl["action"].(string)
 				
 				if role == "viewer" {
-					if action == "req_sync" {
+					if action == "chat" {
+						s.Mutex.Lock()
+						s.ChatHistory = append(s.ChatHistory, ctrl)
+						if len(s.ChatHistory) > 50 {
+							s.ChatHistory = s.ChatHistory[1:]
+						}
+						s.Mutex.Unlock()
+
+						s.Mutex.RLock()
+						for _, conns := range s.Viewers {
+							for _, vConn := range conns {
+								vConn.WriteMessage(websocket.TextMessage, data)
+							}
+						}
+						s.Mutex.RUnlock()
+					} else if action == "req_sync" {
 						ctrl["target_conn"] = connID
 						newData, _ := json.Marshal(ctrl)
 						s.Host.WriteMessage(websocket.TextMessage, newData)
@@ -220,8 +235,8 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 				} else {
 					targetConn, hasTarget := ctrl["target_conn"].(string)
 					
-					s.Mutex.RLock()
 					if hasTarget {
+						s.Mutex.RLock()
 						// Route specific JSON message to target_conn
 						for _, conns := range s.Viewers {
 							if vConn, exists := conns[targetConn]; exists {
@@ -229,6 +244,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 								break
 							}
 						}
+						s.Mutex.RUnlock()
 					} else {
 						if action == "chat" {
 							s.Mutex.Lock()
@@ -238,14 +254,16 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 							}
 							s.Mutex.Unlock()
 						}
+						
+						s.Mutex.RLock()
 						// Broadcast to all viewers
 						for _, conns := range s.Viewers {
 							for _, vConn := range conns {
 								vConn.WriteMessage(websocket.TextMessage, data)
 							}
 						}
+						s.Mutex.RUnlock()
 					}
-					s.Mutex.RUnlock()
 				}
 			}
 		}

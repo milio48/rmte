@@ -24,6 +24,9 @@ async function connect() {
 
 	if (!sessionId || !password) return alert("Session ID and Password required");
 
+	document.getElementById('connect-btn').innerText = "Connecting...";
+	document.getElementById('connect-btn').disabled = true;
+
 	myUsername = usernameInput || ("Web-" + Math.random().toString(36).slice(2, 6).toUpperCase());
 
 	// Derive Key using SHA-256 to match Go's sha256.Sum256
@@ -190,11 +193,23 @@ async function handleBinaryBytes(rawBytes) {
     const ciphertext = rawBytes.slice(13);
 
     try {
-        const decryptedBuffer = await crypto.subtle.decrypt(
+        const decryptedBuffer = await crypto.subtle.digest ? await crypto.subtle.decrypt(
             { name: "AES-GCM", iv: iv },
             aesKey,
             ciphertext
-        );
+        ) : null;
+        if (!decryptedBuffer) {
+            const dec = await crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: iv },
+                aesKey,
+                ciphertext
+            );
+            const decodedStr = new TextDecoder().decode(dec);
+            logDebug("IN", "binary_text", { tabId, text: decodedStr });
+            if (!terminals[tabId]) initTerminal(tabId);
+            terminals[tabId].term.write(new Uint8Array(dec));
+            return;
+        }
         const decodedStr = new TextDecoder().decode(decryptedBuffer);
         logDebug("IN", "binary_text", { tabId, text: decodedStr });
         if (!terminals[tabId]) initTerminal(tabId);
@@ -336,6 +351,8 @@ function switchTab(tabId) {
     const msg = { type: "control", action: "req_sync", tab_id: tabId };
     logDebug("OUT", "json", msg);
     ws.send(JSON.stringify(msg));
+
+    if (terminals[tabId]) terminals[tabId].term.focus();
 }
 
 async function sendInput(tabId, data) {
@@ -400,7 +417,7 @@ function toggleSidebar() {
                     ws.send(JSON.stringify(resizeMsg));
                 }
             }
-        }, 250);
+        }, 300);
     }
 }
 

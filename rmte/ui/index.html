@@ -16,7 +16,7 @@
         <input type="text" id="sessionId" placeholder="Session ID">
         <input type="password" id="password" placeholder="Password">
         <input type="text" id="username" placeholder="Your Name">
-        <button onclick="connect()">Connect</button>
+        <button id="connect-btn" onclick="connect()">Connect</button>
     </div>
     <div id="terminal-container" style="display:none;">
         <div id="tabs-bar">
@@ -37,6 +37,7 @@
                     <div id="chat-messages"></div>
                     <div id="chat-input-container">
                         <input type="text" id="chat-input" placeholder="Type a message..." onkeydown="handleChatKey(event)">
+                        <button id="chat-send-btn" onclick="sendChatMessage()" style="margin-top: 0; padding: 8px 12px;">➤</button>
                     </div>
                 </div>
             </div>
