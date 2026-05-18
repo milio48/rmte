@@ -62,6 +62,8 @@ var (
 	tabs   = make(map[byte]*TabSession)
 	tabsMu sync.RWMutex
 
+	nextTabID byte = 1 // S3: incrementing counter (0 is initial tab)
+
 	presenceMap   = make(map[string]ViewersPresence)
 	presenceMutex sync.Mutex
 )
@@ -87,8 +89,10 @@ func runHost(serverURL, password string) {
 
 	// Auth as host
 	auth := map[string]string{
-		"type": "auth",
-		"role": "host",
+		"type":             "auth",
+		"role":             "host",
+		"auth_token":       generateAuthToken(password),
+		"protocol_version": protocolVersion,
 	}
 	conn.WriteJSON(auth)
 
@@ -190,7 +194,8 @@ func runHost(serverURL, password string) {
 						"tabs":   activeTabs,
 					})
 				case "request_new_tab":
-					newID := byte(len(tabs))
+					newID := nextTabID
+					nextTabID++
 					createTab(newID, conn)
 					conn.WriteJSON(map[string]interface{}{
 						"type":   "control",

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -20,11 +22,14 @@ type Session struct {
 	Host        *SafeConn
 	Viewers     map[string]map[string]*SafeConn // viewerID -> connID -> Conn
 	ChatHistory []map[string]interface{}
+	AuthToken   string // S4: password-derived token for access control
 	Mutex       sync.RWMutex
 }
 
+const maxViewersPerSession = 50
+
 var (
-	sessions = make(map[string]*Session)
+	sessions  = make(map[string]*Session)
 	sessionMu sync.RWMutex
 )
 
@@ -58,10 +63,12 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var auth struct {
-		Type      string `json:"type"`
-		Role      string `json:"role"`
-		SessionID string `json:"session_id"`
-		ViewerID  string `json:"viewer_id"`
+		Type            string `json:"type"`
+		Role            string `json:"role"`
+		SessionID       string `json:"session_id"`
+		ViewerID        string `json:"viewer_id"`
+		AuthToken       string `json:"auth_token"`
+		ProtocolVersion string `json:"protocol_version"`
 	}
 
 	if err := json.Unmarshal(msg, &auth); err != nil || auth.Type != "auth" {
@@ -73,12 +80,16 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 	viewerID = auth.ViewerID
 
 	if role == "host" {
-		sessionID = fmt.Sprintf("%x", time.Now().UnixNano())[8:] // Simple random ID
+		randBytes := make([]byte, 4)
+		rand.Read(randBytes)
+		sessionID = hex.EncodeToString(randBytes)
+
 		s := &Session{
 			ID:          sessionID,
 			Host:        conn,
 			Viewers:     make(map[string]map[string]*SafeConn),
 			ChatHistory: make([]map[string]interface{}, 0),
+			AuthToken:   auth.AuthToken,
 		}
 		sessionMu.Lock()
 		sessions[sessionID] = s
@@ -90,7 +101,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			"session_id": sessionID,
 		})
 		
-		fmt.Printf("Host connected. Session: %s\n", sessionID)
+		fmt.Printf("Host connected. Session: %s (Protocol: %s)\n", sessionID, auth.ProtocolVersion)
 		
 		defer func() {
 			sessionMu.Lock()
@@ -105,6 +116,22 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 
 		if !ok {
 			conn.WriteJSON(map[string]string{"type": "error", "message": "session not found"})
+			return
+		}
+
+		// S4: Validate auth token
+		if s.AuthToken != "" && auth.AuthToken != s.AuthToken {
+			conn.WriteJSON(map[string]string{"type": "error", "message": "invalid password"})
+			fmt.Printf("Viewer %s rejected: invalid auth token for session %s\n", viewerID, sessionID)
+			return
+		}
+
+		// P7: Check viewer limit
+		s.Mutex.RLock()
+		viewerCount := len(s.Viewers)
+		s.Mutex.RUnlock()
+		if viewerCount >= maxViewersPerSession {
+			conn.WriteJSON(map[string]string{"type": "error", "message": "session full"})
 			return
 		}
 
@@ -129,7 +156,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		}
 		s.Mutex.RUnlock()
 		conn.WriteJSON(historyMsg)
-		fmt.Printf("Viewer %s connected to session %s (Conn: %s)\n", viewerID, sessionID, connID)
+		fmt.Printf("Viewer %s connected to session %s (Conn: %s, Protocol: %s)\n", viewerID, sessionID, connID, auth.ProtocolVersion)
 
 		defer func() {
 			s.Mutex.Lock()

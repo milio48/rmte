@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"io"
 )
 
@@ -54,4 +55,9 @@ func decryptBinary(payload []byte) (byte, []byte, error) {
 	}
 
 	return tabID, plaintext, nil
+}
+
+func generateAuthToken(password string) string {
+	hash := sha256.Sum256([]byte("rmte-auth:" + password))
+	return hex.EncodeToString(hash[:])
 }

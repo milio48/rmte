@@ -44,13 +44,19 @@ async function connect() {
 	ws = new WebSocket(server);
 	ws.binaryType = 'arraybuffer';
 
-	ws.onopen = () => {
+	ws.onopen = async () => {
+		// S4: Derive auth token for server-side access control
+		const authHashBuffer = await crypto.subtle.digest('SHA-256', enc.encode("rmte-auth:" + password));
+		const authToken = Array.from(new Uint8Array(authHashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
         const authMsg = {
 			type: "auth",
 			role: "viewer",
 			session_id: sessionId,
 			viewer_id: myViewerId,
-			viewer_name: myUsername
+			viewer_name: myUsername,
+			auth_token: authToken,
+			protocol_version: "0.2"
 		};
         logDebug("OUT", "auth", authMsg);
 		ws.send(JSON.stringify(authMsg));

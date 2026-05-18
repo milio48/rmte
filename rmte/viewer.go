@@ -46,11 +46,13 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 
 	viewerID := generateViewerID()
 	auth := map[string]string{
-		"type":        "auth",
-		"role":        "viewer",
-		"session_id":  sessionID,
-		"viewer_id":   viewerID,
-		"viewer_name": myDispName,
+		"type":             "auth",
+		"role":             "viewer",
+		"session_id":       sessionID,
+		"viewer_id":        viewerID,
+		"viewer_name":      myDispName,
+		"auth_token":       generateAuthToken(password),
+		"protocol_version": protocolVersion,
 	}
 	conn.WriteJSON(auth)
 

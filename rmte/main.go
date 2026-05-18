@@ -6,6 +6,8 @@ import (
 	"os"
 )
 
+const protocolVersion = "0.2"
+
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
