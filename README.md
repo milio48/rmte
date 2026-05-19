@@ -1,108 +1,94 @@
-# RMTE - Remote Terminal Relay
+# RMTE — Remote Terminal Relay & Cloud IDE (v0.2.2)
 
 > "I love sshx, but my endless curiosity to build it from scratch got the best of me 🥲"
 
-RMTE is a secure, real-time, multi-user remote terminal sharing system. It’s built entirely in Go with a centralized WebSocket relay architecture, securing all terminal traffic with **AES-GCM 256-bit End-to-End Encryption (E2EE)**.
+RMTE is a secure, real-time, multi-user remote terminal sharing system and lightweight Cloud IDE. It is built entirely in Go with a centralized WebSocket relay architecture, securing all traffic with **AES-GCM 256-bit End-to-End Encryption (E2EE)**.
 
-Think of it as a lightweight, zero-trust alternative for terminal collaboration. It allows hosts to share terminal sessions, manage multiple tabs concurrently, and collaborate with peers via a slick Web UI or an interactive TUI-based CLI client—all packed into a single binary.
-
----
-
-## ✨ The Cool Stuff (Key Features)
-
-* **Absolute Privacy (AES-GCM 256-bit):** Keys and terminal I/O are encrypted locally. The central relay server is literally a "dumb pipe" that only routes encrypted binary frames. It never sees your plaintext data or your password.
-* **Multi-Tab Collaboration:** Spawn, switch, navigate, and terminate multiple concurrent shell sessions on the host seamlessly.
-* **Premium Web UI:** A beautiful, responsive `xterm.js` interface packed with collaborator presence indicators, a glowing user sidebar, and custom dark-mode scrollbars. (No bloated frameworks, just pure Vanilla JS magic).
-* **State Persistence & Auto-Reconnect:** Web client credentials live safely in `sessionStorage`. Accidentally refreshed the page? It snaps back and reconnects in milliseconds.
-* **TUI CLI Client:** Prefer the terminal? Join via CLI and enjoy interactive tab navigation, presence synchronization, and a built-in chat room.
-* **Integrated Chat Room:** A memory-cached chat bridge connecting Web and CLI clients in real-time, preserving the last 50 messages for newcomers.
+It allows hosts to share terminal sessions, navigate directories using a clean absolute-path File Explorer, and edit files in real-time via a multi-tab Web UI or an interactive TUI-based CLI client—all packed into a single binary.
 
 ---
 
-## 📦 Installation
+## ✨ Key Features
 
-### The Easy Way (Pre-built Binaries)
-Grab the ready-to-use binary for your OS and CPU architecture from the [Releases](https://github.com/your-username/rmte/releases) page.
+* **Absolute Privacy (AES-GCM 256-bit):** Encryption keys and terminal/file I/O payloads are processed locally. The central relay server acts as a "dumb pipe" that only routes encrypted binary frames. It never sees your plaintext data, your files, or your password.
+* **Split-Workspace Cloud IDE:** Toggle the folder icon `📁` in the browser tab bar to open a split-view workspace:
+  * **Left Panel**: In-place File Explorer.
+  * **Right Panel**: Tabbed text editor supporting file opening, modification warnings, and direct saving (`Ctrl + S`).
+  * **Bottom Panel**: Interactive, multi-tab terminal shells.
+* **Inline File Operations (Zero Modals):** Browser dialogs (`prompt()`, `confirm()`, `alert()`) are completely replaced with clean, non-blocking inline DOM inputs for creating, renaming, and deleting files or directories.
+* **Parent Directory Navigation:** Always-present `..` navigation list item allows traversing up the directory tree across host drives.
+* **Dynamic Max Buffer Limits:** Set customizable memory limits via CLI (e.g. `--buffer=5` for 5MB limits) to configure both the terminal ring buffer and the maximum allowed file sizes.
+* **Zero-copy Binary Data Channel (Tab ID `255`):** Avoids heavy Base64 parsing overhead. Files are sent as pure, encrypted binary frames over a reserved channel.
+* **Integrated Chat Room:** A memory-cached chat bridge connecting Web and CLI clients in real-time, preserving the last 50 messages.
+* **State Persistence & Auto-Reconnect:** Connection credentials live safely in `sessionStorage` for immediate recovery upon page refresh.
 
-### The Hacker Way (Build from Source)
-Got Go installed (v1.21+)? Let's build it:
+---
+
+## 🏗️ Architecture & Security Model
+```
+┌───────────────┐                  ┌──────────────┐                  ┌───────────────┐
+│               │  E2EE Control    │              │  E2EE Control    │               │
+│               ├─────────────────►│              │◄─────────────────┤               │
+│   Host Go     │                  │  Relay Go    │                  │  Viewer JS    │
+│  Workspace    │  E2EE Tab 255    │  (WebSockets)│  E2EE Tab 255    │   Browser     │
+│               │◄─────────────────┤              ├─────────────────►│               │
+└───────────────┘  (Raw Binary)    └──────────────┘  (Raw Binary)    └───────────────┘
+```
+
+1. **E2EE Key Derivation**: A 256-bit key is derived locally from the shared password using SHA-256.
+2. **AES-GCM Payload Envelope**: Control messages (JSON) and binary streams (terminal I/O & file operations) are encrypted using AES-GCM with a unique 12-byte initialization vector (IV) prepended to the ciphertext.
+3. **Zero-Knowledge Relay**: The server only proxies binary envelopes and target routing IDs. It cannot read your commands, terminal outputs, or files.
+
+---
+
+## 📦 Build from Source
+Got Go installed (v1.21+)? Let's build the binary:
 ```bash
-git clone [https://github.com/your-username/rmte.git](https://github.com/your-username/rmte.git)
+git clone https://github.com/your-username/rmte.git
 cd rmte/rmte
-go build -o rmte
-
+go build -ldflags "-s -w" -o rmte
 ```
 
 ---
 
 ## 🚀 Quick Start Guide
 
-You only need one binary to rule them all. Here is how to orchestrate a session:
-
 ### 1. Spin Up the Relay Server
-
-The relay server acts as the central broker. It handles WebSocket routing and serves the embedded Web UI.
-
+The relay server acts as the central broker, routing WebSocket connections and serving the embedded Web UI.
 ```bash
 ./rmte serve --port=8080
-
 ```
 
-### 2. Share Your Terminal (The Host)
-
-Run this on the machine you want to expose.
-*(Note: Uses PTY on Linux/macOS, and a custom Pipes fallback on Windows).*
-
+### 2. Share Your Workspace (Host)
+Run this on the machine you want to expose. It starts shell terminals and exposes directory operations.
 ```bash
-./rmte share --server="ws://localhost:8080/ws" --pass="supersecret123"
-
+./rmte share --server="ws://localhost:8080/ws" --pass="supersecret123" --buffer=5
 ```
+* `--buffer` (Optional): Maximum buffer size in MB (applies to terminal ring buffer and max file sizes). Default is `1` MB.
 
-It will spit out a unique Session ID:
-
+The host will output a unique Session ID:
 ```text
 Session ID: a1b2c3d4
 Share this ID with viewers to join.
-
 ```
 
-### 3. Join the Party (CLI Viewer)
-
-On a different machine, jump into the session via your terminal:
-
+### 3. Join via CLI Client (Viewer)
+Join from another terminal:
 ```bash
 ./rmte join --server="ws://localhost:8080/ws" --id="a1b2c3d4" --pass="supersecret123"
-
 ```
-
-You'll be greeted by an interactive TUI menu where you can:
-
-* `[j]` **Join Tab:** Dive into the active shell (Press `Ctrl + ]` to escape back to the menu).
-* `[n]` **New Tab:** Spawn a fresh concurrent shell on the host.
-* `[s]` **Switch Tab:** Hop between active tabs.
-* `[c]` **Chat:** Enter the real-time chat room (Type `/exit` to leave).
+You'll enter an interactive TUI menu:
+* `[j]` **Join Tab:** Dive into the active terminal shell (Press `Ctrl + ]` to escape).
+* `[n]` **New Tab:** Spawn a concurrent shell on the host.
+* `[s]` **Switch Tab:** Hop between active terminal tabs.
+* `[c]` **Chat:** Enter the real-time chat room.
 * `[q]` **Quit:** Disconnect gracefully.
 
-### 4. Join the Party (Web Viewer)
-
-Not a terminal junkie? Open your browser and go to:
-
+### 4. Join via Web Client (Viewer)
+Open your browser and navigate to:
 ```text
 http://localhost:8080/
-
 ```
-
-1. Enter the Server URL, **Session ID** (`a1b2c3d4`), E2EE **Password** (`supersecret123`), and your Nickname.
-2. Hit **Connect**.
-3. Enjoy the premium UI: see who's typing on which tab, toggle the collaborator sidebar (`👥`), chat with the team, and collaborate in real-time.
-
----
-
-## 🔒 Under the Hood: The Security Model
-
-I built this with a "Trust No One" philosophy. Here is how the E2EE pipeline works:
-
-1. Your `--pass` is hashed into a raw 256-bit key using **SHA-256**, strictly on the client side.
-2. The Host encrypts all terminal `stdout` bytes using this key, appending a dynamically generated random IV (Nonce) to every single binary frame.
-3. The Viewers receive these encrypted bytes, extract the IV, decrypt the payload locally using WebCrypto API (or Go's crypto package), and feed the plaintext into the renderer.
-4. **The Relay Server is blind.** It only forwards the encrypted binary chunks. It literally cannot read your commands or output.
+1. Enter the Server URL, E2EE **Password** (`supersecret123`), **Session ID** (`a1b2c3d4`), and your Nickname.
+2. Click **Connect**.
+3. Toggle the folder icon `📁` in the tab bar to access the workspace editor. Double-click the breadcrumb to input any absolute path directly.
