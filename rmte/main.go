@@ -25,12 +25,13 @@ func main() {
 	case "share":
 		server := flag.String("server", "ws://localhost:8080/ws", "Relay server URL")
 		pass := flag.String("pass", "", "Password for E2EE")
+		bufferMB := flag.Int("buffer", 1, "Max buffer size in MB (applies to terminal ring buffer and file manager)")
 		flag.Parse()
 		if *pass == "" {
 			fmt.Println("Error: --pass is required for E2EE")
 			return
 		}
-		runHost(*server, *pass)
+		runHost(*server, *pass, *bufferMB)
 	case "join":
 		server := flag.String("server", "ws://localhost:8080/ws", "Relay server URL")
 		sessionID := flag.String("id", "", "Session ID to join")
@@ -51,6 +52,6 @@ func printUsage() {
 	fmt.Println("rmte - Remote Terminal Relay")
 	fmt.Println("Usage:")
 	fmt.Println("  rmte serve --port=8080")
-	fmt.Println("  rmte share --server=\"ws://...\" --pass=\"secret\"")
+	fmt.Println("  rmte share --server=\"ws://...\" --pass=\"secret\" [--buffer=1]")
 	fmt.Println("  rmte join --server=\"ws://...\" --id=\"...\" --pass=\"secret\" [--name=\"name\"]")
 }

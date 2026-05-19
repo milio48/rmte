@@ -252,7 +252,16 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 							}
 						}
 						s.Mutex.RUnlock()
-					} else if action == "req_sync" {
+					} else if action == "req_sync" ||
+						action == "req_dir" ||
+						action == "req_read_file" ||
+						action == "prepare_save" ||
+						action == "prepare_upload" ||
+						action == "create_file" ||
+						action == "create_dir" ||
+						action == "rename_file" ||
+						action == "delete_file" {
+						// Inject caller's connID so host can route responses back
 						ctrl["target_conn"] = connID
 						newData, _ := json.Marshal(ctrl)
 						s.Host.WriteMessage(websocket.TextMessage, newData)
@@ -262,7 +271,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 				} else {
 					targetConn, hasTarget := ctrl["target_conn"].(string)
 					
-					if hasTarget {
+					if hasTarget && targetConn != "" {
 						s.Mutex.RLock()
 						// Route specific JSON message to target_conn
 						for _, conns := range s.Viewers {

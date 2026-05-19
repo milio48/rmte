@@ -1,513 +1,376 @@
-let ws;
-let aesKey;
-let currentTab = 0;
-let terminals = {}; // tabID -> { term, container, fitAddon }
-let myUsername = "";
-const myViewerId = "v-web-" + Math.random().toString(16).slice(2, 10);
-let debugLogs = [];
+// RMTE v0.2 — Web Viewer with Editor Tabs + File Manager
+let ws, aesKey, currentTab = 'term-0', myUsername = '';
+const myViewerId = 'v-web-' + Math.random().toString(16).slice(2,10);
+let terminals = {}, editorTabs = {};
+let fileManagerOpen = false, currentFilePath = './';
+let waitingForFileData = false, pendingFileBytes = null, pendingEditorPath = null;
+const DATA_CH = 255;
 
-function logDebug(direction, type, payload) {
-    const entry = { time: new Date().toISOString(), direction, type, payload };
-    debugLogs.push(entry);
-    console.debug("[RMTE_DEBUG]", JSON.stringify(entry));
+const TEXT_EXT = new Set('go,js,ts,jsx,tsx,py,rb,rs,c,cpp,h,hpp,java,kt,cs,php,html,css,scss,less,json,yaml,yml,toml,xml,sql,md,txt,log,csv,ini,cfg,conf,env,sh,bash,bat,ps1,cmd,mod,sum,lock,editorconfig,gitignore,makefile,dockerfile'.split(','));
+const LANG_MAP = {go:'Go',js:'JavaScript',ts:'TypeScript',py:'Python',rs:'Rust',html:'HTML',css:'CSS',json:'JSON',md:'Markdown',yaml:'YAML',yml:'YAML',sh:'Shell',sql:'SQL',c:'C',cpp:'C++',java:'Java',rb:'Ruby',php:'PHP',xml:'XML',toml:'TOML'};
+
+const _log = {
+    out(t,d){console.log(`%c[OUT] %c${t}`,'color:#58a6ff;font-weight:bold','color:#8b949e',d)},
+    in(t,d){console.log(`%c[IN]  %c${t}`,'color:#3fb950;font-weight:bold','color:#8b949e',d)},
+    err(m,d){console.error(`%c[ERR] %c${m}`,'color:#f85149;font-weight:bold','color:#8b949e',d||'')},
+    warn(m,d){console.warn(`%c[WARN] %c${m}`,'color:#d29922;font-weight:bold','color:#8b949e',d||'')},
+    info(m,d){console.info(`%c[INFO] %c${m}`,'color:#bc8cff;font-weight:bold','color:#8b949e',d||'')},
+};
+
+function isTextFile(name) {
+    const ext = (name.split('.').pop()||'').toLowerCase();
+    const base = name.toLowerCase();
+    return TEXT_EXT.has(ext) || ['makefile','dockerfile','readme','license','changelog','.gitignore','.env'].includes(base);
 }
-
-window.dumpDebug = () => {
-    console.log(JSON.stringify(debugLogs, null, 2));
+function getLang(name) { return LANG_MAP[(name.split('.').pop()||'').toLowerCase()] || 'Text'; }
+function fileIcon(name) {
+    const ext = (name.split('.').pop()||'').toLowerCase();
+    return {go:'🔷',js:'🟨',ts:'🔷',py:'🐍',rs:'🦀',html:'🌐',css:'🎨',json:'📋',yaml:'📋',yml:'📋',md:'📝',txt:'📄',log:'📜',sh:'⚙️',bat:'⚙️',png:'🖼️',jpg:'🖼️',svg:'🖼️',zip:'📦',tar:'📦',gz:'📦',mod:'📦',sum:'🔒',exe:'💠',dll:'💠'}[ext]||'📄';
 }
+function fmtSize(b){if(!b)return'0 B';const u=['B','KB','MB','GB'];const i=Math.floor(Math.log(b)/Math.log(1024));return(b/Math.pow(1024,i)).toFixed(i>0?1:0)+' '+u[i];}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function basename(p){return p.replace(/\\/g,'/').split('/').filter(Boolean).pop()||p;}
 
+// ===== CONNECTION =====
 async function connect() {
-	const server = document.getElementById('server').value;
-	const sessionId = document.getElementById('sessionId').value;
-	const password = document.getElementById('password').value;
-	const usernameInput = document.getElementById('username').value.trim();
-
-	if (!sessionId || !password) return alert("Session ID and Password required");
-
-	document.getElementById('connect-btn').innerText = "Connecting...";
-	document.getElementById('connect-btn').disabled = true;
-
-	myUsername = usernameInput || ("Web-" + Math.random().toString(36).slice(2, 6).toUpperCase());
-
-	// Derive Key using SHA-256 to match Go's sha256.Sum256
-	const enc = new TextEncoder();
-	const msgUint8 = enc.encode(password);
-	const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-	aesKey = await crypto.subtle.importKey(
-		"raw",
-		hashBuffer,
-		{ name: "AES-GCM" },
-		false,
-		["encrypt", "decrypt"]
-	);
-
-	ws = new WebSocket(server);
-	ws.binaryType = 'arraybuffer';
-
-	ws.onopen = async () => {
-		// S4: Derive auth token for server-side access control
-		const authHashBuffer = await crypto.subtle.digest('SHA-256', enc.encode("rmte-auth:" + password));
-		const authToken = Array.from(new Uint8Array(authHashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-        const authMsg = {
-			type: "auth",
-			role: "viewer",
-			session_id: sessionId,
-			viewer_id: myViewerId,
-			viewer_name: myUsername,
-			auth_token: authToken,
-			protocol_version: "0.2"
-		};
-        logDebug("OUT", "auth", authMsg);
-		ws.send(JSON.stringify(authMsg));
-	};
-
-	ws.onmessage = async (event) => {
-		if (typeof event.data === 'string') {
-			const msg = JSON.parse(event.data);
-            logDebug("IN", "json", msg);
-			if (msg.type === 'auth_success') {
-				document.getElementById('setup').style.display = 'none';
-				document.getElementById('terminal-container').style.display = 'flex';
-                
-                // Persist session for autoconnect upon reload using sessionStorage
-                sessionStorage.setItem('rmte_autoconnect', 'true');
-                sessionStorage.setItem('rmte_server', server);
-                sessionStorage.setItem('rmte_sessionId', sessionId);
-                sessionStorage.setItem('rmte_password', password);
-                sessionStorage.setItem('rmte_username', myUsername);
-
-                // Request active tabs immediately
-                const getTabsMsg = { type: "control", action: "get_tabs" };
-                logDebug("OUT", "json", getTabsMsg);
-                ws.send(JSON.stringify(getTabsMsg));
-			} else if (msg.type === 'control' && msg.action === 'chat_history') {
-				const msgsDiv = document.getElementById('chat-messages');
-				if (msgsDiv) {
-					msgsDiv.innerHTML = '';
-				}
-				if (msg.history) {
-					msg.history.forEach(chatMsg => {
-						appendChatMessage(chatMsg.sender, chatMsg.message, chatMsg.time);
-					});
-				}
-			} else if (msg.type === 'control' && msg.action === 'tab_created') {
-				addTabButton(msg.tab_id);
-			} else if (msg.type === 'control' && msg.action === 'tab_deleted') {
-				const container = document.getElementById(`tab-container-${msg.tab_id}`);
-				if (container) {
-					container.remove();
-				}
-				
-				if (terminals[msg.tab_id]) {
-					terminals[msg.tab_id].term.dispose();
-					const wrapper = document.getElementById(`term-container-${msg.tab_id}`);
-					if (wrapper) wrapper.remove();
-					delete terminals[msg.tab_id];
-				}
-				
-				if (currentTab === msg.tab_id) {
-					const remainingTabIds = Object.keys(terminals);
-					if (remainingTabIds.length > 0) {
-						switchTab(parseInt(remainingTabIds[0]));
-					} else {
-						currentTab = 0;
-					}
-				}
-			} else if (msg.type === 'control' && msg.action === 'tabs_list') {
-                msg.tabs.forEach(tabId => {
-                    addTabButton(tabId);
-                });
-                if (msg.tabs.length > 0 && !terminals[currentTab]) {
-                    if (msg.tabs.includes(0)) {
-                        initTerminal(0);
-                    } else {
-                        currentTab = msg.tabs[0];
-                        initTerminal(currentTab);
-                    }
-                }
-            } else if (msg.type === 'control' && msg.action === 'sync_data') {
-                const binaryString = window.atob(msg.data);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                await handleBinaryBytes(bytes);
-            } else if (msg.type === 'control' && msg.action === 'presence') {
-                // Clear all tab subtexts
-                document.querySelectorAll('.tab-subtext').forEach(el => {
-                    el.innerText = '';
-                });
-
-                // Update subtexts for tabs with users
-                Object.keys(msg.tabs).forEach(tabId => {
-                    const sub = document.getElementById(`tab-subtext-${tabId}`);
-                    if (sub) {
-                        const users = msg.tabs[tabId];
-                        if (users && users.length > 0) {
-                            sub.innerText = users.join(', ');
-                        }
-                    }
-                });
-
-                // Update Sidebar
-                const usersListDiv = document.getElementById('users-list');
-                if (usersListDiv) {
-                    usersListDiv.innerHTML = '';
-                    
-                    // Collect all active users across tabs
-                    Object.keys(msg.tabs).forEach(tabId => {
-                        const users = msg.tabs[tabId];
-                        if (users && users.length > 0) {
-                            users.forEach(username => {
-                                const item = document.createElement('div');
-                                item.className = 'user-item';
-                                
-                                const dot = document.createElement('span');
-                                dot.className = 'dot';
-                                
-                                const nameSpan = document.createElement('span');
-                                nameSpan.className = 'user-name';
-                                nameSpan.innerText = username;
-                                
-                                const badge = document.createElement('span');
-                                badge.className = 'user-tab-badge';
-                                badge.innerText = `Tab ${tabId}`;
-                                
-                                item.appendChild(dot);
-                                item.appendChild(nameSpan);
-                                item.appendChild(badge);
-                                usersListDiv.appendChild(item);
-                            });
-                        }
-                    });
-                }
-            } else if (msg.type === 'control' && msg.action === 'chat') {
-                appendChatMessage(msg.sender, msg.message, msg.time);
-            }
-		} else {
-			// Binary Frame
-			const rawBytes = new Uint8Array(event.data);
-            await handleBinaryBytes(rawBytes);
-		}
-	};
-}
-
-async function handleBinaryBytes(rawBytes) {
-    const tabId = rawBytes[0];
-    const iv = rawBytes.slice(1, 13);
-    const ciphertext = rawBytes.slice(13);
-
+    const server=document.getElementById('server').value, sessionId=document.getElementById('sessionId').value;
+    const password=document.getElementById('password').value, uname=document.getElementById('username').value.trim();
+    hideError();
+    if(!sessionId||!password){showError('Session ID and Password required');return;}
+    const btn=document.getElementById('connect-btn'); btn.innerText='Connecting...'; btn.disabled=true;
+    myUsername=uname||('Web-'+Math.random().toString(36).slice(2,6).toUpperCase());
     try {
-        const decryptedBuffer = await crypto.subtle.digest ? await crypto.subtle.decrypt(
-            { name: "AES-GCM", iv: iv },
-            aesKey,
-            ciphertext
-        ) : null;
-        if (!decryptedBuffer) {
-            const dec = await crypto.subtle.decrypt(
-                { name: "AES-GCM", iv: iv },
-                aesKey,
-                ciphertext
-            );
-            const decodedStr = new TextDecoder().decode(dec);
-            logDebug("IN", "binary_text", { tabId, text: decodedStr });
-            if (!terminals[tabId]) initTerminal(tabId);
-            terminals[tabId].term.write(new Uint8Array(dec));
+        const enc=new TextEncoder();
+        aesKey=await crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',enc.encode(password)),{name:'AES-GCM'},false,['encrypt','decrypt']);
+        const authToken=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode('rmte-auth:'+password)))).map(b=>b.toString(16).padStart(2,'0')).join('');
+        ws=new WebSocket(server); ws.binaryType='arraybuffer';
+        ws.onopen=()=>{_log.info('WS connected');sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.2'}));};
+        ws.onclose=e=>{_log.warn('WS closed',{code:e.code});const s=document.getElementById('sb-connection');if(s){s.innerText='● Disconnected';s.style.color='#f85149';}};
+        ws.onerror=()=>{_log.err('WS error');showError('Connection failed');btn.innerText='Connect';btn.disabled=false;};
+        ws.onmessage=async e=>{try{typeof e.data==='string'?await onJson(JSON.parse(e.data)):await onBinary(new Uint8Array(e.data));}catch(err){_log.err('msg handler',err);}};
+    } catch(e){_log.err('connect',e);showError(e.message);btn.innerText='Connect';btn.disabled=false;}
+}
+function sendRaw(d){if(ws&&ws.readyState===1)ws.send(d);else _log.err('WS not open');}
+function sendJson(m){_log.out('json:'+m.action,m);sendRaw(JSON.stringify(m));}
+async function sendBin(tabId,plain){const iv=crypto.getRandomValues(new Uint8Array(12));const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},aesKey,plain);const p=new Uint8Array(1+12+ct.byteLength);p[0]=tabId;p.set(iv,1);p.set(new Uint8Array(ct),13);sendRaw(p);}
+
+// ===== MESSAGE HANDLERS =====
+async function onJson(msg) {
+    _log.in(msg.action||msg.type,msg);
+    if(msg.type==='auth_success'){
+        document.getElementById('setup').style.display='none';
+        document.getElementById('terminal-container').style.display='flex';
+        document.getElementById('sb-session').innerText='Session: '+(document.getElementById('sessionId').value);
+        document.getElementById('sb-user').innerText=myUsername;
+        ['server','sessionId','password','username'].forEach(k=>sessionStorage.setItem('rmte_'+k,document.getElementById(k).value));
+        sessionStorage.setItem('rmte_autoconnect','true');sessionStorage.setItem('rmte_username',myUsername);
+        sendJson({type:'control',action:'get_tabs'});return;
+    }
+    if(msg.type==='error'){showError(msg.message);document.getElementById('connect-btn').innerText='Connect';document.getElementById('connect-btn').disabled=false;return;}
+    if(msg.type!=='control')return;
+    switch(msg.action){
+        case'tabs_list':{const t=msg.tabs||[];t.forEach(id=>addTermTabBtn(id));if(t.length>0&&!terminals[t[0]]){initTerminal(t.includes(0)?0:t[0]);}break;}
+        case'tab_created':addTermTabBtn(msg.tab_id);break;
+        case'tab_deleted':removeTermTab(msg.tab_id);break;
+        case'sync_data':{const b=Uint8Array.from(atob(msg.data),c=>c.charCodeAt(0));await onBinary(b);}break;
+        case'presence':updatePresence(msg.tabs);break;
+        case'chat_history':document.getElementById('chat-messages').innerHTML='';(msg.history||[]).forEach(m=>appendChat(m.sender,m.message,m.time));break;
+        case'chat':appendChat(msg.sender,msg.message,msg.time);break;
+        // File Manager
+        case'dir_data':renderFileList(msg.path,msg.files);break;
+        case'read_file_start':_log.info('Waiting Tab255',{path:msg.path});waitingForFileData=true;pendingEditorPath=msg.path;break;
+        case'ready_for_data':_log.info('Host ready, sending data');await sendPendingFile();break;
+        case'file_saved':_log.info('Saved',msg);setEditorStatus(pendingEditorPath||msg.path,'Saved ✓');requestDir(currentFilePath);break;
+        case'file_created':case'dir_created':requestDir(currentFilePath);break;
+        case'file_renamed':case'file_deleted':requestDir(currentFilePath);break;
+        case'fm_error':_log.err('FM: '+msg.message);showToast(msg.message);break;
+        default:_log.warn('Unhandled: '+msg.action);
+    }
+}
+async function onBinary(raw) {
+    const tabId=raw[0],iv=raw.slice(1,13),ct=raw.slice(13);
+    if(ct.length===0){_log.warn('Empty ct',{tabId});return;}
+    try {
+        const dec=await crypto.subtle.decrypt({name:'AES-GCM',iv},aesKey,ct);
+        if(tabId===DATA_CH){
+            if(waitingForFileData){waitingForFileData=false;const txt=new TextDecoder().decode(dec);_log.info('File received',{bytes:dec.byteLength});openEditorTab(pendingEditorPath,txt);}
+            else _log.warn('Tab255 data but not waiting');
             return;
         }
-        const decodedStr = new TextDecoder().decode(decryptedBuffer);
-        logDebug("IN", "binary_text", { tabId, text: decodedStr });
-        if (!terminals[tabId]) initTerminal(tabId);
-        terminals[tabId].term.write(new Uint8Array(decryptedBuffer));
-    } catch (e) {
-        console.error("Decryption failed", e);
+        if(!terminals[tabId])initTerminal(tabId);
+        terminals[tabId].term.write(new Uint8Array(dec));
+    }catch(e){_log.err('Decrypt fail',{tabId,e:e.message});}
+}
+
+// ===== TAB SYSTEM =====
+// Tab IDs: "term-N" for terminals, "file:path" for editors
+function activeTabId(){return currentTab;}
+function switchToTab(id){
+    currentTab=id;
+    document.querySelectorAll('.tab-btn-container').forEach(b=>b.classList.remove('active'));
+    const el=document.getElementById('tab-'+CSS.escape(id));
+    if(el)el.classList.add('active');
+    // Hide all containers
+    document.querySelectorAll('#terminal-wrapper > div').forEach(d=>d.style.display='none');
+    const cont=document.getElementById('content-'+CSS.escape(id));
+    if(cont)cont.style.display=cont.dataset.type==='editor'?'flex':'block';
+    // Terminal-specific
+    if(id.startsWith('term-')){
+        const tid=parseInt(id.slice(5));
+        if(terminals[tid]){setTimeout(()=>{terminals[tid].fitAddon.fit();},20);terminals[tid].term.focus();}
+        sendJson({type:'control',action:'set_focus',viewer_id:myViewerId,viewer_name:myUsername,tab_id:tid});
+        sendJson({type:'control',action:'req_sync',tab_id:tid});
     }
+    setTimeout(refitActive,50);
+}
+function refitActive(){
+    if(!currentTab.startsWith('term-'))return;
+    const tid=parseInt(currentTab.slice(5)),t=terminals[tid];
+    if(!t)return;
+    try{t.fitAddon.fit();sendJson({type:'control',action:'resize',tab_id:tid,cols:t.term.cols,rows:t.term.rows});}catch(e){}
 }
 
-function requestNewTab() {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        const msg = { type: "control", action: "request_new_tab" };
-        logDebug("OUT", "json", msg);
-        ws.send(JSON.stringify(msg));
+// Terminal tabs
+function initTerminal(tabId){
+    if(terminals[tabId])return;
+    const id='term-'+tabId;
+    const cont=document.createElement('div');cont.id='content-'+CSS.escape(id);cont.dataset.type='terminal';
+    cont.style.cssText='height:100%;width:100%;display:'+(currentTab===id?'block':'none');
+    document.getElementById('terminal-wrapper').appendChild(cont);
+    const t=new Terminal({cursorBlink:true,convertEol:true,theme:{background:'#0d1117',foreground:'#e6edf3',cursor:'#58a6ff'},fontFamily:"'Consolas','Courier New',monospace",fontSize:14});
+    const fa=new FitAddon.FitAddon();t.loadAddon(fa);
+    terminals[tabId]={term:t,fitAddon:fa};
+    t.open(cont);fa.fit();
+    t.onData(d=>sendBin(tabId,new TextEncoder().encode(d)));
+    addTermTabBtn(tabId);
+    if(!document.querySelector('.tab-btn-container.active'))switchToTab(id);
+}
+function addTermTabBtn(tabId){
+    const id='term-'+tabId;
+    if(document.getElementById('tab-'+CSS.escape(id)))return;
+    const c=document.createElement('div');c.id='tab-'+CSS.escape(id);c.className='tab-btn-container'+(currentTab===id?' active':'');
+    const icon=document.createElement('span');icon.className='tab-icon';icon.innerText='⬛';
+    const content=document.createElement('div');content.className='tab-btn-content';content.onclick=()=>switchToTab(id);
+    const title=document.createElement('span');title.className='tab-title-text';title.innerText='Tab '+tabId;
+    const sub=document.createElement('span');sub.id='tab-subtext-'+tabId;sub.className='tab-subtext';
+    content.appendChild(title);content.appendChild(sub);
+    const close=document.createElement('button');close.className='tab-close-btn';close.innerText='×';
+    close.onclick=e=>{e.stopPropagation();if(confirm('Delete Tab '+tabId+'?'))sendJson({type:'control',action:'delete_tab',tab_id:tabId});};
+    c.appendChild(icon);c.appendChild(content);c.appendChild(close);
+    document.getElementById('tabs').appendChild(c);
+}
+function removeTermTab(tabId){
+    const id='term-'+tabId;
+    const el=document.getElementById('tab-'+CSS.escape(id));if(el)el.remove();
+    const cont=document.getElementById('content-'+CSS.escape(id));if(cont)cont.remove();
+    if(terminals[tabId]){terminals[tabId].term.dispose();delete terminals[tabId];}
+    if(currentTab===id){const k=Object.keys(terminals);if(k.length)switchToTab('term-'+k[0]);else{const et=Object.keys(editorTabs);if(et.length)switchToTab(et[0]);}}
+}
+function requestNewTab(){sendJson({type:'control',action:'request_new_tab'});}
+
+// Editor tabs
+function openEditorTab(path,text){
+    const id='file:'+path;
+    if(editorTabs[id]){// Already open - update content and switch
+        editorTabs[id].textarea.value=text;editorTabs[id].original=text;switchToTab(id);return;
     }
-}
-
-function initTerminal(tabId) {
-	if (terminals[tabId]) return;
-
-    const termContainer = document.createElement('div');
-    termContainer.id = `term-container-${tabId}`;
-    termContainer.style.display = tabId === currentTab ? 'block' : 'none';
-    termContainer.style.height = '100%';
-    termContainer.style.width = '100%';
-    document.getElementById('terminal-wrapper').appendChild(termContainer);
-
-	const t = new Terminal({
-		cursorBlink: true,
-		convertEol: true,
-		theme: { background: '#000', foreground: '#cccccc' },
-        fontFamily: "'Consolas', 'Courier New', monospace",
-        fontSize: 14
-	});
-	
-	const fitAddon = new FitAddon.FitAddon();
-	t.loadAddon(fitAddon);
-	
-	terminals[tabId] = { term: t, container: termContainer, fitAddon: fitAddon };
-	
-    t.open(termContainer);
-	fitAddon.fit();
-    t.onData(data => sendInput(tabId, data));
-
-	addTabButton(tabId);
-    
-    if (tabId === currentTab) {
-        const focusMsg = {
-            type: "control",
-            action: "set_focus",
-            viewer_id: myViewerId,
-            viewer_name: myUsername,
-            tab_id: tabId
-        };
-        logDebug("OUT", "json", focusMsg);
-        ws.send(JSON.stringify(focusMsg));
-
-        const msg = { type: "control", action: "req_sync", tab_id: tabId };
-        logDebug("OUT", "json", msg);
-        ws.send(JSON.stringify(msg));
+    const isText=isTextFile(path);
+    // Container
+    const cont=document.createElement('div');cont.id='content-'+CSS.escape(id);cont.dataset.type='editor';cont.className='editor-container';cont.style.display='none';
+    // Bar
+    const bar=document.createElement('div');bar.className='editor-bar';
+    bar.innerHTML=`<span class="editor-path">${esc(path)}</span><span class="editor-lang">${getLang(path)}</span><span class="editor-status" id="estatus-${CSS.escape(id)}"></span>`;
+    if(isText){
+        const saveBtn=document.createElement('button');saveBtn.className='editor-save';saveBtn.innerText='💾 Save';
+        saveBtn.onclick=()=>saveEditor(id,path);bar.appendChild(saveBtn);
     }
-}
-
-function addTabButton(tabId) {
-    const tabsDiv = document.getElementById('tabs');
-    if (document.getElementById(`tab-container-${tabId}`)) return;
-    
-    const btnContainer = document.createElement('div');
-    btnContainer.id = `tab-container-${tabId}`;
-    btnContainer.className = 'tab-btn-container' + (tabId === currentTab ? ' active' : '');
-    
-    const btnContent = document.createElement('div');
-    btnContent.className = 'tab-btn-content';
-    btnContent.onclick = () => switchTab(tabId);
-    
-    const titleText = document.createElement('span');
-    titleText.id = `tab-title-${tabId}`;
-    titleText.className = 'tab-title-text';
-    titleText.innerText = `Tab ${tabId}`;
-    
-    const subtext = document.createElement('span');
-    subtext.id = `tab-subtext-${tabId}`;
-    subtext.className = 'tab-subtext';
-    subtext.innerText = '';
-    
-    btnContent.appendChild(titleText);
-    btnContent.appendChild(subtext);
-    
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'tab-close-btn';
-    closeBtn.innerText = '×';
-    closeBtn.title = "Delete Tab";
-    closeBtn.onclick = (e) => {
-        e.stopPropagation();
-        if (confirm(`Are you sure you want to delete Tab ${tabId}?`)) {
-            deleteTab(tabId);
-        }
-    };
-    
-    btnContainer.appendChild(btnContent);
-    btnContainer.appendChild(closeBtn);
-    tabsDiv.appendChild(btnContainer);
-}
-
-function deleteTab(tabId) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        const msg = { type: "control", action: "delete_tab", tab_id: tabId };
-        logDebug("OUT", "json", msg);
-        ws.send(JSON.stringify(msg));
+    cont.appendChild(bar);
+    if(isText){
+        const ta=document.createElement('textarea');ta.className='editor-textarea';ta.spellcheck=false;ta.value=text;
+        ta.addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const s=ta.selectionStart;ta.value=ta.value.substring(0,s)+'\t'+ta.value.substring(ta.selectionEnd);ta.selectionStart=ta.selectionEnd=s+1;}});
+        cont.appendChild(ta);
+        editorTabs[id]={path,textarea:ta,original:text};
+    } else {
+        const bp=document.createElement('div');bp.className='binary-preview';
+        bp.innerHTML=`<span class="bp-icon">${fileIcon(path)}</span><span class="bp-msg">Binary file — cannot preview</span><span class="bp-msg" style="font-size:11px;color:#484f58">${fmtSize(text.length)} · ${path}</span>`;
+        cont.appendChild(bp);
+        editorTabs[id]={path,textarea:null,original:null};
     }
+    document.getElementById('terminal-wrapper').appendChild(cont);
+    // Tab button
+    const c=document.createElement('div');c.id='tab-'+CSS.escape(id);c.className='tab-btn-container editor-tab';
+    const icon=document.createElement('span');icon.className='tab-icon';icon.innerText=fileIcon(path);
+    const content=document.createElement('div');content.className='tab-btn-content';content.onclick=()=>switchToTab(id);
+    const title=document.createElement('span');title.className='tab-title-text';title.innerText=basename(path);
+    content.appendChild(title);
+    const close=document.createElement('button');close.className='tab-close-btn';close.innerText='×';
+    close.onclick=e=>{e.stopPropagation();closeEditorTab(id);};
+    c.appendChild(icon);c.appendChild(content);c.appendChild(close);
+    document.getElementById('tabs').appendChild(c);
+    switchToTab(id);
 }
+function closeEditorTab(id){
+    const et=editorTabs[id];
+    if(et&&et.textarea&&et.textarea.value!==et.original&&!confirm('Unsaved changes. Close anyway?'))return;
+    const el=document.getElementById('tab-'+CSS.escape(id));if(el)el.remove();
+    const cont=document.getElementById('content-'+CSS.escape(id));if(cont)cont.remove();
+    delete editorTabs[id];
+    if(currentTab===id){const k=Object.keys(terminals);if(k.length)switchToTab('term-'+k[0]);else{const et2=Object.keys(editorTabs);if(et2.length)switchToTab(et2[0]);}}
+}
+function saveEditor(id,path){
+    const et=editorTabs[id];if(!et||!et.textarea)return;
+    pendingFileBytes=new TextEncoder().encode(et.textarea.value);
+    pendingEditorPath=path;
+    setEditorStatus(path,'Saving...');
+    sendJson({type:'control',action:'prepare_save',path});
+}
+function setEditorStatus(path,text){
+    const id='file:'+path;
+    const el=document.getElementById('estatus-'+CSS.escape(id));
+    if(el){el.innerText=text;if(text)setTimeout(()=>{if(el.innerText===text)el.innerText='';},3000);}
+    // Update original on save success
+    if(text==='Saved ✓'&&editorTabs[id]&&editorTabs[id].textarea)editorTabs[id].original=editorTabs[id].textarea.value;
+}
+async function sendPendingFile(){if(!pendingFileBytes){_log.err('No pending data');return;}const d=pendingFileBytes;pendingFileBytes=null;await sendBin(DATA_CH,d);}
 
-function switchTab(tabId) {
-    currentTab = tabId;
-    document.querySelectorAll('.tab-btn-container').forEach(b => b.classList.remove('active'));
-    const activeContainer = document.getElementById(`tab-container-${tabId}`);
-    if (activeContainer) activeContainer.classList.add('active');
-    
-    Object.keys(terminals).forEach(id => {
-        terminals[id].container.style.display = (id == tabId) ? 'block' : 'none';
+// ===== FILE MANAGER =====
+function toggleFileManager(){
+    fileManagerOpen=!fileManagerOpen;
+    document.getElementById('file-explorer').style.display=fileManagerOpen?'flex':'none';
+    document.getElementById('toggle-files-btn').classList.toggle('active',fileManagerOpen);
+    if(fileManagerOpen)requestDir(currentFilePath);
+    setTimeout(refitActive,200);
+}
+function requestDir(p){currentFilePath=p;sendJson({type:'control',action:'req_dir',path:p});}
+function renderFileList(path,files){
+    renderBreadcrumb(path);
+    hideInlineInput();
+    const list=document.getElementById('fe-list');list.innerHTML='';
+    if(path!=='./'&&path!=='.'){list.appendChild(mkItem('📁','..','',[],true,()=>requestDir(path.replace(/\\/g,'/').replace(/\/[^/]+\/?$/,'')||'./')));}
+    if(!files||!files.length){list.appendChild(Object.assign(document.createElement('div'),{className:'fe-empty',innerText:'Empty directory'}));return;}
+    files.forEach(f=>{
+        const fp=(path.endsWith('/')?path:path+'/')+f.name;
+        if(f.is_dir){list.appendChild(mkItem('📁',f.name,'',fp,true,()=>requestDir(fp)));}
+        else{list.appendChild(mkItem(fileIcon(f.name),f.name,fmtSize(f.size),fp,false,()=>{_log.info('Open file',{path:fp,isText:isTextFile(f.name)});if(!isTextFile(f.name)){openEditorTab(fp,'');return;}sendJson({type:'control',action:'req_read_file',path:fp});}));}
     });
-    
-    if (terminals[tabId] && terminals[tabId].fitAddon) {
-        terminals[tabId].fitAddon.fit();
-    }
+}
+function mkItem(icon,name,size,fullPath,isDir,onclick){
+    const item=document.createElement('div');item.className='fe-item'+(isDir?' is-dir':'');
+    const iconEl=document.createElement('span');iconEl.className='fe-icon';iconEl.innerText=icon;
+    const nameEl=document.createElement('span');nameEl.className='fe-name';nameEl.innerText=name;
+    const sizeEl=document.createElement('span');sizeEl.className='fe-size';sizeEl.innerText=size;
+    const aDiv=document.createElement('div');aDiv.className='fe-item-actions';
+    // Rename
+    const renBtn=document.createElement('button');renBtn.innerText='✏️';renBtn.title='Rename';
+    renBtn.onclick=e=>{e.stopPropagation();startInlineRename(item,nameEl,fullPath,name);};
+    // Delete
+    const delBtn=document.createElement('button');delBtn.innerText='🗑';delBtn.title='Delete';delBtn.className='fe-delete';
+    delBtn.onclick=e=>{e.stopPropagation();startInlineDelete(item,fullPath,name,isDir);};
+    aDiv.appendChild(renBtn);aDiv.appendChild(delBtn);
+    item.appendChild(iconEl);item.appendChild(nameEl);item.appendChild(sizeEl);item.appendChild(aDiv);
+    item.onclick=onclick;return item;
+}
 
-    // Send set_focus
-    const focusMsg = {
-        type: "control",
-        action: "set_focus",
-        viewer_id: myViewerId,
-        viewer_name: myUsername,
-        tab_id: tabId
+// ===== BREADCRUMB (editable) =====
+function renderBreadcrumb(path){
+    const bc=document.getElementById('fe-breadcrumb');bc.innerHTML='';
+    bc.dataset.editing='false';
+    const root=document.createElement('span');root.className='bc-seg';root.innerText='./';root.onclick=e=>{e.stopPropagation();requestDir('./')};bc.appendChild(root);
+    const segs=path.replace(/\\/g,'/').split('/').filter(s=>s&&s!=='.');
+    let bp='./';
+    segs.forEach(s=>{bc.appendChild(Object.assign(document.createElement('span'),{className:'bc-sep',innerText:'›'}));bp+=s+'/';const el=document.createElement('span');el.className='bc-seg';el.innerText=s;const t=bp;el.onclick=e=>{e.stopPropagation();requestDir(t)};bc.appendChild(el);});
+}
+function editBreadcrumb(){
+    const bc=document.getElementById('fe-breadcrumb');
+    if(bc.dataset.editing==='true')return;
+    bc.dataset.editing='true';bc.innerHTML='';
+    const inp=document.createElement('input');inp.className='bc-edit-input';inp.value=currentFilePath;
+    const hint=document.createElement('span');hint.className='bc-hint';hint.innerText='Enter ↵';
+    inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const v=inp.value.trim();if(v)requestDir(v);else renderBreadcrumb(currentFilePath);}if(e.key==='Escape'){renderBreadcrumb(currentFilePath);}};
+    inp.onblur=()=>{setTimeout(()=>renderBreadcrumb(currentFilePath),150);};
+    bc.appendChild(inp);bc.appendChild(hint);inp.focus();inp.select();
+}
+
+// ===== INLINE INPUT (new file/folder) =====
+function showInlineInput(type){
+    const el=document.getElementById('fe-inline');el.style.display='flex';el.innerHTML='';
+    const icon=document.createElement('span');icon.className='inline-icon';icon.innerText=type==='dir'?'📁':'📄';
+    const inp=document.createElement('input');inp.placeholder=type==='dir'?'Folder name...':'File name...';
+    inp.onkeydown=e=>{
+        if(e.key==='Enter'){const n=inp.value.trim();if(!n)return;const p=(currentFilePath.endsWith('/')?currentFilePath:currentFilePath+'/')+n;sendJson({type:'control',action:type==='dir'?'create_dir':'create_file',path:p});hideInlineInput();}
+        if(e.key==='Escape')hideInlineInput();
     };
-    logDebug("OUT", "json", focusMsg);
-    ws.send(JSON.stringify(focusMsg));
+    el.appendChild(icon);el.appendChild(inp);inp.focus();
+}
+function hideInlineInput(){const el=document.getElementById('fe-inline');el.style.display='none';el.innerHTML='';}
 
-    // Request sync
-    const msg = { type: "control", action: "req_sync", tab_id: tabId };
-    logDebug("OUT", "json", msg);
-    ws.send(JSON.stringify(msg));
-
-    if (terminals[tabId]) terminals[tabId].term.focus();
+// ===== INLINE RENAME =====
+function startInlineRename(item,nameEl,fullPath,oldName){
+    const origText=nameEl.innerText;
+    nameEl.style.display='none';
+    const inp=document.createElement('input');inp.className='fe-rename-input';inp.value=oldName;
+    inp.onkeydown=e=>{
+        if(e.key==='Enter'){const n=inp.value.trim();if(n&&n!==oldName){const dir=fullPath.replace(/\\/g,'/').replace(/\/[^/]+$/,'');sendJson({type:'control',action:'rename_file',old_path:fullPath,new_path:dir+'/'+n});}endRename();}
+        if(e.key==='Escape')endRename();
+    };
+    inp.onblur=()=>endRename();
+    function endRename(){nameEl.style.display='';if(inp.parentNode)inp.remove();}
+    item.insertBefore(inp,nameEl.nextSibling);inp.focus();inp.select();
 }
 
-async function sendInput(tabId, data) {
-    logDebug("OUT", "binary_text_input", { tabId, text: data });
-    const enc = new TextEncoder();
-    const plaintext = enc.encode(data);
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const ciphertext = await crypto.subtle.encrypt(
-        { name: "AES-GCM", iv: iv },
-        aesKey,
-        plaintext
-    );
-
-    const payload = new Uint8Array(1 + 12 + ciphertext.byteLength);
-    payload[0] = tabId;
-    payload.set(iv, 1);
-    payload.set(new Uint8Array(ciphertext), 13);
-
-    ws.send(payload);
+// ===== INLINE DELETE =====
+function startInlineDelete(item,path,name,isDir){
+    // Remove existing actions, show confirm strip
+    const acts=item.querySelector('.fe-item-actions');if(acts)acts.style.display='none';
+    const c=document.createElement('div');c.className='fe-confirm';
+    c.innerHTML=`<span>Delete?</span>`;
+    const yes=document.createElement('button');yes.className='fc-yes';yes.innerText='Yes';
+    yes.onclick=e=>{e.stopPropagation();sendJson({type:'control',action:'delete_file',path});};
+    const no=document.createElement('button');no.className='fc-no';no.innerText='No';
+    no.onclick=e=>{e.stopPropagation();c.remove();if(acts)acts.style.display='';};
+    c.appendChild(yes);c.appendChild(no);
+    item.appendChild(c);
 }
 
-window.addEventListener('resize', () => {
-    if (terminals[currentTab]) {
-        const active = terminals[currentTab];
-        if (active.fitAddon) {
-            active.fitAddon.fit();
+// ===== TOAST =====
+function showToast(msg){
+    const el=document.getElementById('fe-toast');el.style.display='flex';
+    el.innerHTML=`<span>⚠ ${esc(msg)}</span>`;
+    const btn=document.createElement('button');btn.className='toast-close';btn.innerText='×';btn.onclick=()=>{el.style.display='none';};
+    el.appendChild(btn);
+    setTimeout(()=>{el.style.display='none';},5000);
+}
+
+async function handleFileUpload(e){
+    const f=e.target.files[0];if(!f)return;
+    const r=new FileReader();r.onload=()=>{pendingFileBytes=new Uint8Array(r.result);const p=(currentFilePath.endsWith('/')?currentFilePath:currentFilePath+'/')+f.name;sendJson({type:'control',action:'prepare_upload',path:p});};
+    r.readAsArrayBuffer(f);e.target.value='';
+}
+
+// ===== PRESENCE + CHAT =====
+function updatePresence(tabs){
+    document.querySelectorAll('.tab-subtext').forEach(el=>el.innerText='');
+    Object.keys(tabs).forEach(tid=>{const s=document.getElementById('tab-subtext-'+tid);if(s&&tabs[tid]&&tabs[tid].length)s.innerText=tabs[tid].join(', ');});
+    const list=document.getElementById('users-list');list.innerHTML='';
+    Object.keys(tabs).forEach(tid=>(tabs[tid]||[]).forEach(name=>{const i=document.createElement('div');i.className='user-item';i.innerHTML=`<span class="dot"></span><span class="user-name">${esc(name)}</span><span class="user-tab-badge">Tab ${tid}</span>`;list.appendChild(i);}));
+}
+function handleChatKey(e){if(e.key==='Enter')sendChatMessage();}
+function sendChatMessage(){const i=document.getElementById('chat-input'),t=(i.value||'').trim();if(!t)return;sendJson({type:'control',action:'chat',sender:myUsername,message:t,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})});i.value='';}
+function appendChat(sender,msg,time){const c=document.getElementById('chat-messages');const el=document.createElement('div');el.className='chat-msg';el.innerHTML=`<div class="chat-msg-header"><span class="chat-msg-sender${sender===myUsername?' self':''}">${esc(sender)}</span><span>${time||''}</span></div><div class="chat-msg-body">${esc(msg)}</div>`;c.appendChild(el);c.scrollTop=c.scrollHeight;}
+
+// ===== UI =====
+function toggleSidebar(){document.getElementById('workspace').classList.toggle('sidebar-collapsed');setTimeout(refitActive,200);}
+function disconnectSession(){sessionStorage.setItem('rmte_autoconnect','false');if(ws)ws.close();location.reload();}
+function showError(m){const e=document.getElementById('setup-error');e.style.display='block';e.innerText=m;}
+function hideError(){document.getElementById('setup-error').style.display='none';}
+
+window.addEventListener('resize',refitActive);
+window.addEventListener('DOMContentLoaded',()=>{
+    ['server','sessionId','password','username'].forEach(k=>{const v=sessionStorage.getItem('rmte_'+k);if(v)document.getElementById(k).value=v;});
+    if(sessionStorage.getItem('rmte_autoconnect')==='true')connect();
+    document.addEventListener('keydown',e=>{
+        if((e.ctrlKey||e.metaKey)&&e.key==='s'){
+            const id=currentTab;if(id.startsWith('file:')&&editorTabs[id]&&editorTabs[id].textarea){e.preventDefault();saveEditor(id,editorTabs[id].path);}
         }
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            const resizeMsg = {
-                type: "control",
-                action: "resize",
-                tab_id: currentTab,
-                cols: active.term.cols,
-                rows: active.term.rows
-            };
-            logDebug("OUT", "json", resizeMsg);
-            ws.send(JSON.stringify(resizeMsg));
-        }
-    }
-});
-
-function toggleSidebar() {
-    const wsEl = document.getElementById('workspace');
-    if (wsEl) {
-        wsEl.classList.toggle('sidebar-collapsed');
-        // Fit term canvas and send resize command after animation completes
-        setTimeout(() => {
-            if (terminals[currentTab]) {
-                const active = terminals[currentTab];
-                if (active.fitAddon) {
-                    active.fitAddon.fit();
-                }
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    const resizeMsg = {
-                        type: "control",
-                        action: "resize",
-                        tab_id: currentTab,
-                        cols: active.term.cols,
-                        rows: active.term.rows
-                    };
-                    logDebug("OUT", "json", resizeMsg);
-                    ws.send(JSON.stringify(resizeMsg));
-                }
-            }
-        }, 300);
-    }
-}
-
-function disconnectSession() {
-    sessionStorage.setItem('rmte_autoconnect', 'false');
-    window.location.reload();
-}
-
-function handleChatKey(event) {
-    if (event.key === 'Enter') {
-        sendChatMessage();
-    }
-}
-
-function sendChatMessage() {
-    const input = document.getElementById('chat-input');
-    if (!input) return;
-    const text = input.value.trim();
-    if (!text) return;
-    
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        const msg = {
-            type: "control",
-            action: "chat",
-            sender: myUsername,
-            message: text,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        logDebug("OUT", "json", msg);
-        ws.send(JSON.stringify(msg));
-        input.value = '';
-    }
-}
-
-function appendChatMessage(sender, message, timeStr) {
-    const msgsDiv = document.getElementById('chat-messages');
-    if (msgsDiv) {
-        const msgEl = document.createElement('div');
-        msgEl.className = 'chat-msg';
-        
-        const header = document.createElement('div');
-        header.className = 'chat-msg-header';
-        
-        const senderSpan = document.createElement('span');
-        senderSpan.className = 'chat-msg-sender';
-        senderSpan.innerText = sender;
-        if (sender === myUsername) {
-            senderSpan.classList.add('self');
-        }
-        
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'chat-msg-time';
-        timeSpan.innerText = timeStr || '';
-        
-        header.appendChild(senderSpan);
-        header.appendChild(timeSpan);
-        
-        const body = document.createElement('div');
-        body.className = 'chat-msg-body';
-        body.innerText = message;
-        
-        msgEl.appendChild(header);
-        msgEl.appendChild(body);
-        msgsDiv.appendChild(msgEl);
-        msgsDiv.scrollTop = msgsDiv.scrollHeight;
-    }
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-    const autoconnect = sessionStorage.getItem('rmte_autoconnect');
-    if (sessionStorage.getItem('rmte_server')) {
-        document.getElementById('server').value = sessionStorage.getItem('rmte_server');
-    }
-    if (sessionStorage.getItem('rmte_sessionId')) {
-        document.getElementById('sessionId').value = sessionStorage.getItem('rmte_sessionId');
-    }
-    if (sessionStorage.getItem('rmte_password')) {
-        document.getElementById('password').value = sessionStorage.getItem('rmte_password');
-    }
-    if (sessionStorage.getItem('rmte_username')) {
-        document.getElementById('username').value = sessionStorage.getItem('rmte_username');
-    }
-    
-    if (autoconnect === 'true') {
-        connect();
-    }
+    });
 });

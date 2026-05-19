@@ -3,44 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RMTE - Remote Terminal Relay</title>
+    <title>RMTE — Remote Terminal Relay</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css" />
     <link rel="stylesheet" href="xterm.css" />
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
 </head>
 <body>
+    <!-- Login -->
     <div id="setup">
-        <h1>RMTE Join</h1>
+        <div id="setup-logo">⚡ RMTE</div>
+        <p id="setup-subtitle">Remote Terminal Relay &middot; v0.2</p>
         <input type="text" id="server" placeholder="ws://localhost:8080/ws" value="ws://localhost:8080/ws">
         <input type="text" id="sessionId" placeholder="Session ID">
-        <input type="password" id="password" placeholder="Password">
-        <input type="text" id="username" placeholder="Your Name">
+        <input type="password" id="password" placeholder="Password (E2EE)">
+        <input type="text" id="username" placeholder="Display Name">
         <button id="connect-btn" onclick="connect()">Connect</button>
+        <div id="setup-error" style="display:none;"></div>
     </div>
+
+    <!-- Main IDE -->
     <div id="terminal-container" style="display:none;">
         <div id="tabs-bar">
             <div id="tabs"></div>
-            <button id="new-tab-btn" onclick="requestNewTab()" title="New Tab">+</button>
-            <button id="toggle-sidebar-btn" onclick="toggleSidebar()" title="Toggle Sidebar">👥</button>
-            <button id="disconnect-btn" onclick="disconnectSession()" title="Disconnect">🚪</button>
+            <button id="new-tab-btn" onclick="requestNewTab()" title="New Terminal">+</button>
+            <button id="toggle-files-btn" onclick="toggleFileManager()" title="File Manager">📁</button>
+            <button id="toggle-sidebar-btn" onclick="toggleSidebar()" title="Collaborators">👥</button>
+            <button id="disconnect-btn" onclick="disconnectSession()" title="Disconnect">⏻</button>
         </div>
         <div id="workspace">
-            <div id="terminal-wrapper"></div>
+            <!-- File Explorer -->
+            <div id="file-explorer">
+                <div id="fe-header">
+                    <span id="fe-title">EXPLORER</span>
+                    <div id="fe-actions">
+                        <button id="fe-new-file" onclick="showInlineInput('file')" title="New File">+📄</button>
+                        <button id="fe-new-dir" onclick="showInlineInput('dir')" title="New Folder">+📁</button>
+                        <label id="upload-label" title="Upload File">
+                            ⬆
+                            <input type="file" id="upload-input" onchange="handleFileUpload(event)" style="display:none;">
+                        </label>
+                        <button id="fe-refresh" onclick="requestDir(currentFilePath)" title="Refresh">⟳</button>
+                    </div>
+                </div>
+                <div id="fe-breadcrumb" ondblclick="editBreadcrumb()"></div>
+                <div id="fe-toast" style="display:none;"></div>
+                <div id="fe-inline" style="display:none;"></div>
+                <div id="fe-list"></div>
+            </div>
+            <!-- Main Area -->
+            <div id="main-area">
+                <div id="terminal-wrapper"></div>
+            </div>
+            <!-- Sidebar -->
             <div id="users-sidebar">
                 <div id="users-section">
                     <h3>Collaborators</h3>
                     <div id="users-list"></div>
                 </div>
                 <div id="chat-section">
-                    <h3>Chat Room</h3>
+                    <h3>Chat</h3>
                     <div id="chat-messages"></div>
                     <div id="chat-input-container">
                         <input type="text" id="chat-input" placeholder="Type a message..." onkeydown="handleChatKey(event)">
-                        <button id="chat-send-btn" onclick="sendChatMessage()" style="margin-top: 0; padding: 8px 12px;">➤</button>
+                        <button id="chat-send-btn" onclick="sendChatMessage()">➤</button>
                     </div>
                 </div>
             </div>
+        </div>
+        <!-- Status Bar -->
+        <div id="status-bar">
+            <span id="sb-connection">● Connected</span>
+            <span id="sb-session"></span>
+            <span id="sb-user"></span>
         </div>
     </div>
     <script src="xterm.js"></script>

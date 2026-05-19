@@ -4,15 +4,17 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
-	"io"
 
 	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
@@ -58,6 +60,14 @@ type ViewersPresence struct {
 	TabID      byte
 }
 
+// File manager state for Tab 255 data channel
+type PendingSave struct {
+	Path       string
+	TargetConn string
+}
+
+const dataChannelTabID byte = 255
+
 var (
 	tabs   = make(map[byte]*TabSession)
 	tabsMu sync.RWMutex
@@ -66,11 +76,29 @@ var (
 
 	presenceMap   = make(map[string]ViewersPresence)
 	presenceMutex sync.Mutex
+
+	// Dynamic buffer limit (set by --buffer flag)
+	maxBufferSize int
+
+	// Pending file save state: when a viewer sends prepare_save,
+	// we register what path the next Tab 255 binary frame should write to.
+	pendingSave   *PendingSave
+	pendingSaveMu sync.Mutex
+
+	// Host working directory (sandbox root for file operations)
+	hostWorkDir string
 )
 
-const maxBufferSize = 100 * 1024
+func runHost(serverURL, password string, bufferMB int) {
+	maxBufferSize = bufferMB * 1024 * 1024
 
-func runHost(serverURL, password string) {
+	// Set working directory as sandbox root
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatal("Cannot get working directory:", err)
+	}
+	hostWorkDir = wd
+
 	u, err := url.Parse(serverURL)
 	if err != nil {
 		log.Fatal(err)
@@ -107,6 +135,7 @@ func runHost(serverURL, password string) {
 
 	fmt.Printf("Session ID: %s\n", authResp.SessionID)
 	fmt.Printf("Share this ID with viewers to join.\n")
+	fmt.Printf("Buffer limit: %d MB\n", bufferMB)
 
 	// Create initial tab (ID 0)
 	createTab(0, conn)
@@ -121,6 +150,12 @@ func runHost(serverURL, password string) {
 		if mt == websocket.BinaryMessage {
 			tabID, plaintext, err := decryptBinary(data)
 			if err != nil {
+				continue
+			}
+
+			// Tab 255 = Data Channel for file uploads/saves
+			if tabID == dataChannelTabID {
+				handleDataChannelWrite(plaintext, conn)
 				continue
 			}
 
@@ -180,7 +215,7 @@ func runHost(serverURL, password string) {
 				switch action {
 				case "get_tabs":
 					tabsMu.RLock()
-					var activeTabs []int
+					activeTabs := make([]int, 0)
 					for id := range tabs {
 						activeTabs = append(activeTabs, int(id))
 					}
@@ -312,11 +347,304 @@ func runHost(serverURL, password string) {
 				case "chat":
 					// Broadcast to all viewers
 					conn.WriteMessage(websocket.TextMessage, data)
+
+				// ===== FILE MANAGER ACTIONS =====
+				case "req_dir":
+					reqPath, _ := ctrl["path"].(string)
+					targetConn, _ := ctrl["target_conn"].(string)
+					handleReqDir(reqPath, targetConn, conn)
+
+				case "req_read_file":
+					reqPath, _ := ctrl["path"].(string)
+					targetConn, _ := ctrl["target_conn"].(string)
+					handleReqReadFile(reqPath, targetConn, conn)
+
+				case "prepare_save":
+					reqPath, _ := ctrl["path"].(string)
+					targetConn, _ := ctrl["target_conn"].(string)
+					handlePrepareSave(reqPath, targetConn, conn)
+
+				case "prepare_upload":
+					reqPath, _ := ctrl["path"].(string)
+					targetConn, _ := ctrl["target_conn"].(string)
+					handlePrepareSave(reqPath, targetConn, conn) // Same logic as save
+
+				case "create_file":
+					reqPath, _ := ctrl["path"].(string)
+					targetConn, _ := ctrl["target_conn"].(string)
+					handleCreateFile(reqPath, targetConn, conn)
+
+				case "create_dir":
+					reqPath, _ := ctrl["path"].(string)
+					targetConn, _ := ctrl["target_conn"].(string)
+					handleCreateDir(reqPath, targetConn, conn)
+
+				case "rename_file":
+					oldPath, _ := ctrl["old_path"].(string)
+					newPath, _ := ctrl["new_path"].(string)
+					targetConn, _ := ctrl["target_conn"].(string)
+					handleRenameFile(oldPath, newPath, targetConn, conn)
+
+				case "delete_file":
+					reqPath, _ := ctrl["path"].(string)
+					targetConn, _ := ctrl["target_conn"].(string)
+					handleDeleteFile(reqPath, targetConn, conn)
 				}
 			}
 		}
 	}
 }
+
+// ===== FILE MANAGER HANDLERS =====
+
+// sanitizePath resolves the requested path relative to the host working directory.
+func sanitizePath(reqPath string) (string, error) {
+	cleaned := filepath.Clean(reqPath)
+
+	var absPath string
+	if filepath.IsAbs(cleaned) {
+		absPath = cleaned
+	} else {
+		absPath = filepath.Join(hostWorkDir, cleaned)
+	}
+
+	absPath, err := filepath.Abs(absPath)
+	if err != nil {
+		return "", fmt.Errorf("invalid path")
+	}
+
+	return absPath, nil
+}
+
+func handleReqDir(reqPath, targetConn string, conn *SafeConn) {
+	absPath, err := sanitizePath(reqPath)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": targetConn,
+			"message":     err.Error(),
+		})
+		return
+	}
+
+	entries, err := os.ReadDir(absPath)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": targetConn,
+			"message":     fmt.Sprintf("cannot read directory: %v", err),
+		})
+		return
+	}
+
+	type FileEntry struct {
+		Name  string `json:"name"`
+		IsDir bool   `json:"is_dir"`
+		Size  int64  `json:"size"`
+	}
+
+	var files []FileEntry
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		files = append(files, FileEntry{
+			Name:  e.Name(),
+			IsDir: e.IsDir(),
+			Size:  info.Size(),
+		})
+	}
+
+	// Sort: directories first, then files alphabetically
+	sort.Slice(files, func(i, j int) bool {
+		if files[i].IsDir != files[j].IsDir {
+			return files[i].IsDir
+		}
+		return strings.ToLower(files[i].Name) < strings.ToLower(files[j].Name)
+	})
+
+	conn.WriteJSON(map[string]interface{}{
+		"type":        "control",
+		"action":      "dir_data",
+		"target_conn": targetConn,
+		"path":        reqPath,
+		"files":       files,
+	})
+}
+
+func handleReqReadFile(reqPath, targetConn string, conn *SafeConn) {
+	absPath, err := sanitizePath(reqPath)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": targetConn,
+			"message":     err.Error(),
+		})
+		return
+	}
+
+	info, err := os.Stat(absPath)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": targetConn,
+			"message":     fmt.Sprintf("file not found: %v", err),
+		})
+		return
+	}
+
+	if info.IsDir() {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": targetConn,
+			"message":     "cannot read a directory as file",
+		})
+		return
+	}
+
+	if info.Size() > int64(maxBufferSize) {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": targetConn,
+			"message":     fmt.Sprintf("file too large: %d bytes (limit: %d bytes)", info.Size(), maxBufferSize),
+		})
+		return
+	}
+
+	fileData, err := os.ReadFile(absPath)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": targetConn,
+			"message":     fmt.Sprintf("read error: %v", err),
+		})
+		return
+	}
+
+	// Signal: file read starting
+	conn.WriteJSON(map[string]interface{}{
+		"type":        "control",
+		"action":      "read_file_start",
+		"target_conn": targetConn,
+		"path":        reqPath,
+	})
+
+	// Send file content as encrypted binary on Tab 255
+	payload, err := encryptBinary(dataChannelTabID, fileData)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": targetConn,
+			"message":     "encryption error",
+		})
+		return
+	}
+
+	conn.WriteMessage(websocket.BinaryMessage, payload)
+}
+
+func handlePrepareSave(reqPath, targetConn string, conn *SafeConn) {
+	_, err := sanitizePath(reqPath)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": targetConn,
+			"message":     err.Error(),
+		})
+		return
+	}
+
+	pendingSaveMu.Lock()
+	pendingSave = &PendingSave{
+		Path:       reqPath,
+		TargetConn: targetConn,
+	}
+	pendingSaveMu.Unlock()
+
+	conn.WriteJSON(map[string]interface{}{
+		"type":        "control",
+		"action":      "ready_for_data",
+		"target_conn": targetConn,
+		"path":        reqPath,
+	})
+}
+
+func handleDataChannelWrite(plaintext []byte, conn *SafeConn) {
+	pendingSaveMu.Lock()
+	ps := pendingSave
+	pendingSave = nil
+	pendingSaveMu.Unlock()
+
+	if ps == nil {
+		log.Println("[FileManager] Received Tab 255 data but no pending save registered")
+		return
+	}
+
+	if len(plaintext) > maxBufferSize {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": ps.TargetConn,
+			"message":     fmt.Sprintf("file too large: %d bytes (limit: %d bytes)", len(plaintext), maxBufferSize),
+		})
+		return
+	}
+
+	absPath, err := sanitizePath(ps.Path)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": ps.TargetConn,
+			"message":     err.Error(),
+		})
+		return
+	}
+
+	// Ensure parent directory exists
+	dir := filepath.Dir(absPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": ps.TargetConn,
+			"message":     fmt.Sprintf("cannot create directory: %v", err),
+		})
+		return
+	}
+
+	if err := os.WriteFile(absPath, plaintext, 0644); err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": ps.TargetConn,
+			"message":     fmt.Sprintf("write error: %v", err),
+		})
+		return
+	}
+
+	conn.WriteJSON(map[string]interface{}{
+		"type":        "control",
+		"action":      "file_saved",
+		"target_conn": ps.TargetConn,
+		"path":        ps.Path,
+		"status":      "success",
+		"size":        len(plaintext),
+	})
+	log.Printf("[FileManager] Saved %s (%d bytes)", ps.Path, len(plaintext))
+}
+
+// ===== TERMINAL TAB MANAGEMENT =====
 
 func createTab(id byte, ws *SafeConn) {
 	shell := "bash"
@@ -425,6 +753,167 @@ func runWithPipes(id byte, c *exec.Cmd, ws *SafeConn) {
 				ws.WriteMessage(websocket.BinaryMessage, payload)
 			}
 		}
-		c.Wait()
+	c.Wait()
 	}()
+}
+
+// ===== EXTENDED FILE MANAGER HANDLERS =====
+
+func handleCreateFile(reqPath, targetConn string, conn *SafeConn) {
+	absPath, err := sanitizePath(reqPath)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn, "message": err.Error(),
+		})
+		return
+	}
+
+	// Ensure parent directory exists
+	dir := filepath.Dir(absPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn,
+			"message":     fmt.Sprintf("cannot create parent dir: %v", err),
+		})
+		return
+	}
+
+	// Create empty file (fail if exists)
+	if _, err := os.Stat(absPath); err == nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn, "message": "file already exists",
+		})
+		return
+	}
+
+	if err := os.WriteFile(absPath, []byte{}, 0644); err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn,
+			"message":     fmt.Sprintf("create error: %v", err),
+		})
+		return
+	}
+
+	log.Printf("[FileManager] Created file %s", reqPath)
+	conn.WriteJSON(map[string]interface{}{
+		"type": "control", "action": "file_created",
+		"target_conn": targetConn, "path": reqPath,
+	})
+}
+
+func handleCreateDir(reqPath, targetConn string, conn *SafeConn) {
+	absPath, err := sanitizePath(reqPath)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn, "message": err.Error(),
+		})
+		return
+	}
+
+	if err := os.MkdirAll(absPath, 0755); err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn,
+			"message":     fmt.Sprintf("create dir error: %v", err),
+		})
+		return
+	}
+
+	log.Printf("[FileManager] Created directory %s", reqPath)
+	conn.WriteJSON(map[string]interface{}{
+		"type": "control", "action": "dir_created",
+		"target_conn": targetConn, "path": reqPath,
+	})
+}
+
+func handleRenameFile(oldPath, newPath, targetConn string, conn *SafeConn) {
+	absOld, err := sanitizePath(oldPath)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn, "message": "source: " + err.Error(),
+		})
+		return
+	}
+
+	absNew, err := sanitizePath(newPath)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn, "message": "destination: " + err.Error(),
+		})
+		return
+	}
+
+	// Ensure target parent exists
+	if err := os.MkdirAll(filepath.Dir(absNew), 0755); err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn,
+			"message":     fmt.Sprintf("cannot create target dir: %v", err),
+		})
+		return
+	}
+
+	if err := os.Rename(absOld, absNew); err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn,
+			"message":     fmt.Sprintf("rename error: %v", err),
+		})
+		return
+	}
+
+	log.Printf("[FileManager] Renamed %s → %s", oldPath, newPath)
+	conn.WriteJSON(map[string]interface{}{
+		"type": "control", "action": "file_renamed",
+		"target_conn": targetConn,
+		"old_path": oldPath, "new_path": newPath,
+	})
+}
+
+func handleDeleteFile(reqPath, targetConn string, conn *SafeConn) {
+	absPath, err := sanitizePath(reqPath)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn, "message": err.Error(),
+		})
+		return
+	}
+
+	info, err := os.Stat(absPath)
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn, "message": "not found",
+		})
+		return
+	}
+
+	if info.IsDir() {
+		err = os.RemoveAll(absPath)
+	} else {
+		err = os.Remove(absPath)
+	}
+
+	if err != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn,
+			"message":     fmt.Sprintf("delete error: %v", err),
+		})
+		return
+	}
+
+	log.Printf("[FileManager] Deleted %s", reqPath)
+	conn.WriteJSON(map[string]interface{}{
+		"type": "control", "action": "file_deleted",
+		"target_conn": targetConn, "path": reqPath,
+	})
 }
