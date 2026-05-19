@@ -470,7 +470,7 @@ func handleReqDir(reqPath, targetConn string, conn *SafeConn) {
 		"type":        "control",
 		"action":      "dir_data",
 		"target_conn": targetConn,
-		"path":        reqPath,
+		"path":        filepath.ToSlash(absPath),
 		"files":       files,
 	})
 }
@@ -534,7 +534,7 @@ func handleReqReadFile(reqPath, targetConn string, conn *SafeConn) {
 		"type":        "control",
 		"action":      "read_file_start",
 		"target_conn": targetConn,
-		"path":        reqPath,
+		"path":        filepath.ToSlash(absPath),
 	})
 
 	// Send file content as encrypted binary on Tab 255
@@ -553,7 +553,7 @@ func handleReqReadFile(reqPath, targetConn string, conn *SafeConn) {
 }
 
 func handlePrepareSave(reqPath, targetConn string, conn *SafeConn) {
-	_, err := sanitizePath(reqPath)
+	absPath, err := sanitizePath(reqPath)
 	if err != nil {
 		conn.WriteJSON(map[string]interface{}{
 			"type":        "control",
@@ -566,7 +566,7 @@ func handlePrepareSave(reqPath, targetConn string, conn *SafeConn) {
 
 	pendingSaveMu.Lock()
 	pendingSave = &PendingSave{
-		Path:       reqPath,
+		Path:       absPath,
 		TargetConn: targetConn,
 	}
 	pendingSaveMu.Unlock()
@@ -575,7 +575,7 @@ func handlePrepareSave(reqPath, targetConn string, conn *SafeConn) {
 		"type":        "control",
 		"action":      "ready_for_data",
 		"target_conn": targetConn,
-		"path":        reqPath,
+		"path":        filepath.ToSlash(absPath),
 	})
 }
 
@@ -798,10 +798,10 @@ func handleCreateFile(reqPath, targetConn string, conn *SafeConn) {
 		return
 	}
 
-	log.Printf("[FileManager] Created file %s", reqPath)
+	log.Printf("[FileManager] Created file %s", absPath)
 	conn.WriteJSON(map[string]interface{}{
 		"type": "control", "action": "file_created",
-		"target_conn": targetConn, "path": reqPath,
+		"target_conn": targetConn, "path": filepath.ToSlash(absPath),
 	})
 }
 
@@ -824,10 +824,10 @@ func handleCreateDir(reqPath, targetConn string, conn *SafeConn) {
 		return
 	}
 
-	log.Printf("[FileManager] Created directory %s", reqPath)
+	log.Printf("[FileManager] Created directory %s", absPath)
 	conn.WriteJSON(map[string]interface{}{
 		"type": "control", "action": "dir_created",
-		"target_conn": targetConn, "path": reqPath,
+		"target_conn": targetConn, "path": filepath.ToSlash(absPath),
 	})
 }
 
@@ -869,11 +869,11 @@ func handleRenameFile(oldPath, newPath, targetConn string, conn *SafeConn) {
 		return
 	}
 
-	log.Printf("[FileManager] Renamed %s → %s", oldPath, newPath)
+	log.Printf("[FileManager] Renamed %s → %s", absOld, absNew)
 	conn.WriteJSON(map[string]interface{}{
 		"type": "control", "action": "file_renamed",
 		"target_conn": targetConn,
-		"old_path": oldPath, "new_path": newPath,
+		"old_path": filepath.ToSlash(absOld), "new_path": filepath.ToSlash(absNew),
 	})
 }
 
@@ -911,9 +911,9 @@ func handleDeleteFile(reqPath, targetConn string, conn *SafeConn) {
 		return
 	}
 
-	log.Printf("[FileManager] Deleted %s", reqPath)
+	log.Printf("[FileManager] Deleted %s", absPath)
 	conn.WriteJSON(map[string]interface{}{
 		"type": "control", "action": "file_deleted",
-		"target_conn": targetConn, "path": reqPath,
+		"target_conn": targetConn, "path": filepath.ToSlash(absPath),
 	})
 }

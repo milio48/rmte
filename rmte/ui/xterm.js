@@ -39,6 +39,7 @@ async function connect() {
     if(!sessionId||!password){showError('Session ID and Password required');return;}
     const btn=document.getElementById('connect-btn'); btn.innerText='Connecting...'; btn.disabled=true;
     myUsername=uname||('Web-'+Math.random().toString(36).slice(2,6).toUpperCase());
+    if(ws){try{ws.close();}catch(e){}}
     try {
         const enc=new TextEncoder();
         aesKey=await crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',enc.encode(password)),{name:'AES-GCM'},false,['encrypt','decrypt']);
@@ -64,6 +65,7 @@ async function onJson(msg) {
         document.getElementById('sb-user').innerText=myUsername;
         ['server','sessionId','password','username'].forEach(k=>sessionStorage.setItem('rmte_'+k,document.getElementById(k).value));
         sessionStorage.setItem('rmte_autoconnect','true');sessionStorage.setItem('rmte_username',myUsername);
+        const s=document.getElementById('sb-connection');if(s){s.innerText='● Connected';s.style.color='#fff';}
         sendJson({type:'control',action:'get_tabs'});return;
     }
     if(msg.type==='error'){showError(msg.message);document.getElementById('connect-btn').innerText='Connect';document.getElementById('connect-btn').disabled=false;return;}
@@ -246,7 +248,8 @@ function renderFileList(path,files){
     renderBreadcrumb(path);
     hideInlineInput();
     const list=document.getElementById('fe-list');list.innerHTML='';
-    if(path!=='./'&&path!=='.'){list.appendChild(mkItem('📁','..','',[],true,()=>requestDir(path.replace(/\\/g,'/').replace(/\/[^/]+\/?$/,'')||'./')));}
+    const parentPath = path.endsWith('/') ? (path + '..') : (path + '/..');
+    list.appendChild(mkItem('📁','..','',parentPath,true,()=>requestDir(parentPath)));
     if(!files||!files.length){list.appendChild(Object.assign(document.createElement('div'),{className:'fe-empty',innerText:'Empty directory'}));return;}
     files.forEach(f=>{
         const fp=(path.endsWith('/')?path:path+'/')+f.name;
@@ -275,10 +278,11 @@ function mkItem(icon,name,size,fullPath,isDir,onclick){
 function renderBreadcrumb(path){
     const bc=document.getElementById('fe-breadcrumb');bc.innerHTML='';
     bc.dataset.editing='false';
-    const root=document.createElement('span');root.className='bc-seg';root.innerText='./';root.onclick=e=>{e.stopPropagation();requestDir('./')};bc.appendChild(root);
-    const segs=path.replace(/\\/g,'/').split('/').filter(s=>s&&s!=='.');
-    let bp='./';
-    segs.forEach(s=>{bc.appendChild(Object.assign(document.createElement('span'),{className:'bc-sep',innerText:'›'}));bp+=s+'/';const el=document.createElement('span');el.className='bc-seg';el.innerText=s;const t=bp;el.onclick=e=>{e.stopPropagation();requestDir(t)};bc.appendChild(el);});
+    const span=document.createElement('span');
+    span.style.cssText='font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;';
+    span.innerText=path;
+    span.title='Double click to edit path';
+    bc.appendChild(span);
 }
 function editBreadcrumb(){
     const bc=document.getElementById('fe-breadcrumb');
