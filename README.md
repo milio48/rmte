@@ -12,11 +12,15 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
 
 * **Absolute Privacy (AES-GCM 256-bit):** Encryption keys and terminal/file I/O payloads are processed locally. The central relay server acts as a "dumb pipe" that only routes encrypted binary frames. It never sees your plaintext data, your files, or your password.
 * **Split-Workspace Cloud IDE:** Toggle the folder icon `📁` in the browser tab bar to open a split-view workspace:
-  * **Left Panel**: In-place File Explorer.
+  * **Left Panel**: Advanced File Explorer.
   * **Right Panel**: Tabbed text editor supporting file opening, modification warnings, and direct saving (`Ctrl + S`).
   * **Bottom Panel**: Interactive, multi-tab terminal shells.
-* **Inline File Operations (Zero Modals):** Browser dialogs (`prompt()`, `confirm()`, `alert()`) are completely replaced with clean, non-blocking inline DOM inputs for creating, renaming, and deleting files or directories.
-* **Parent Directory Navigation:** Always-present `..` navigation list item allows traversing up the directory tree across host drives.
+* **Modern File Explorer & Manager:**
+  * **Absolute PWD Display**: Displays the full, absolute working directory of the host (e.g. `C:/workspace/rmte`) with forward slash consistency.
+  * **Editable Path Breadcrumbs**: Double-click the path header to type/edit the absolute folder path directly, then press `Enter ↵` to jump.
+  * **Parent Navigation (`..`)**: An always-visible `..` folder item at the top of the file list allows walking backward up the host's directory structure.
+  * **Inline Operations (Zero Browser Modals)**: Native prompt dialogs (`prompt()`, `confirm()`, `alert()`) are deprecated. Creating new files (`+📄`) or folders (`+📁`), renaming (`✏️`), and deleting (`🗑`) are performed via inline text inputs and non-intrusive confirmation strips (`[Yes] [No]`).
+  * **Toast Notification HUD**: Directory and workspace errors (e.g. permission issues or buffer exceeded warnings) are reported through transient, auto-dismissing inline Toasts.
 * **Dynamic Max Buffer Limits:** Set customizable memory limits via CLI (e.g. `--buffer=5` for 5MB limits) to configure both the terminal ring buffer and the maximum allowed file sizes.
 * **Zero-copy Binary Data Channel (Tab ID `255`):** Avoids heavy Base64 parsing overhead. Files are sent as pure, encrypted binary frames over a reserved channel.
 * **Integrated Chat Room:** A memory-cached chat bridge connecting Web and CLI clients in real-time, preserving the last 50 messages.
@@ -41,10 +45,16 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
 
 ---
 
-## 📦 Build from Source
+## 📦 Build & Release
+
+### Pre-built Binaries
+Get the latest pre-built releases for your operating system directly from the GitHub releases page:
+👉 **[RMTE GitHub Releases](https://github.com/milio48/rmte/releases)**
+
+### Build from Source
 Got Go installed (v1.21+)? Let's build the binary:
 ```bash
-git clone https://github.com/your-username/rmte.git
+git clone https://github.com/milio48/rmte.git
 cd rmte/rmte
 go build -ldflags "-s -w" -o rmte
 ```
