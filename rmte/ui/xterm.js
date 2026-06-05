@@ -112,7 +112,7 @@ async function onJson(msg) {
     if(msg.type==='error'){showError(msg.message);document.getElementById('connect-btn').innerText='Connect';document.getElementById('connect-btn').disabled=false;return;}
     if(msg.type!=='control')return;
     switch(msg.action){
-        case'tabs_list':{const t=msg.tabs||[];t.forEach(id=>addTermTabBtn(id));if(t.length>0&&!terminals[t[0]]){initTerminal(t.includes(0)?0:t[0]);}break;}
+        case'tabs_list':{const t=msg.tabs||[];t.forEach(id=>addTermTabBtn(id));if(t.length>0){const firstTab=t.includes(0)?0:t[0];if(!terminals[firstTab])initTerminal(firstTab);setTimeout(()=>switchToTab('term-'+firstTab),50);}break;}
         case'tab_created':addTermTabBtn(msg.tab_id);break;
         case'tab_deleted':removeTermTab(msg.tab_id);break;
         case'sync_data':{const b=Uint8Array.from(atob(msg.data),c=>c.charCodeAt(0));await onBinary(b);}break;
