@@ -3,6 +3,11 @@ let ws, aesKey, currentTab = 'term-0', myUsername = '';
 const myViewerId = 'v-web-' + Math.random().toString(16).slice(2,10);
 let terminals = {}, editorTabs = {};
 let fileManagerOpen = false, currentFilePath = './';
+
+// Auto-reconnect state
+let isConnected = false, manualDisconnect = false;
+let reconnectAttempt = 0, reconnectTimer = null;
+const RECONNECT_BASE = 2000, RECONNECT_MAX = 30000;
 let waitingForFileData = false, pendingFileBytes = null, pendingEditorPath = null;
 const DATA_CH = 255;
 
@@ -35,10 +40,11 @@ function basename(p){return p.replace(/\\/g,'/').split('/').filter(Boolean).pop(
 async function connect() {
     const server=document.getElementById('server').value, sessionId=document.getElementById('sessionId').value;
     const password=document.getElementById('password').value, uname=document.getElementById('username').value.trim();
-    hideError();
+    hideError(); clearReconnectTimer();
     if(!sessionId||!password){showError('Session ID and Password required');return;}
     const btn=document.getElementById('connect-btn'); btn.innerText='Connecting...'; btn.disabled=true;
     myUsername=uname||('Web-'+Math.random().toString(36).slice(2,6).toUpperCase());
+    manualDisconnect=false;
     if(ws){try{ws.close();}catch(e){}}
     try {
         const enc=new TextEncoder();
@@ -48,11 +54,43 @@ async function connect() {
         const authToken=Array.from(authHash).map(b=>b.toString(16).padStart(2,'0')).join('');
         ws=new WebSocket(server); ws.binaryType='arraybuffer';
         ws.onopen=()=>{_log.info('WS connected');sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.2'}));};
-        ws.onclose=e=>{_log.warn('WS closed',{code:e.code});const s=document.getElementById('sb-connection');if(s){s.innerText='● Disconnected';s.style.color='#f85149';}};
-        ws.onerror=()=>{_log.err('WS error');showError('Connection failed');btn.innerText='Establish Connection';btn.disabled=false;};
+        ws.onclose=e=>{
+            _log.warn('WS closed',{code:e.code});
+            const s=document.getElementById('sb-connection');
+            if(s){s.innerText='● Disconnected';s.style.color='#f85149';}
+            if(isConnected&&!manualDisconnect){scheduleReconnect();}
+            isConnected=false;
+        };
+        ws.onerror=()=>{
+            _log.err('WS error');
+            if(!isConnected){showError('Connection failed');btn.innerText='Establish Connection';btn.disabled=false;}
+        };
         ws.onmessage=async e=>{try{typeof e.data==='string'?await onJson(JSON.parse(e.data)):await onBinary(new Uint8Array(e.data));}catch(err){_log.err('msg handler',err);}};
     } catch(e){_log.err('connect',e);showError(e.message);btn.innerText='Establish Connection';btn.disabled=false;}
 }
+
+function scheduleReconnect(){
+    reconnectAttempt++;
+    const delay=Math.min(RECONNECT_BASE*Math.pow(2,reconnectAttempt-1),RECONNECT_MAX);
+    _log.info(`Reconnecting in ${delay/1000}s (attempt ${reconnectAttempt})...`);
+    const s=document.getElementById('sb-connection');
+    let remaining=Math.ceil(delay/1000);
+    if(s)s.innerText=`● Reconnecting in ${remaining}s...`;
+    const countdown=setInterval(()=>{
+        remaining--;
+        if(remaining>0&&s)s.innerText=`● Reconnecting in ${remaining}s...`;
+    },1000);
+    reconnectTimer=setTimeout(()=>{
+        clearInterval(countdown);
+        if(!manualDisconnect)connect();
+    },delay);
+}
+
+function clearReconnectTimer(){
+    if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}
+    reconnectAttempt=0;
+}
+
 function sendRaw(d){if(ws&&ws.readyState===1)ws.send(d);else _log.err('WS not open');}
 function sendJson(m){_log.out('json:'+m.action,m);sendRaw(JSON.stringify(m));}
 async function sendBin(tabId,plain){const iv=rmteCrypto.randomBytes(12);const ct=await rmteCrypto.encrypt(iv,aesKey,plain);const p=new Uint8Array(1+12+ct.byteLength);p[0]=tabId;p.set(iv,1);p.set(ct,13);sendRaw(p);}
@@ -61,13 +99,14 @@ async function sendBin(tabId,plain){const iv=rmteCrypto.randomBytes(12);const ct
 async function onJson(msg) {
     _log.in(msg.action||msg.type,msg);
     if(msg.type==='auth_success'){
+        isConnected=true; reconnectAttempt=0;
         document.getElementById('setup').style.display='none';
         document.getElementById('terminal-container').style.display='flex';
         document.getElementById('sb-session').innerText='Session: '+(document.getElementById('sessionId').value);
         document.getElementById('sb-user').innerText=myUsername;
         ['server','sessionId','password','username'].forEach(k=>sessionStorage.setItem('rmte_'+k,document.getElementById(k).value));
         sessionStorage.setItem('rmte_autoconnect','true');sessionStorage.setItem('rmte_username',myUsername);
-        const s=document.getElementById('sb-connection');if(s){s.innerText='● Connected';s.style.color='#fff';}
+        const s=document.getElementById('sb-connection');if(s){s.innerText='● Connected';s.style.color='#3fb950';}
         sendJson({type:'control',action:'get_tabs'});return;
     }
     if(msg.type==='error'){showError(msg.message);document.getElementById('connect-btn').innerText='Connect';document.getElementById('connect-btn').disabled=false;return;}
@@ -366,7 +405,7 @@ function appendChat(sender,msg,time){const c=document.getElementById('chat-messa
 
 // ===== UI =====
 function toggleSidebar(){document.getElementById('workspace').classList.toggle('sidebar-collapsed');setTimeout(refitActive,200);}
-function disconnectSession(){sessionStorage.setItem('rmte_autoconnect','false');if(ws)ws.close();location.reload();}
+function disconnectSession(){manualDisconnect=true;clearReconnectTimer();sessionStorage.setItem('rmte_autoconnect','false');if(ws)ws.close();location.reload();}
 function showError(m){const e=document.getElementById('setup-error');e.style.display='block';e.innerText=m;}
 function hideError(){document.getElementById('setup-error').style.display='none';}
 
