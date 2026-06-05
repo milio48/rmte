@@ -1,4 +1,4 @@
-# RMTE — Remote Terminal Relay & Cloud IDE (v0.3.0)
+# RMTE — Remote Terminal Relay & Cloud IDE (v0.3.1)
 
 > "I love sshx, but my endless curiosity to build it from scratch got the best of me 🥲"
 
