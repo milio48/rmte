@@ -484,7 +484,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .tab-close-btn:hover { background: oklch(68% 0.19 25 / 0.15); color: var(--color-red); }
 
 /* Tab bar action buttons */
-#new-tab-btn, #toggle-files-btn {
+#new-tab-btn {
     background: transparent;
     color: var(--color-ink-2);
     border: none;
@@ -497,13 +497,40 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     border-radius: 0;
     transition: all var(--dur-short) var(--ease-out);
 }
-#new-tab-btn:hover, #toggle-files-btn:hover {
+#new-tab-btn:hover {
     color: var(--color-ink);
     background: var(--color-paper-3);
 }
-#toggle-files-btn.active { color: var(--color-accent); }
 
-#toggle-sidebar-btn, #toggle-activity-btn, #copy-link-btn, #help-btn, #disconnect-btn {
+/* Pinned File Explorer toggle on the far left */
+#toggle-files-btn {
+    background: transparent;
+    color: var(--color-ink-2);
+    border: none;
+    border-right: 1px solid var(--color-border);
+    padding: 0 12px;
+    margin-right: 4px;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    border-radius: 0;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all var(--dur-short) var(--ease-out);
+}
+#toggle-files-btn:hover {
+    color: var(--color-ink);
+    background: var(--color-paper-3);
+}
+#toggle-files-btn.active {
+    color: var(--color-accent);
+    background: var(--color-paper-3);
+    border-bottom-color: var(--color-accent);
+}
+
+#toggle-sidebar-btn, #toggle-chat-btn, #toggle-activity-btn, #copy-link-btn, #help-btn, #disconnect-btn {
     background: transparent;
     border: none;
     color: var(--color-ink-2);
@@ -518,9 +545,17 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     font-size: var(--text-sm);
     transition: all var(--dur-short) var(--ease-out);
     border-radius: 0;
+    border-bottom: 2px solid transparent;
 }
-#toggle-sidebar-btn:hover, #toggle-activity-btn:hover, #copy-link-btn:hover, #help-btn:hover { color: var(--color-accent); background: var(--color-paper-3); }
-#toggle-sidebar-btn.active, #toggle-activity-btn.active { color: var(--color-accent); }
+#toggle-sidebar-btn:hover, #toggle-chat-btn:hover, #toggle-activity-btn:hover, #copy-link-btn:hover, #help-btn:hover {
+    color: var(--color-accent);
+    background: var(--color-paper-3);
+}
+#toggle-sidebar-btn.active, #toggle-chat-btn.active, #toggle-activity-btn.active {
+    color: var(--color-accent);
+    background: var(--color-paper-3);
+    border-bottom-color: var(--color-accent);
+}
 #disconnect-btn:hover { color: var(--color-red); background: oklch(68% 0.19 25 / 0.06); }
 
 /* Tab dirty indicator */
