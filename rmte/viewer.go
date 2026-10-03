@@ -53,6 +53,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 		"viewer_name":      myDispName,
 		"auth_token":       generateAuthToken(password),
 		"protocol_version": protocolVersion,
+		"client":           "cli",
 	}
 	conn.WriteJSON(auth)
 
@@ -62,8 +63,11 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 		ViewerID string `json:"viewer_id"`
 		Message  string `json:"message"`
 	}
-	if err := conn.ReadJSON(&authSuccess); err != nil || authSuccess.Type != "auth_success" {
-		log.Fatal("Auth failed:", authSuccess.Message)
+	if err := conn.ReadJSON(&authSuccess); err != nil {
+		log.Fatal("Auth failed: ", err)
+	}
+	if authSuccess.Type != "auth_success" {
+		fatalf("Relay rejected viewer: %s", authSuccess.Message)
 	}
 
 	fmt.Printf("Connected as %s\n", authSuccess.ViewerID)
@@ -180,7 +184,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 							}
 						}
 						tabs = newTabs
-						
+
 						if currentTab == ctrl.TabID {
 							if len(tabs) > 0 {
 								currentTab = tabs[0]
@@ -188,7 +192,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 								currentTab = 0
 							}
 						}
-						
+
 						isJoinedMu.RLock()
 						joined := isJoined
 						isJoinedMu.RUnlock()
@@ -271,9 +275,9 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 			isJoinedMu.Lock()
 			isJoined = true
 			isJoinedMu.Unlock()
-			
+
 			enterRawTerminal(conn, currentTab)
-			
+
 			isJoinedMu.Lock()
 			isJoined = false
 			isJoinedMu.Unlock()
@@ -315,7 +319,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 			fmt.Println("\n=======================================================")
 			fmt.Println("   RMTE CHAT ROOM - Press Enter empty or type /exit to leave")
 			fmt.Println("=======================================================")
-			
+
 			// Show past history
 			chatHistoryMu.Lock()
 			for _, m := range chatHistory {

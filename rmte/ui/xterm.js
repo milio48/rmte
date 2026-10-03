@@ -1,4 +1,4 @@
-// RMTE v0.3 — Web Viewer with Editor Tabs + File Manager
+// RMTE v0.4 — Web Viewer with Editor Tabs + File Manager
 let ws, aesKey, currentTab = 'term-0', myUsername = '';
 const myViewerId = 'v-web-' + Math.random().toString(16).slice(2,10);
 let terminals = {}, editorTabs = {};
@@ -53,7 +53,7 @@ async function connect() {
         const authHash=await rmteCrypto.sha256(enc.encode('rmte-auth:'+password));
         const authToken=Array.from(authHash).map(b=>b.toString(16).padStart(2,'0')).join('');
         ws=new WebSocket(server); ws.binaryType='arraybuffer';
-        ws.onopen=()=>{_log.info('WS connected');sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.3'}));};
+        ws.onopen=()=>{_log.info('WS connected');sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.4',client:'web'}));};
         ws.onclose=e=>{
             _log.warn('WS closed',{code:e.code});
             const s=document.getElementById('sb-connection');
@@ -410,7 +410,7 @@ function showError(m){const e=document.getElementById('setup-error');e.style.dis
 function hideError(){document.getElementById('setup-error').style.display='none';}
 
 window.addEventListener('resize',refitActive);
-window.addEventListener('DOMContentLoaded',()=>{
+window.addEventListener('DOMContentLoaded',async()=>{
     // URL params take priority (sharable link: ?server=...&session=...)
     const params=new URLSearchParams(window.location.search);
     const paramServer=params.get('server');
@@ -422,6 +422,12 @@ window.addEventListener('DOMContentLoaded',()=>{
         const el=document.getElementById(k);
         if(!el.value){const v=sessionStorage.getItem('rmte_'+k);if(v)el.value=v;}
     });
+    // Fallback: derive WS URL from the page origin + relay config (ws_path)
+    if(!document.getElementById('server').value){
+        let wsPath='/ws-rmte';
+        try{const r=await fetch('config.json',{cache:'no-store'});if(r.ok){const c=await r.json();if(c.ws_path)wsPath=c.ws_path;}}catch(e){}
+        document.getElementById('server').value=(location.protocol==='https:'?'wss://':'ws://')+location.host+wsPath;
+    }
     // Focus password field if server+session already filled
     if(document.getElementById('server').value&&document.getElementById('sessionId').value&&!document.getElementById('password').value){document.getElementById('password').focus();}
     if(sessionStorage.getItem('rmte_autoconnect')==='true')connect();

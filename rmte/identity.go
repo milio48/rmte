@@ -4,15 +4,15 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/user"
 	"runtime"
 	"strings"
-	"os/exec"
 )
 
 func generateViewerID() string {
 	hostname, _ := os.Hostname()
-	
+
 	currentUser, err := user.Current()
 	username := "unknown"
 	if err == nil {

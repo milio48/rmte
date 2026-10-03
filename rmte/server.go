@@ -31,16 +31,26 @@ const maxViewersPerSession = 50
 var (
 	sessions  = make(map[string]*Session)
 	sessionMu sync.RWMutex
+
+	// serverCfg is the active relay configuration (set by runServer)
+	serverCfg *ServeConfig
 )
 
-func runServer(port int) {
-	http.HandleFunc("/ws", handleWS)
-	// Web UI handler will be added in web.go
-	setupWebHandler()
+func runServer(cfg *ServeConfig) {
+	serverCfg = cfg
+	mux := http.NewServeMux()
+	mux.HandleFunc(cfg.WSPath, handleWS)
+	if !cfg.NoWeb {
+		setupWebHandler(mux, cfg.WebPath, cfg.WSPath)
+	}
 
-	addr := fmt.Sprintf(":%d", port)
+	bindHost := "127.0.0.1"
+	if cfg.Public {
+		bindHost = "0.0.0.0"
+	}
+	addr := fmt.Sprintf("%s:%d", bindHost, cfg.Port)
 	fmt.Printf("Relay Server started on %s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
 func handleWS(w http.ResponseWriter, r *http.Request) {
@@ -69,6 +79,8 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		ViewerID        string `json:"viewer_id"`
 		AuthToken       string `json:"auth_token"`
 		ProtocolVersion string `json:"protocol_version"`
+		InternalToken   string `json:"internal_token"`
+		Client          string `json:"client"` // "web" | "cli" (self-declared)
 	}
 
 	if err := json.Unmarshal(msg, &auth); err != nil || auth.Type != "auth" {
@@ -80,6 +92,13 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 	viewerID = auth.ViewerID
 
 	if role == "host" {
+		// Standalone mode: only the embedded host (holding the internal token) may register
+		if serverCfg != nil && serverCfg.Mode == modeStandalone && auth.InternalToken != serverCfg.InternalToken {
+			conn.WriteJSON(map[string]string{"type": "error", "message": "relay disabled: server is running in standalone mode"})
+			fmt.Printf("External host rejected (standalone mode) from %s\n", r.RemoteAddr)
+			return
+		}
+
 		randBytes := make([]byte, 4)
 		rand.Read(randBytes)
 		sessionID = hex.EncodeToString(randBytes)
@@ -95,14 +114,21 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		sessions[sessionID] = s
 		sessionMu.Unlock()
 
-		// Send back the session ID
-		conn.WriteJSON(map[string]interface{}{
+		// Send back the session ID plus relay paths so the host can build correct links
+		resp := map[string]interface{}{
 			"type":       "auth_success",
 			"session_id": sessionID,
-		})
-		
+		}
+		if serverCfg != nil {
+			resp["web_path"] = serverCfg.WebPath
+			resp["ws_path"] = serverCfg.WSPath
+			resp["no_web"] = serverCfg.NoWeb
+			resp["no_cli"] = serverCfg.NoCLI
+		}
+		conn.WriteJSON(resp)
+
 		fmt.Printf("Host connected. Session: %s (Protocol: %s)\n", sessionID, auth.ProtocolVersion)
-		
+
 		defer func() {
 			sessionMu.Lock()
 			delete(sessions, sessionID)
@@ -110,6 +136,12 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("Host disconnected. Session %s closed.\n", sessionID)
 		}()
 	} else {
+		// Soft restriction: clients self-declare their type, so this can be spoofed
+		if serverCfg != nil && serverCfg.NoCLI && auth.Client == "cli" {
+			conn.WriteJSON(map[string]string{"type": "error", "message": "CLI clients are disabled on this relay"})
+			return
+		}
+
 		sessionMu.RLock()
 		s, ok := sessions[sessionID]
 		sessionMu.RUnlock()
@@ -235,7 +267,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			var ctrl map[string]interface{}
 			if err := json.Unmarshal(data, &ctrl); err == nil {
 				action, _ := ctrl["action"].(string)
-				
+
 				if role == "viewer" {
 					if action == "chat" {
 						s.Mutex.Lock()
@@ -270,7 +302,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 					}
 				} else {
 					targetConn, hasTarget := ctrl["target_conn"].(string)
-					
+
 					if hasTarget && targetConn != "" {
 						s.Mutex.RLock()
 						// Route specific JSON message to target_conn
@@ -290,7 +322,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 							}
 							s.Mutex.Unlock()
 						}
-						
+
 						s.Mutex.RLock()
 						// Broadcast to all viewers
 						for _, conns := range s.Viewers {

@@ -89,8 +89,20 @@ var (
 	hostWorkDir string
 )
 
-func runHost(serverURL, password string, bufferMB int) {
-	maxBufferSize = bufferMB * 1024 * 1024
+// HostOptions configures a host session (used by `serve` and `share`).
+type HostOptions struct {
+	DialURL       string // URL actually dialed (may be loopback)
+	PublicURL     string // URL shown in printed links
+	Pass          string
+	PassGenerated bool
+	Buffer        int
+	InternalToken string
+	Mode          string       // standalone | hybrid | share
+	Serve         *ServeConfig // non-nil when embedded in `serve`
+}
+
+func runHost(opts HostOptions) {
+	maxBufferSize = opts.Buffer * 1024 * 1024
 
 	// Set working directory as sandbox root
 	wd, err := os.Getwd()
@@ -99,7 +111,7 @@ func runHost(serverURL, password string, bufferMB int) {
 	}
 	hostWorkDir = wd
 
-	u, err := url.Parse(serverURL)
+	u, err := url.Parse(opts.DialURL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -111,7 +123,7 @@ func runHost(serverURL, password string, bufferMB int) {
 	conn := &SafeConn{Conn: rawConn}
 	defer conn.Close()
 
-	if err := setupCrypto(password); err != nil {
+	if err := setupCrypto(opts.Pass); err != nil {
 		log.Fatal(err)
 	}
 
@@ -119,8 +131,11 @@ func runHost(serverURL, password string, bufferMB int) {
 	auth := map[string]string{
 		"type":             "auth",
 		"role":             "host",
-		"auth_token":       generateAuthToken(password),
+		"auth_token":       generateAuthToken(opts.Pass),
 		"protocol_version": protocolVersion,
+	}
+	if opts.InternalToken != "" {
+		auth["internal_token"] = opts.InternalToken
 	}
 	conn.WriteJSON(auth)
 
@@ -128,17 +143,42 @@ func runHost(serverURL, password string, bufferMB int) {
 	var authResp struct {
 		Type      string `json:"type"`
 		SessionID string `json:"session_id"`
+		Message   string `json:"message"`
+		WebPath   string `json:"web_path"`
+		NoWeb     bool   `json:"no_web"`
+		NoCLI     bool   `json:"no_cli"`
 	}
-	if err := conn.ReadJSON(&authResp); err != nil || authResp.Type != "auth_success" {
-		log.Fatal("Auth failed:", err)
+	if err := conn.ReadJSON(&authResp); err != nil {
+		log.Fatal("Auth failed: ", err)
+	}
+	if authResp.Type != "auth_success" {
+		msg := authResp.Message
+		if msg == "" {
+			msg = "unexpected response from relay"
+		}
+		fatalf("Relay rejected host: %s", msg)
+	}
+	if authResp.WebPath == "" {
+		authResp.WebPath = "/" // older relays
 	}
 
-	fmt.Printf("Session ID: %s\n", authResp.SessionID)
-	fmt.Printf("Buffer limit: %d MB\n", bufferMB)
-	
-	// Generate sharable link
-	webURL := buildShareLink(serverURL, authResp.SessionID)
-	fmt.Printf("\nShareable link (password still required):\n  %s\n\n", webURL)
+	var info BannerInfo
+	if opts.Serve != nil {
+		info = bannerFromServe(opts.Serve, authResp.SessionID)
+	} else {
+		info = BannerInfo{
+			Mode:          "share",
+			RelayURL:      opts.PublicURL,
+			WebPath:       authResp.WebPath,
+			Pass:          opts.Pass,
+			PassGenerated: opts.PassGenerated,
+			SessionID:     authResp.SessionID,
+			Buffer:        opts.Buffer,
+			NoWeb:         authResp.NoWeb,
+			NoCLI:         authResp.NoCLI,
+		}
+	}
+	printBanner(info)
 
 	// Create initial tab (ID 0)
 	createTab(0, conn)
@@ -174,7 +214,7 @@ func runHost(serverURL, password string, bufferMB int) {
 							// Echo newline
 							payload, _ := encryptBinary(tabID, []byte("\r\n"))
 							conn.WriteMessage(websocket.BinaryMessage, payload)
-							
+
 							// Send to process
 							tab.Mutex.Lock()
 							tab.LineBuffer = append(tab.LineBuffer, '\n')
@@ -223,9 +263,9 @@ func runHost(serverURL, password string, bufferMB int) {
 						activeTabs = append(activeTabs, int(id))
 					}
 					tabsMu.RUnlock()
-					
+
 					sort.Ints(activeTabs)
-					
+
 					conn.WriteJSON(map[string]interface{}{
 						"type":   "control",
 						"action": "tabs_list",
@@ -266,7 +306,7 @@ func runHost(serverURL, password string, bufferMB int) {
 						history := make([]byte, len(tab.Buffer))
 						copy(history, tab.Buffer)
 						tab.Mutex.Unlock()
-						
+
 						payload, _ := encryptBinary(tabID, history)
 						encoded := base64.StdEncoding.EncodeToString(payload)
 						conn.WriteJSON(map[string]interface{}{
@@ -279,7 +319,7 @@ func runHost(serverURL, password string, bufferMB int) {
 				case "delete_tab":
 					tabIDFloat, _ := ctrl["tab_id"].(float64)
 					tabID := byte(tabIDFloat)
-					
+
 					tabsMu.Lock()
 					tab, ok := tabs[tabID]
 					if ok {
@@ -310,13 +350,13 @@ func runHost(serverURL, password string, bufferMB int) {
 					}
 					tabIDFloat, _ := ctrl["tab_id"].(float64)
 					tabID := byte(tabIDFloat)
-					
+
 					presenceMutex.Lock()
 					presenceMap[viewerID] = ViewersPresence{
 						ViewerName: viewerName,
 						TabID:      tabID,
 					}
-					
+
 					// Build tab -> users map
 					tabsPresence := make(map[string][]string)
 					for _, p := range presenceMap {
@@ -334,7 +374,7 @@ func runHost(serverURL, password string, bufferMB int) {
 					viewerID, _ := ctrl["viewer_id"].(string)
 					presenceMutex.Lock()
 					delete(presenceMap, viewerID)
-					
+
 					tabsPresence := make(map[string][]string)
 					for _, p := range presenceMap {
 						tabKey := fmt.Sprintf("%d", p.TabID)
@@ -711,7 +751,7 @@ func createTab(id byte, ws *SafeConn) {
 
 func runWithPipes(id byte, c *exec.Cmd, ws *SafeConn) {
 	stdin, _ := c.StdinPipe()
-	
+
 	// Create a pipe to merge stdout and stderr
 	pr, pw := io.Pipe()
 	c.Stdout = pw
@@ -756,7 +796,7 @@ func runWithPipes(id byte, c *exec.Cmd, ws *SafeConn) {
 				ws.WriteMessage(websocket.BinaryMessage, payload)
 			}
 		}
-	c.Wait()
+		c.Wait()
 	}()
 }
 
@@ -876,7 +916,7 @@ func handleRenameFile(oldPath, newPath, targetConn string, conn *SafeConn) {
 	conn.WriteJSON(map[string]interface{}{
 		"type": "control", "action": "file_renamed",
 		"target_conn": targetConn,
-		"old_path": filepath.ToSlash(absOld), "new_path": filepath.ToSlash(absNew),
+		"old_path":    filepath.ToSlash(absOld), "new_path": filepath.ToSlash(absNew),
 	})
 }
 
@@ -921,9 +961,9 @@ func handleDeleteFile(reqPath, targetConn string, conn *SafeConn) {
 	})
 }
 
-// buildShareLink converts a WebSocket server URL to a browser-accessible sharable link.
-// e.g. ws://localhost:8080/ws → http://localhost:8080/?server=ws://localhost:8080/ws&session=abc123
-func buildShareLink(serverURL, sessionID string) string {
+// buildShareLink converts a WebSocket relay URL to a browser-accessible sharable link.
+// e.g. ws://host:8048/ws-rmte + "/web/" → http://host:8048/web/?server=ws://host:8048/ws-rmte&session=abc123
+func buildShareLink(serverURL, webPath, sessionID string) string {
 	parsed, err := url.Parse(serverURL)
 	if err != nil {
 		return fmt.Sprintf("(could not generate link: %v)", err)
@@ -938,8 +978,10 @@ func buildShareLink(serverURL, sessionID string) string {
 		scheme = "http"
 	}
 
-	// Build the web UI base URL (same host, root path)
-	baseURL := fmt.Sprintf("%s://%s/", scheme, parsed.Host)
+	if webPath == "" {
+		webPath = "/"
+	}
+	baseURL := fmt.Sprintf("%s://%s%s", scheme, parsed.Host, webPath)
 
 	// Encode query params
 	params := url.Values{}
