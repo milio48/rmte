@@ -141,6 +141,7 @@ async function onJson(msg) {
         sessionStorage.setItem('rmte_autoconnect','true');sessionStorage.setItem('rmte_username',myUsername);
         const s=document.getElementById('sb-connection');if(s){s.innerText='● Connected';s.style.color='#3fb950';}
         sendJson({type:'control',action:'get_tabs'});
+        sendJson({type:'control',action:'get_events'});
         setTimeout(initDragAndDrop, 200);
         return;
     }
@@ -163,6 +164,8 @@ async function onJson(msg) {
         case'presence':updatePresence(msg.tabs);break;
         case'chat_history':document.getElementById('chat-messages').innerHTML='';(msg.history||[]).forEach(m=>appendChat(m.sender,m.message,m.time));break;
         case'chat':appendChat(msg.sender,msg.message,msg.time);break;
+        case'event_log':appendActivityLog(msg.event);break;
+        case'events_history':renderActivityHistory(msg.events);break;
         // File Manager
         case'dir_data':renderFileList(msg.path,msg.files);break;
         case'read_file_start':_log.info('Waiting Tab255',{path:msg.path});waitingForFileData=true;pendingEditorPath=msg.path;break;
@@ -515,18 +518,54 @@ function mkItem(icon,name,size,fullPath,isDir,onclick){
     item.onclick=onclick;return item;
 }
 
-// ===== BREADCRUMB (editable) =====
+// ===== BREADCRUMB (interactive & editable) =====
 function renderBreadcrumb(path){
-    const bc=document.getElementById('fe-breadcrumb');bc.innerHTML='';
+    const bc=document.getElementById('fe-breadcrumb');if(!bc)return;
+    bc.innerHTML='';
     bc.dataset.editing='false';
-    const span=document.createElement('span');
-    span.style.cssText='font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;';
-    span.innerText=path;
-    span.title='Double click to edit path';
-    bc.appendChild(span);
+    const norm=path.replace(/\\/g,'/');
+    const isWindowsDrive=/^[a-zA-Z]:/.test(norm);
+    const segs=norm.split('/').filter(Boolean);
+    
+    let accum='';
+    if(norm.startsWith('/')){
+        accum='/';
+        const rootSeg=document.createElement('span');
+        rootSeg.className='bc-seg';
+        rootSeg.innerText='/';
+        rootSeg.title='Jump to /';
+        rootSeg.onclick=e=>{e.stopPropagation();requestDir('/');};
+        bc.appendChild(rootSeg);
+    }
+    
+    segs.forEach((seg,idx)=>{
+        if(idx>0||norm.startsWith('/')){
+            const sep=document.createElement('span');
+            sep.className='bc-sep';
+            sep.innerText='›';
+            bc.appendChild(sep);
+        }
+        if(!accum||accum==='/'){
+            accum=(accum==='/'?'/':'')+seg;
+        }else{
+            accum=accum+'/'+seg;
+        }
+        if(isWindowsDrive&&idx===0&&!accum.endsWith('/')){
+            accum+='/';
+        }
+        const targetPath=accum;
+        const segEl=document.createElement('span');
+        segEl.className='bc-seg';
+        segEl.innerText=seg;
+        segEl.title='Jump to '+targetPath;
+        segEl.onclick=e=>{e.stopPropagation();requestDir(targetPath);};
+        bc.appendChild(segEl);
+    });
+
+    bc.onclick=e=>{if(e.target===bc)editBreadcrumb();};
 }
 function editBreadcrumb(){
-    const bc=document.getElementById('fe-breadcrumb');
+    const bc=document.getElementById('fe-breadcrumb');if(!bc)return;
     if(bc.dataset.editing==='true')return;
     bc.dataset.editing='true';bc.innerHTML='';
     const inp=document.createElement('input');inp.className='bc-edit-input';inp.value=currentFilePath;
@@ -689,7 +728,123 @@ function sendChatMessage(){const i=document.getElementById('chat-input'),t=(i.va
 function appendChat(sender,msg,time){const c=document.getElementById('chat-messages');const el=document.createElement('div');el.className='chat-msg';el.innerHTML=`<div class="chat-msg-header"><span class="chat-msg-sender${sender===myUsername?' self':''}">${esc(sender)}</span><span>${time||''}</span></div><div class="chat-msg-body">${esc(msg)}</div>`;c.appendChild(el);c.scrollTop=c.scrollHeight;}
 
 // ===== UI =====
-function toggleSidebar(){document.getElementById('workspace').classList.toggle('sidebar-collapsed');setTimeout(refitActive,200);}
+let currentSidebarTab = 'collab';
+let eventsLog = [];
+let unreadActivityCount = 0;
+
+function switchSidebarTab(tabName){
+    currentSidebarTab = tabName;
+    ['collab','chat','activity'].forEach(t => {
+        const btn = document.getElementById('sb-tab-' + t);
+        if(btn) btn.classList.toggle('active', t === tabName);
+    });
+    const uSec = document.getElementById('users-section');
+    const cSec = document.getElementById('chat-section');
+    const aSec = document.getElementById('activity-section');
+    if(uSec) uSec.style.display = tabName === 'collab' ? 'flex' : 'none';
+    if(cSec) cSec.style.display = tabName === 'chat' ? 'flex' : 'none';
+    if(aSec) aSec.style.display = tabName === 'activity' ? 'flex' : 'none';
+    
+    const collabBtn = document.getElementById('toggle-sidebar-btn');
+    const actBtn = document.getElementById('toggle-activity-btn');
+    const isCollapsed = document.getElementById('workspace').classList.contains('sidebar-collapsed');
+    if(collabBtn) collabBtn.classList.toggle('active', !isCollapsed && tabName === 'collab');
+    if(actBtn) actBtn.classList.toggle('active', !isCollapsed && tabName === 'activity');
+
+    if(tabName === 'activity'){
+        unreadActivityCount = 0;
+        const b = document.getElementById('activity-badge');
+        if(b) b.style.display = 'none';
+    }
+    setTimeout(refitActive, 50);
+}
+
+function toggleSidebar(preferredTab){
+    const ws = document.getElementById('workspace');
+    const isCollapsed = ws.classList.contains('sidebar-collapsed');
+    if(!preferredTab) preferredTab = 'collab';
+
+    if(isCollapsed){
+        ws.classList.remove('sidebar-collapsed');
+        switchSidebarTab(preferredTab);
+    } else if(currentSidebarTab === preferredTab){
+        ws.classList.add('sidebar-collapsed');
+        const collabBtn = document.getElementById('toggle-sidebar-btn');
+        const actBtn = document.getElementById('toggle-activity-btn');
+        if(collabBtn) collabBtn.classList.remove('active');
+        if(actBtn) actBtn.classList.remove('active');
+    } else {
+        switchSidebarTab(preferredTab);
+    }
+    setTimeout(refitActive, 200);
+}
+
+function appendActivityLog(evt){
+    if(!evt) return;
+    eventsLog.push(evt);
+    const list = document.getElementById('activity-list');
+    if(list){
+        const it = document.createElement('div');
+        it.className = 'activity-item';
+        const typeClass = (evt.type || 'INFO').replace(/[^a-zA-Z0-9_]/g, '');
+        it.innerHTML = `
+            <div class="activity-item-header">
+                <span class="activity-type ${esc(typeClass)}">${esc(evt.type || 'EVENT')}</span>
+                <span class="activity-time">${esc(evt.time || '')}</span>
+            </div>
+            <div class="activity-msg">${esc(evt.message || '')}</div>
+        `;
+        list.appendChild(it);
+        list.scrollTop = list.scrollHeight;
+    }
+
+    if(currentSidebarTab !== 'activity'){
+        unreadActivityCount++;
+        const badge = document.getElementById('activity-badge');
+        if(badge){
+            badge.innerText = unreadActivityCount > 99 ? '99+' : unreadActivityCount;
+            badge.style.display = 'inline-block';
+        }
+    }
+}
+
+function renderActivityHistory(events){
+    eventsLog = events || [];
+    const list = document.getElementById('activity-list');
+    if(!list) return;
+    list.innerHTML = '';
+    eventsLog.forEach(evt => {
+        const it = document.createElement('div');
+        it.className = 'activity-item';
+        const typeClass = (evt.type || 'INFO').replace(/[^a-zA-Z0-9_]/g, '');
+        it.innerHTML = `
+            <div class="activity-item-header">
+                <span class="activity-type ${esc(typeClass)}">${esc(evt.type || 'EVENT')}</span>
+                <span class="activity-time">${esc(evt.time || '')}</span>
+            </div>
+            <div class="activity-msg">${esc(evt.message || '')}</div>
+        `;
+        list.appendChild(it);
+    });
+    list.scrollTop = list.scrollHeight;
+}
+
+function exportActivityLog(){
+    if(!eventsLog.length){
+        showToast('No events logged yet');
+        return;
+    }
+    const lines = eventsLog.map(e => `[${e.date || e.time}] [${e.type || 'EVENT'}] [${e.user || 'system'}] ${e.message || ''}`);
+    const blob = new Blob([lines.join('\n')], {type: 'text/plain'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const sid = document.getElementById('sessionId').value || 'session';
+    a.download = `event-${sid}.log`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('Activity log exported!');
+}
 function disconnectSession(){manualDisconnect=true;clearReconnectTimer();stopPing();sessionStorage.setItem('rmte_autoconnect','false');if(ws)ws.close();location.reload();}
 function showError(m){const e=document.getElementById('setup-error');e.style.display='block';e.innerText=m;}
 function hideError(){document.getElementById('setup-error').style.display='none';}

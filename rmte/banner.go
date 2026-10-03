@@ -20,6 +20,7 @@ type BannerInfo struct {
 	Buffer        int
 	NoWeb         bool
 	NoCLI         bool
+	Dir           string
 }
 
 func bannerFromServe(cfg *ServeConfig, sessionID string) BannerInfo {
@@ -41,6 +42,7 @@ func bannerFromServe(cfg *ServeConfig, sessionID string) BannerInfo {
 		Buffer:        cfg.Buffer,
 		NoWeb:         cfg.NoWeb,
 		NoCLI:         cfg.NoCLI,
+		Dir:           cfg.Dir,
 	}
 }
 
@@ -65,6 +67,10 @@ func printBanner(b BannerInfo) {
 		line("Host Name", b.Hostname)
 		line("Rmte Port", fmt.Sprint(b.Port))
 		line("Open to Relay", yesNo(b.Mode == modeHybrid || b.Mode == modeRelay))
+	}
+
+	if b.Dir != "" {
+		line("Directory", b.Dir)
 	}
 
 	if b.Mode != modeRelay {

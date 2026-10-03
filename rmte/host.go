@@ -87,6 +87,12 @@ var (
 
 	// Host working directory (sandbox root for file operations)
 	hostWorkDir string
+
+	// Event log file and memory history
+	eventLogFile   *os.File
+	eventLogMu     sync.Mutex
+	eventHistory   []map[string]interface{}
+	eventHistoryMu sync.RWMutex
 )
 
 // HostOptions configures a host session (used by `serve` and `share`).
@@ -98,18 +104,78 @@ type HostOptions struct {
 	Buffer        int
 	InternalToken string
 	Mode          string       // standalone | hybrid | share
+	Dir           string       // initial working directory
 	Serve         *ServeConfig // non-nil when embedded in `serve`
+}
+
+func initEventLog(sessionID string) {
+	exePath, err := os.Executable()
+	var dir string
+	if err == nil {
+		dir = filepath.Dir(exePath)
+	} else {
+		dir = "."
+	}
+	logPath := filepath.Join(dir, fmt.Sprintf("event-%s.log", sessionID))
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Printf("[EventLog] Failed to open %s: %v", logPath, err)
+		return
+	}
+	eventLogFile = f
+	log.Printf("[EventLog] Logging events to %s", logPath)
+}
+
+func logEvent(conn *SafeConn, eventType, user, message string) {
+	now := time.Now()
+	timeStr := now.Format("2006-01-02 15:04:05")
+	timeShort := now.Format("15:04:05")
+	entryLine := fmt.Sprintf("[%s] [%s] [%s] %s\n", timeStr, eventType, user, message)
+
+	eventLogMu.Lock()
+	if eventLogFile != nil {
+		eventLogFile.WriteString(entryLine)
+	}
+	eventLogMu.Unlock()
+
+	evt := map[string]interface{}{
+		"time":    timeShort,
+		"date":    timeStr,
+		"type":    eventType,
+		"user":    user,
+		"message": message,
+	}
+
+	eventHistoryMu.Lock()
+	eventHistory = append(eventHistory, evt)
+	if len(eventHistory) > 100 {
+		eventHistory = eventHistory[len(eventHistory)-100:]
+	}
+	eventHistoryMu.Unlock()
+
+	if conn != nil {
+		conn.WriteJSON(map[string]interface{}{
+			"type":   "control",
+			"action": "event_log",
+			"event":  evt,
+		})
+	}
 }
 
 func runHost(opts HostOptions) {
 	maxBufferSize = opts.Buffer * 1024 * 1024
 
 	// Set working directory as sandbox root
-	wd, err := os.Getwd()
-	if err != nil {
-		log.Fatal("Cannot get working directory:", err)
+	if opts.Dir != "" {
+		hostWorkDir = opts.Dir
+	} else {
+		wd, err := os.Getwd()
+		if err != nil {
+			log.Fatal("Cannot get working directory:", err)
+		}
+		hostWorkDir = wd
 	}
-	hostWorkDir = wd
+	hostWorkDir = filepath.ToSlash(hostWorkDir)
 
 	u, err := url.Parse(opts.DialURL)
 	if err != nil {
@@ -176,9 +242,14 @@ func runHost(opts HostOptions) {
 			Buffer:        opts.Buffer,
 			NoWeb:         authResp.NoWeb,
 			NoCLI:         authResp.NoCLI,
+			Dir:           opts.Dir,
 		}
 	}
 	printBanner(info)
+
+	// Initialize Event Log file on Host
+	initEventLog(authResp.SessionID)
+	logEvent(conn, "HOST_START", "host", fmt.Sprintf("Host session %s active in %s", authResp.SessionID, hostWorkDir))
 
 	// Create initial tab (ID 0)
 	createTab(0, conn)
@@ -275,6 +346,7 @@ func runHost(opts HostOptions) {
 					newID := nextTabID
 					nextTabID++
 					createTab(newID, conn)
+					logEvent(conn, "NEW_TAB", "system", fmt.Sprintf("Terminal Tab %d created", newID))
 					conn.WriteJSON(map[string]interface{}{
 						"type":   "control",
 						"action": "tab_created",
@@ -336,6 +408,8 @@ func runHost(opts HostOptions) {
 					}
 					tabsMu.Unlock()
 
+					logEvent(conn, "DELETE_TAB", "system", fmt.Sprintf("Terminal Tab %d closed", tabID))
+
 					// Broadcast tab_deleted to all viewers
 					conn.WriteJSON(map[string]interface{}{
 						"type":   "control",
@@ -352,6 +426,7 @@ func runHost(opts HostOptions) {
 					tabID := byte(tabIDFloat)
 
 					presenceMutex.Lock()
+					_, existed := presenceMap[viewerID]
 					presenceMap[viewerID] = ViewersPresence{
 						ViewerName: viewerName,
 						TabID:      tabID,
@@ -365,14 +440,31 @@ func runHost(opts HostOptions) {
 					}
 					presenceMutex.Unlock()
 
+					if !existed {
+						logEvent(conn, "CONNECT", viewerName, fmt.Sprintf("User %s joined", viewerName))
+					}
+
 					conn.WriteJSON(map[string]interface{}{
 						"type":   "control",
 						"action": "presence",
 						"tabs":   tabsPresence,
 					})
+				case "get_events":
+					targetConn, _ := ctrl["target_conn"].(string)
+					eventHistoryMu.RLock()
+					evts := make([]map[string]interface{}, len(eventHistory))
+					copy(evts, eventHistory)
+					eventHistoryMu.RUnlock()
+					conn.WriteJSON(map[string]interface{}{
+						"type":        "control",
+						"action":      "events_history",
+						"target_conn": targetConn,
+						"events":      evts,
+					})
 				case "viewer_disconnected":
 					viewerID, _ := ctrl["viewer_id"].(string)
 					presenceMutex.Lock()
+					prev, existed := presenceMap[viewerID]
 					delete(presenceMap, viewerID)
 
 					tabsPresence := make(map[string][]string)
@@ -381,6 +473,10 @@ func runHost(opts HostOptions) {
 						tabsPresence[tabKey] = append(tabsPresence[tabKey], p.ViewerName)
 					}
 					presenceMutex.Unlock()
+
+					if existed {
+						logEvent(conn, "DISCONNECT", prev.ViewerName, fmt.Sprintf("User %s disconnected", prev.ViewerName))
+					}
 
 					conn.WriteJSON(map[string]interface{}{
 						"type":   "control",
@@ -580,6 +676,8 @@ func handleReqReadFile(reqPath, targetConn string, conn *SafeConn) {
 		"path":        filepath.ToSlash(absPath),
 	})
 
+	logEvent(conn, "OPEN_FILE", targetConn, fmt.Sprintf("Opened %s (%d bytes)", filepath.ToSlash(absPath), len(fileData)))
+
 	// Send file content as encrypted binary on Tab 255
 	payload, err := encryptBinary(dataChannelTabID, fileData)
 	if err != nil {
@@ -685,6 +783,7 @@ func handleDataChannelWrite(plaintext []byte, conn *SafeConn) {
 		"size":        len(plaintext),
 	})
 	log.Printf("[FileManager] Saved %s (%d bytes)", ps.Path, len(plaintext))
+	logEvent(conn, "SAVE_FILE", ps.TargetConn, fmt.Sprintf("Saved %s (%d bytes)", filepath.ToSlash(ps.Path), len(plaintext)))
 }
 
 // ===== TERMINAL TAB MANAGEMENT =====
@@ -703,6 +802,9 @@ func createTab(id byte, ws *SafeConn) {
 	}
 
 	c := exec.Command(shell, args...)
+	if hostWorkDir != "" {
+		c.Dir = hostWorkDir
+	}
 	f, err := pty.Start(c)
 	if err != nil {
 		if runtime.GOOS == "windows" {
@@ -842,6 +944,7 @@ func handleCreateFile(reqPath, targetConn string, conn *SafeConn) {
 	}
 
 	log.Printf("[FileManager] Created file %s", absPath)
+	logEvent(conn, "NEW_FILE", targetConn, fmt.Sprintf("Created file %s", filepath.ToSlash(absPath)))
 	conn.WriteJSON(map[string]interface{}{
 		"type": "control", "action": "file_created",
 		"target_conn": targetConn, "path": filepath.ToSlash(absPath),
@@ -868,6 +971,7 @@ func handleCreateDir(reqPath, targetConn string, conn *SafeConn) {
 	}
 
 	log.Printf("[FileManager] Created directory %s", absPath)
+	logEvent(conn, "NEW_DIR", targetConn, fmt.Sprintf("Created directory %s", filepath.ToSlash(absPath)))
 	conn.WriteJSON(map[string]interface{}{
 		"type": "control", "action": "dir_created",
 		"target_conn": targetConn, "path": filepath.ToSlash(absPath),
@@ -913,6 +1017,7 @@ func handleRenameFile(oldPath, newPath, targetConn string, conn *SafeConn) {
 	}
 
 	log.Printf("[FileManager] Renamed %s → %s", absOld, absNew)
+	logEvent(conn, "RENAME_FILE", targetConn, fmt.Sprintf("Renamed %s → %s", filepath.ToSlash(absOld), filepath.ToSlash(absNew)))
 	conn.WriteJSON(map[string]interface{}{
 		"type": "control", "action": "file_renamed",
 		"target_conn": targetConn,
@@ -955,6 +1060,7 @@ func handleDeleteFile(reqPath, targetConn string, conn *SafeConn) {
 	}
 
 	log.Printf("[FileManager] Deleted %s", absPath)
+	logEvent(conn, "DELETE_FILE", targetConn, fmt.Sprintf("Deleted %s", filepath.ToSlash(absPath)))
 	conn.WriteJSON(map[string]interface{}{
 		"type": "control", "action": "file_deleted",
 		"target_conn": targetConn, "path": filepath.ToSlash(absPath),

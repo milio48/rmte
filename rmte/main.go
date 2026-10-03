@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -39,6 +40,7 @@ type ServeConfig struct {
 	Public        bool
 	NoWeb         bool
 	NoCLI         bool
+	Dir           string // initial working directory for host
 	InternalToken string // used by the embedded host in standalone mode
 }
 
@@ -78,6 +80,7 @@ func cmdServe() {
 	flag.StringVar(&cfg.WebPath, "web-path", "/", "HTTP path for the Web UI")
 	flag.StringVar(&cfg.WSPath, "ws-path", defaultWSPath, "WebSocket path")
 	flag.StringVar(&cfg.Hostname, "hostname", "", "Public hostname/IP used only for printed links")
+	flag.StringVar(&cfg.Dir, "dir", "", "Initial working directory for File Explorer and terminal")
 	flag.BoolVar(&cfg.Public, "public", false, "Bind to 0.0.0.0 (default 127.0.0.1)")
 	flag.BoolVar(&cfg.NoWeb, "no-web", false, "Do not serve the Web UI")
 	flag.BoolVar(&cfg.NoCLI, "no-cli", false, "Reject CLI clients (soft restriction)")
@@ -104,6 +107,18 @@ func cmdServe() {
 	}
 	if cfg.Buffer < 1 {
 		fatalf("Error: --buffer must be >= 1")
+	}
+
+	if cfg.Dir != "" {
+		absDir, err := filepath.Abs(cfg.Dir)
+		if err != nil {
+			fatalf("Error: invalid --dir=%q: %v", cfg.Dir, err)
+		}
+		st, err := os.Stat(absDir)
+		if err != nil || !st.IsDir() {
+			fatalf("Error: --dir=%q does not exist or is not a directory", cfg.Dir)
+		}
+		cfg.Dir = filepath.ToSlash(absDir)
 	}
 
 	cfg.WebPath = normalizeWebPath(cfg.WebPath)
@@ -146,9 +161,23 @@ func cmdShare() {
 	server := flag.String("server-relay", defaultServer, "Relay server WebSocket URL")
 	pass := flag.String("pass", "", "Password for E2EE (random if empty)")
 	bufferMB := flag.Int("buffer", 1, "Max buffer size in MB (terminal ring buffer and file manager)")
+	dir := flag.String("dir", "", "Initial working directory for File Explorer and terminal")
 	flag.Parse()
 	if *bufferMB < 1 {
 		fatalf("Error: --buffer must be >= 1")
+	}
+
+	var cleanDir string
+	if *dir != "" {
+		absDir, err := filepath.Abs(*dir)
+		if err != nil {
+			fatalf("Error: invalid --dir=%q: %v", *dir, err)
+		}
+		st, err := os.Stat(absDir)
+		if err != nil || !st.IsDir() {
+			fatalf("Error: --dir=%q does not exist or is not a directory", *dir)
+		}
+		cleanDir = filepath.ToSlash(absDir)
 	}
 
 	opts := HostOptions{
@@ -157,6 +186,7 @@ func cmdShare() {
 		Pass:      *pass,
 		Buffer:    *bufferMB,
 		Mode:      "share",
+		Dir:       cleanDir,
 	}
 	if opts.Pass == "" {
 		opts.Pass = generatePassword(12)
@@ -201,6 +231,7 @@ func runServeAndShare(cfg *ServeConfig) {
 		Buffer:        cfg.Buffer,
 		InternalToken: cfg.InternalToken,
 		Mode:          cfg.Mode,
+		Dir:           cfg.Dir,
 		Serve:         cfg,
 	})
 }
@@ -253,10 +284,10 @@ Terminology:
   Client = Web browser or CLI/TUI viewer
 
 Usage:
-  rmte serve [--mode=standalone|hybrid|relay] [--port=%d] [--pass="secret"] [--buffer=1]
+  rmte serve [--mode=standalone|hybrid|relay] [--port=%d] [--pass="secret"] [--buffer=1] [--dir="path"]
              [--web-path="/"] [--ws-path="%s"] [--hostname="example.com"]
              [--public] [--no-web | --no-cli]
-  rmte share --server-relay="ws://relay:%d%s" [--pass="secret"] [--buffer=1]
+  rmte share --server-relay="ws://relay:%d%s" [--pass="secret"] [--buffer=1] [--dir="path"]
   rmte join  --server-relay="ws://relay:%d%s" --id="..." --pass="secret" [--name="name"]
   rmte help | version
 
