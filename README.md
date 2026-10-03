@@ -28,17 +28,22 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
 * **Modern Web Redesign:** A sleek, split-viewport interface using OKLCH atmospheric themes, Space Grotesk/Inter/JetBrains Mono typography, and portable CSS design tokens (`tokens.css`).
 * **Split-Workspace Cloud IDE:** Toggle the folder icon `📁` in the browser tab bar to open a split-view workspace:
   * **Left Panel**: Advanced File Explorer.
-  * **Right Panel**: Tabbed text editor supporting file opening, modification warnings, and direct saving (`Ctrl + S`).
+  * **Right Panel**: Tabbed text editor powered by **CodeMirror** (syntax highlighting, line numbers, unsaved indicators `●`, direct `Ctrl + S` saving).
   * **Bottom Panel**: Interactive, multi-tab terminal shells.
 * **Modern File Explorer & Manager:**
-  * **Absolute PWD Display**: Displays the full, absolute working directory of the host (e.g. `C:/workspace/rmte`) with forward slash consistency.
-  * **Editable Path Breadcrumbs**: Double-click the path header to type/edit the absolute folder path directly, then press `Enter ↵` to jump.
-  * **Parent Navigation (`..`)**: An always-visible `..` folder item at the top of the file list allows walking backward up the host's directory structure.
+  * **Absolute PWD & Segment Breadcrumbs**: Displays the full host working directory with clickable path segments and a quick edit button (`✏️` or double-click) to type any path directly.
+  * **Drag & Drop Upload & One-Click Download**: Drag files from your computer into the Explorer to upload; click the `⬇` icon to download host files locally.
+  * **Parent Navigation (`..`)**: An always-visible `..` folder item allows walking backward up the host's directory structure.
   * **Inline Operations (Zero Browser Modals)**: Creating new files (`+📄`) or folders (`+📁`), renaming (`✏️`), and deleting (`🗑`) are performed via inline text inputs and non-intrusive confirmation strips (`[Yes] [No]`).
   * **Toast Notification HUD**: Directory and workspace errors are reported through transient, auto-dismissing inline Toasts.
+* **Host Audit Event Log (`rmte-<session_id>.log`):**
+  * Every session lifecycle event (host startup, client connects/disconnects, terminal tabs, and file reads/writes/creations/deletions) is securely logged to `rmte-<session_id>.log` on the host machine.
+  * Real-time streaming to the UI with a live unread badge and instant `📥 Export` to download the log.
+* **Unified Sidebar & Real-Time Chat Bridge:**
+  * Dedicated multi-tab sidebar for `👥 Users` presence, `💬 Chat` (live encrypted bridge between Web and CLI clients), and `📜 Activity Log`.
+* **Share Session Dialog (`🔗`):** Convenient modal to copy browser links or CLI join commands with one click.
 * **Dynamic Max Buffer Limits:** Set customizable memory limits via CLI (e.g. `--buffer=5` for 5MB limits) to configure both the terminal ring buffer and the maximum allowed file sizes.
 * **Zero-copy Binary Data Channel (Tab ID `255`):** Avoids heavy Base64 parsing overhead. Files are sent as pure, encrypted binary frames over a reserved channel.
-* **Integrated Chat Room:** A memory-cached chat bridge connecting Web and CLI clients in real-time, preserving the last 50 messages.
 * **Auto-Reconnect:** On unexpected disconnect, the web client retries with exponential backoff (2s → 4s → 8s → max 30s) with a live countdown in the status bar.
 * **State Persistence & Auto-Reconnect:** Connection credentials live safely in `sessionStorage` for immediate recovery upon page refresh.
 
@@ -116,7 +121,7 @@ go build -ldflags "-s -w" -o rmte
 | Local shell/files (Host) | ✅ | ✅ | ❌ | ✅ | ❌ |
 | Accepts external hosts (`share`) | ❌ | ✅ | ✅ | — | — |
 | Prints Session ID + links | ✅ | ✅ | ❌ | ✅ | — |
-| Uses `--pass` / `--buffer` | ✅ | ✅ | ❌ | ✅ | `--pass` only |
+| Uses `--pass` / `--buffer` / `--dir` | ✅ | ✅ | ❌ | ✅ | `--pass` only |
 | Role | Relay + Host | Relay + Host | Relay | Host | Client (TUI) |
 
 ---
@@ -135,6 +140,7 @@ Bind:             127.0.0.1:8048
 Host Name:        localhost
 Rmte Port:        8048
 Open to Relay:    ❌ No
+Directory:        /workspace
 Custom Password:  ❌ No  (generated: YJNhJkzGHEhc)
 Session ID:       16fd7ce2
 Buffer limit:     1 MB
@@ -226,6 +232,7 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 | `--mode` | `standalone` | `standalone` \| `hybrid` \| `relay` |
 | `--port` | `8048` | Listen port |
 | `--pass` | *random* | E2EE password (printed if generated). Ignored in `relay` |
+| `--dir` | `""` | Initial working directory for File Explorer and terminal |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB). Ignored in `relay` |
 | `--web-path` | `/` | Path of the Web UI (e.g. `/web`) |
 | `--ws-path` | `/ws-rmte` | WebSocket path |
@@ -239,6 +246,7 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 | :--- | :--- | :--- |
 | `--server-relay` | `ws://localhost:8048/ws-rmte` | Relay WebSocket URL |
 | `--pass` | *random* | E2EE password (printed if generated) |
+| `--dir` | `""` | Initial working directory for File Explorer and terminal |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
 
 ### `rmte join`

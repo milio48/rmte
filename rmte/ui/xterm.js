@@ -162,7 +162,18 @@ async function onJson(msg) {
         case'tab_deleted':removeTermTab(msg.tab_id);break;
         case'sync_data':{const b=Uint8Array.from(atob(msg.data),c=>c.charCodeAt(0));await onBinary(b);}break;
         case'presence':updatePresence(msg.tabs);break;
-        case'chat_history':document.getElementById('chat-messages').innerHTML='';(msg.history||[]).forEach(m=>appendChat(m.sender,m.message,m.time));break;
+        case'chat_history':{
+            const cm=document.getElementById('chat-messages');
+            if(cm){
+                cm.innerHTML='';
+                if(!msg.history || msg.history.length===0){
+                    cm.innerHTML=`<div class="chat-empty-state"><div class="chat-empty-icon">💬</div><div class="chat-empty-title">Session Chat</div><div class="chat-empty-sub">Messages sent here are encrypted and shared live with all Web and CLI collaborators.</div></div>`;
+                } else {
+                    msg.history.forEach(m=>appendChat(m.sender,m.message,m.time));
+                }
+            }
+            break;
+        }
         case'chat':appendChat(msg.sender,msg.message,msg.time);break;
         case'event_log':appendActivityLog(msg.event);break;
         case'events_history':renderActivityHistory(msg.events);break;
@@ -724,13 +735,48 @@ function updatePresence(tabs){
     Object.keys(tabs).forEach(tid=>(tabs[tid]||[]).forEach(name=>{const i=document.createElement('div');i.className='user-item';i.innerHTML=`<span class="dot"></span><span class="user-name">${esc(name)}</span><span class="user-tab-badge">Tab ${tid}</span>`;list.appendChild(i);}));
 }
 function handleChatKey(e){if(e.key==='Enter')sendChatMessage();}
-function sendChatMessage(){const i=document.getElementById('chat-input'),t=(i.value||'').trim();if(!t)return;sendJson({type:'control',action:'chat',sender:myUsername,message:t,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})});i.value='';}
-function appendChat(sender,msg,time){const c=document.getElementById('chat-messages');const el=document.createElement('div');el.className='chat-msg';el.innerHTML=`<div class="chat-msg-header"><span class="chat-msg-sender${sender===myUsername?' self':''}">${esc(sender)}</span><span>${time||''}</span></div><div class="chat-msg-body">${esc(msg)}</div>`;c.appendChild(el);c.scrollTop=c.scrollHeight;}
+function sendChatMessage(){
+    const i=document.getElementById('chat-input'),t=(i.value||'').trim();
+    if(!t)return;
+    sendJson({type:'control',action:'chat',sender:myUsername,message:t,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})});
+    i.value='';
+}
+function appendChat(sender,msg,time){
+    const c=document.getElementById('chat-messages');
+    if(!c)return;
+    const empty=c.querySelector('.chat-empty-state');
+    if(empty)empty.remove();
+
+    const isSelf=sender===myUsername;
+    const el=document.createElement('div');
+    el.className=`chat-msg ${isSelf?'self':'other'}`;
+    el.innerHTML=`
+        <div class="chat-msg-header">
+            <span class="chat-msg-sender${isSelf?' self':''}">${esc(sender)}</span>
+            <span class="chat-msg-time">${esc(time||'')}</span>
+        </div>
+        <div class="chat-msg-body">${esc(msg)}</div>
+    `;
+    c.appendChild(el);
+    c.scrollTop=c.scrollHeight;
+
+    const ws=document.getElementById('workspace');
+    const isSidebarHidden=ws&&ws.classList.contains('sidebar-collapsed');
+    if(currentSidebarTab!=='chat'||isSidebarHidden){
+        unreadChatCount++;
+        const badge=document.getElementById('chat-badge');
+        if(badge){
+            badge.innerText=unreadChatCount>99?'99+':unreadChatCount;
+            badge.style.display='inline-block';
+        }
+    }
+}
 
 // ===== UI =====
 let currentSidebarTab = 'collab';
 let eventsLog = [];
 let unreadActivityCount = 0;
+let unreadChatCount = 0;
 
 function switchSidebarTab(tabName){
     currentSidebarTab = tabName;
@@ -746,15 +792,24 @@ function switchSidebarTab(tabName){
     if(aSec) aSec.style.display = tabName === 'activity' ? 'flex' : 'none';
     
     const collabBtn = document.getElementById('toggle-sidebar-btn');
+    const chatBtn = document.getElementById('toggle-chat-btn');
     const actBtn = document.getElementById('toggle-activity-btn');
     const isCollapsed = document.getElementById('workspace').classList.contains('sidebar-collapsed');
     if(collabBtn) collabBtn.classList.toggle('active', !isCollapsed && tabName === 'collab');
+    if(chatBtn) chatBtn.classList.toggle('active', !isCollapsed && tabName === 'chat');
     if(actBtn) actBtn.classList.toggle('active', !isCollapsed && tabName === 'activity');
 
     if(tabName === 'activity'){
         unreadActivityCount = 0;
         const b = document.getElementById('activity-badge');
         if(b) b.style.display = 'none';
+    }
+    if(tabName === 'chat'){
+        unreadChatCount = 0;
+        const b = document.getElementById('chat-badge');
+        if(b) b.style.display = 'none';
+        const ci = document.getElementById('chat-input');
+        if(ci) setTimeout(() => ci.focus(), 60);
     }
     setTimeout(refitActive, 50);
 }
@@ -770,8 +825,10 @@ function toggleSidebar(preferredTab){
     } else if(currentSidebarTab === preferredTab){
         ws.classList.add('sidebar-collapsed');
         const collabBtn = document.getElementById('toggle-sidebar-btn');
+        const chatBtn = document.getElementById('toggle-chat-btn');
         const actBtn = document.getElementById('toggle-activity-btn');
         if(collabBtn) collabBtn.classList.remove('active');
+        if(chatBtn) chatBtn.classList.remove('active');
         if(actBtn) actBtn.classList.remove('active');
     } else {
         switchSidebarTab(preferredTab);
@@ -839,7 +896,7 @@ function exportActivityLog(){
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     const sid = document.getElementById('sessionId').value || 'session';
-    a.download = `event-${sid}.log`;
+    a.download = `rmte-${sid}.log`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

@@ -116,7 +116,7 @@ func initEventLog(sessionID string) {
 	} else {
 		dir = "."
 	}
-	logPath := filepath.Join(dir, fmt.Sprintf("event-%s.log", sessionID))
+	logPath := filepath.Join(dir, fmt.Sprintf("rmte-%s.log", sessionID))
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		log.Printf("[EventLog] Failed to open %s: %v", logPath, err)
