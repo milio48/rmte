@@ -9,10 +9,26 @@ let isConnected = false, manualDisconnect = false;
 let reconnectAttempt = 0, reconnectTimer = null;
 const RECONNECT_BASE = 2000, RECONNECT_MAX = 30000;
 let waitingForFileData = false, pendingFileBytes = null, pendingEditorPath = null;
+let pendingDownload = false, pendingDownloadName = null;
+let pingTimer = null;
 const DATA_CH = 255;
 
 const TEXT_EXT = new Set('go,js,ts,jsx,tsx,py,rb,rs,c,cpp,h,hpp,java,kt,cs,php,html,css,scss,less,json,yaml,yml,toml,xml,sql,md,txt,log,csv,ini,cfg,conf,env,sh,bash,bat,ps1,cmd,mod,sum,lock,editorconfig,gitignore,makefile,dockerfile'.split(','));
 const LANG_MAP = {go:'Go',js:'JavaScript',ts:'TypeScript',py:'Python',rs:'Rust',html:'HTML',css:'CSS',json:'JSON',md:'Markdown',yaml:'YAML',yml:'YAML',sh:'Shell',sql:'SQL',c:'C',cpp:'C++',java:'Java',rb:'Ruby',php:'PHP',xml:'XML',toml:'TOML'};
+
+function getCodeMirrorMode(path) {
+    const ext = (path.split('.').pop() || '').toLowerCase();
+    const map = {
+        js: 'javascript', ts: 'javascript', jsx: 'javascript', tsx: 'javascript', json: 'javascript',
+        go: 'go', py: 'python',
+        html: 'htmlmixed', htm: 'htmlmixed', xml: 'xml', svg: 'xml',
+        css: 'css', scss: 'css', less: 'css',
+        md: 'markdown', markdown: 'markdown',
+        sh: 'shell', bash: 'shell', zsh: 'shell',
+        yml: 'yaml', yaml: 'yaml'
+    };
+    return map[ext] || 'text/plain';
+}
 
 const _log = {
     out(t,d){console.log(`%c[OUT] %c${t}`,'color:#58a6ff;font-weight:bold','color:#8b949e',d)},
@@ -53,9 +69,14 @@ async function connect() {
         const authHash=await rmteCrypto.sha256(enc.encode('rmte-auth:'+password));
         const authToken=Array.from(authHash).map(b=>b.toString(16).padStart(2,'0')).join('');
         ws=new WebSocket(server); ws.binaryType='arraybuffer';
-        ws.onopen=()=>{_log.info('WS connected');sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.4',client:'web'}));};
+        ws.onopen=()=>{
+            _log.info('WS connected');
+            sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.4',client:'web'}));
+            startPing();
+        };
         ws.onclose=e=>{
             _log.warn('WS closed',{code:e.code});
+            stopPing();
             const s=document.getElementById('sb-connection');
             if(s){s.innerText='● Disconnected';s.style.color='#f85149';}
             if(isConnected&&!manualDisconnect){scheduleReconnect();}
@@ -67,6 +88,18 @@ async function connect() {
         };
         ws.onmessage=async e=>{try{typeof e.data==='string'?await onJson(JSON.parse(e.data)):await onBinary(new Uint8Array(e.data));}catch(err){_log.err('msg handler',err);}};
     } catch(e){_log.err('connect',e);showError(e.message);btn.innerText='Establish Connection';btn.disabled=false;}
+}
+
+function startPing(){
+    stopPing();
+    pingTimer=setInterval(()=>{
+        if(ws&&ws.readyState===WebSocket.OPEN){
+            sendJson({type:'control',action:'ping',t:Date.now()});
+        }
+    },5000);
+}
+function stopPing(){
+    if(pingTimer){clearInterval(pingTimer);pingTimer=null;}
 }
 
 function scheduleReconnect(){
@@ -107,11 +140,22 @@ async function onJson(msg) {
         ['server','sessionId','password','username'].forEach(k=>sessionStorage.setItem('rmte_'+k,document.getElementById(k).value));
         sessionStorage.setItem('rmte_autoconnect','true');sessionStorage.setItem('rmte_username',myUsername);
         const s=document.getElementById('sb-connection');if(s){s.innerText='● Connected';s.style.color='#3fb950';}
-        sendJson({type:'control',action:'get_tabs'});return;
+        sendJson({type:'control',action:'get_tabs'});
+        setTimeout(initDragAndDrop, 200);
+        return;
     }
     if(msg.type==='error'){showError(msg.message);document.getElementById('connect-btn').innerText='Connect';document.getElementById('connect-btn').disabled=false;return;}
     if(msg.type!=='control')return;
     switch(msg.action){
+        case'pong':{
+            const lat=Math.max(1,Date.now()-(msg.t||Date.now()));
+            const s=document.getElementById('sb-connection');
+            if(s){
+                s.innerText=`● Connected (${lat}ms)`;
+                s.style.color=lat<100?'var(--color-green)':(lat<300?'var(--color-orange)':'var(--color-red)');
+            }
+            break;
+        }
         case'tabs_list':{const t=msg.tabs||[];t.forEach(id=>addTermTabBtn(id));if(t.length>0){const firstTab=t.includes(0)?0:t[0];if(!terminals[firstTab])initTerminal(firstTab);setTimeout(()=>switchToTab('term-'+firstTab),50);}break;}
         case'tab_created':addTermTabBtn(msg.tab_id);break;
         case'tab_deleted':removeTermTab(msg.tab_id);break;
@@ -123,7 +167,19 @@ async function onJson(msg) {
         case'dir_data':renderFileList(msg.path,msg.files);break;
         case'read_file_start':_log.info('Waiting Tab255',{path:msg.path});waitingForFileData=true;pendingEditorPath=msg.path;break;
         case'ready_for_data':_log.info('Host ready, sending data');await sendPendingFile();break;
-        case'file_saved':_log.info('Saved',msg);setEditorStatus(pendingEditorPath||msg.path,'Saved ✓');requestDir(currentFilePath);break;
+        case'file_saved':{
+            _log.info('Saved',msg);
+            const p=pendingEditorPath||msg.path;
+            setEditorStatus(p,'Saved ✓');
+            const id='file:'+p;
+            if(editorTabs[id]){
+                const val=editorTabs[id].cm?editorTabs[id].cm.getValue():(editorTabs[id].textarea?editorTabs[id].textarea.value:'');
+                editorTabs[id].original=val;
+                checkDirty(id);
+            }
+            requestDir(currentFilePath);
+            break;
+        }
         case'file_created':case'dir_created':requestDir(currentFilePath);break;
         case'file_renamed':case'file_deleted':requestDir(currentFilePath);break;
         case'fm_error':_log.err('FM: '+msg.message);showToast(msg.message);break;
@@ -136,7 +192,26 @@ async function onBinary(raw) {
     try {
         const dec=await rmteCrypto.decrypt(iv,aesKey,ct);
         if(tabId===DATA_CH){
-            if(waitingForFileData){waitingForFileData=false;const txt=new TextDecoder().decode(dec);_log.info('File received',{bytes:dec.byteLength});openEditorTab(pendingEditorPath,txt);}
+            if(waitingForFileData){
+                waitingForFileData=false;
+                if(pendingDownload){
+                    pendingDownload=false;
+                    const blob=new Blob([dec],{type:'application/octet-stream'});
+                    const url=URL.createObjectURL(blob);
+                    const a=document.createElement('a');
+                    a.href=url;
+                    a.download=pendingDownloadName||basename(pendingEditorPath)||'download';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showToast(`Downloaded ${a.download}`);
+                } else {
+                    const txt=new TextDecoder().decode(dec);
+                    _log.info('File received',{bytes:dec.byteLength});
+                    openEditorTab(pendingEditorPath,txt);
+                }
+            }
             else _log.warn('Tab255 data but not waiting');
             return;
         }
@@ -163,14 +238,19 @@ function switchToTab(id){
         if(terminals[tid]){setTimeout(()=>{terminals[tid].fitAddon.fit();},20);terminals[tid].term.focus();}
         sendJson({type:'control',action:'set_focus',viewer_id:myViewerId,viewer_name:myUsername,tab_id:tid});
         sendJson({type:'control',action:'req_sync',tab_id:tid});
+    } else if(id.startsWith('file:')&&editorTabs[id]&&editorTabs[id].cm){
+        setTimeout(()=>{try{editorTabs[id].cm.refresh();}catch(e){}},20);
     }
     setTimeout(refitActive,50);
 }
 function refitActive(){
-    if(!currentTab.startsWith('term-'))return;
-    const tid=parseInt(currentTab.slice(5)),t=terminals[tid];
-    if(!t)return;
-    try{t.fitAddon.fit();sendJson({type:'control',action:'resize',tab_id:tid,cols:t.term.cols,rows:t.term.rows});}catch(e){}
+    if(currentTab.startsWith('term-')){
+        const tid=parseInt(currentTab.slice(5)),t=terminals[tid];
+        if(!t)return;
+        try{t.fitAddon.fit();sendJson({type:'control',action:'resize',tab_id:tid,cols:t.term.cols,rows:t.term.rows});}catch(e){}
+    } else if(currentTab.startsWith('file:')&&editorTabs[currentTab]&&editorTabs[currentTab].cm){
+        try{editorTabs[currentTab].cm.refresh();}catch(e){}
+    }
 }
 
 // Terminal tabs
@@ -188,12 +268,43 @@ function initTerminal(tabId){
     addTermTabBtn(tabId);
     if(!document.querySelector('.tab-btn-container.active'))switchToTab(id);
 }
+let draggedTabEl=null;
+function enableTabDrag(el){
+    el.draggable=true;
+    el.addEventListener('dragstart',e=>{
+        draggedTabEl=el;
+        el.classList.add('tab-dragging');
+        e.dataTransfer.effectAllowed='move';
+        e.dataTransfer.setData('text/plain',el.id);
+    });
+    el.addEventListener('dragend',()=>{
+        el.classList.remove('tab-dragging');
+        draggedTabEl=null;
+    });
+    el.addEventListener('dragover',e=>{
+        e.preventDefault();
+        e.dataTransfer.dropEffect='move';
+        if(!draggedTabEl||draggedTabEl===el)return;
+        const rect=el.getBoundingClientRect();
+        const mid=rect.left+rect.width/2;
+        const parent=el.parentNode;
+        if(!parent)return;
+        if(e.clientX<mid){
+            parent.insertBefore(draggedTabEl,el);
+        } else {
+            parent.insertBefore(draggedTabEl,el.nextSibling);
+        }
+    });
+}
+
 function addTermTabBtn(tabId){
     const id='term-'+tabId;
     if(document.getElementById('tab-'+CSS.escape(id)))return;
     const c=document.createElement('div');c.id='tab-'+CSS.escape(id);c.className='tab-btn-container'+(currentTab===id?' active':'');
+    c.onclick=()=>switchToTab(id);
+    enableTabDrag(c);
     const icon=document.createElement('span');icon.className='tab-icon';icon.innerText='⬛';
-    const content=document.createElement('div');content.className='tab-btn-content';content.onclick=()=>switchToTab(id);
+    const content=document.createElement('div');content.className='tab-btn-content';
     const title=document.createElement('span');title.className='tab-title-text';title.innerText='Tab '+tabId;
     const sub=document.createElement('span');sub.id='tab-subtext-'+tabId;sub.className='tab-subtext';
     content.appendChild(title);content.appendChild(sub);
@@ -212,10 +323,26 @@ function removeTermTab(tabId){
 function requestNewTab(){sendJson({type:'control',action:'request_new_tab'});}
 
 // Editor tabs
+function checkDirty(id){
+    const et=editorTabs[id];if(!et)return;
+    const val=et.cm?et.cm.getValue():(et.textarea?et.textarea.value:'');
+    const isDirty=val!==et.original;
+    const tabEl=document.getElementById('tab-'+CSS.escape(id));
+    if(tabEl)tabEl.classList.toggle('dirty',isDirty);
+}
+
 function openEditorTab(path,text){
     const id='file:'+path;
-    if(editorTabs[id]){// Already open - update content and switch
-        editorTabs[id].textarea.value=text;editorTabs[id].original=text;switchToTab(id);return;
+    if(editorTabs[id]){
+        if(editorTabs[id].cm){
+            editorTabs[id].cm.setValue(text);
+            setTimeout(()=>{try{editorTabs[id].cm.refresh();}catch(e){}},20);
+        }
+        else if(editorTabs[id].textarea)editorTabs[id].textarea.value=text;
+        editorTabs[id].original=text;
+        checkDirty(id);
+        switchToTab(id);
+        return;
     }
     const isText=isTextFile(path);
     // Container
@@ -228,51 +355,96 @@ function openEditorTab(path,text){
         saveBtn.onclick=()=>saveEditor(id,path);bar.appendChild(saveBtn);
     }
     cont.appendChild(bar);
+
+    let cmInstance=null, taInstance=null;
     if(isText){
-        const ta=document.createElement('textarea');ta.className='editor-textarea';ta.spellcheck=false;ta.value=text;
-        ta.addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const s=ta.selectionStart;ta.value=ta.value.substring(0,s)+'\t'+ta.value.substring(ta.selectionEnd);ta.selectionStart=ta.selectionEnd=s+1;}});
-        cont.appendChild(ta);
-        editorTabs[id]={path,textarea:ta,original:text};
+        if(typeof CodeMirror!=='undefined'){
+            try {
+                cmInstance=CodeMirror(cont,{
+                    value:text,
+                    mode:getCodeMirrorMode(path),
+                    theme:'material-darker',
+                    lineNumbers:true,
+                    indentUnit:4,
+                    tabSize:4,
+                    indentWithTabs:true,
+                    lineWrapping:false
+                });
+                cmInstance.on('change',()=>checkDirty(id));
+                editorTabs[id]={path,cm:cmInstance,textarea:null,original:text};
+            } catch(cmErr){
+                console.warn('CodeMirror failed to initialize, falling back to textarea:', cmErr);
+                cmInstance=null;
+            }
+        }
+        if(!cmInstance){
+            taInstance=document.createElement('textarea');taInstance.className='editor-textarea';taInstance.spellcheck=false;taInstance.value=text;
+            taInstance.addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const s=taInstance.selectionStart;taInstance.value=taInstance.value.substring(0,s)+'\t'+taInstance.value.substring(taInstance.selectionEnd);taInstance.selectionStart=taInstance.selectionEnd=s+1;}});
+            taInstance.addEventListener('input',()=>checkDirty(id));
+            cont.appendChild(taInstance);
+            editorTabs[id]={path,cm:null,textarea:taInstance,original:text};
+        }
     } else {
         const bp=document.createElement('div');bp.className='binary-preview';
         bp.innerHTML=`<span class="bp-icon">${fileIcon(path)}</span><span class="bp-msg">Binary file — cannot preview</span><span class="bp-msg" style="font-size:11px;color:#484f58">${fmtSize(text.length)} · ${path}</span>`;
         cont.appendChild(bp);
-        editorTabs[id]={path,textarea:null,original:null};
+        editorTabs[id]={path,cm:null,textarea:null,original:null};
     }
     document.getElementById('terminal-wrapper').appendChild(cont);
+
     // Tab button
     const c=document.createElement('div');c.id='tab-'+CSS.escape(id);c.className='tab-btn-container editor-tab';
+    c.onclick=()=>switchToTab(id);
+    enableTabDrag(c);
     const icon=document.createElement('span');icon.className='tab-icon';icon.innerText=fileIcon(path);
-    const content=document.createElement('div');content.className='tab-btn-content';content.onclick=()=>switchToTab(id);
+    const content=document.createElement('div');content.className='tab-btn-content';
     const title=document.createElement('span');title.className='tab-title-text';title.innerText=basename(path);
     content.appendChild(title);
+
+    const dirtyDot=document.createElement('span');dirtyDot.className='tab-dirty-dot';dirtyDot.innerText='●';dirtyDot.title='Unsaved changes';
     const close=document.createElement('button');close.className='tab-close-btn';close.innerText='×';
     close.onclick=e=>{e.stopPropagation();closeEditorTab(id);};
-    c.appendChild(icon);c.appendChild(content);c.appendChild(close);
+
+    c.appendChild(icon);c.appendChild(content);c.appendChild(dirtyDot);c.appendChild(close);
     document.getElementById('tabs').appendChild(c);
     switchToTab(id);
+    if(cmInstance){
+        requestAnimationFrame(()=>{try{cmInstance.refresh();}catch(e){}});
+        setTimeout(()=>{try{cmInstance.refresh();}catch(e){}},30);
+        setTimeout(()=>{try{cmInstance.refresh();}catch(e){}},120);
+    }
 }
+
 function closeEditorTab(id){
     const et=editorTabs[id];
-    if(et&&et.textarea&&et.textarea.value!==et.original&&!confirm('Unsaved changes. Close anyway?'))return;
+    if(et){
+        const val=et.cm?et.cm.getValue():(et.textarea?et.textarea.value:'');
+        if(val!==et.original&&!confirm('File has unsaved changes. Close anyway?'))return;
+    }
     const el=document.getElementById('tab-'+CSS.escape(id));if(el)el.remove();
     const cont=document.getElementById('content-'+CSS.escape(id));if(cont)cont.remove();
     delete editorTabs[id];
     if(currentTab===id){const k=Object.keys(terminals);if(k.length)switchToTab('term-'+k[0]);else{const et2=Object.keys(editorTabs);if(et2.length)switchToTab(et2[0]);}}
 }
+
 function saveEditor(id,path){
-    const et=editorTabs[id];if(!et||!et.textarea)return;
-    pendingFileBytes=new TextEncoder().encode(et.textarea.value);
+    const et=editorTabs[id];if(!et)return;
+    const val=et.cm?et.cm.getValue():(et.textarea?et.textarea.value:'');
+    pendingFileBytes=new TextEncoder().encode(val);
     pendingEditorPath=path;
     setEditorStatus(path,'Saving...');
     sendJson({type:'control',action:'prepare_save',path});
 }
+
 function setEditorStatus(path,text){
     const id='file:'+path;
     const el=document.getElementById('estatus-'+CSS.escape(id));
     if(el){el.innerText=text;if(text)setTimeout(()=>{if(el.innerText===text)el.innerText='';},3000);}
-    // Update original on save success
-    if(text==='Saved ✓'&&editorTabs[id]&&editorTabs[id].textarea)editorTabs[id].original=editorTabs[id].textarea.value;
+    if(text==='Saved ✓'&&editorTabs[id]){
+        const val=editorTabs[id].cm?editorTabs[id].cm.getValue():(editorTabs[id].textarea?editorTabs[id].textarea.value:'');
+        editorTabs[id].original=val;
+        checkDirty(id);
+    }
 }
 async function sendPendingFile(){if(!pendingFileBytes){_log.err('No pending data');return;}const d=pendingFileBytes;pendingFileBytes=null;await sendBin(DATA_CH,d);}
 
@@ -285,9 +457,12 @@ function toggleFileManager(){
     setTimeout(refitActive,200);
 }
 function requestDir(p){currentFilePath=p;sendJson({type:'control',action:'req_dir',path:p});}
+
 function renderFileList(path,files){
     renderBreadcrumb(path);
     hideInlineInput();
+    const filterInput=document.getElementById('fe-filter');
+    if(filterInput)filterInput.value='';
     const list=document.getElementById('fe-list');list.innerHTML='';
     const parentPath = path.endsWith('/') ? (path + '..') : (path + '/..');
     list.appendChild(mkItem('📁','..','',parentPath,true,()=>requestDir(parentPath)));
@@ -295,15 +470,40 @@ function renderFileList(path,files){
     files.forEach(f=>{
         const fp=(path.endsWith('/')?path:path+'/')+f.name;
         if(f.is_dir){list.appendChild(mkItem('📁',f.name,'',fp,true,()=>requestDir(fp)));}
-        else{list.appendChild(mkItem(fileIcon(f.name),f.name,fmtSize(f.size),fp,false,()=>{_log.info('Open file',{path:fp,isText:isTextFile(f.name)});if(!isTextFile(f.name)){openEditorTab(fp,'');return;}sendJson({type:'control',action:'req_read_file',path:fp});}));}
+        else{list.appendChild(mkItem(fileIcon(f.name),f.name,fmtSize(f.size),fp,false,()=>{_log.info('Open file',{path:fp,isText:isTextFile(f.name)});if(!isTextFile(f.name)){downloadFile(fp,f.name);return;}sendJson({type:'control',action:'req_read_file',path:fp});}));}
     });
 }
+
+function filterFiles(query){
+    const q=(query||'').toLowerCase().trim();
+    const items=document.querySelectorAll('#fe-list .fe-item');
+    items.forEach(it=>{
+        const name=it.querySelector('.fe-name')?.innerText||'';
+        if(name==='..'){it.style.display='flex';return;}
+        it.style.display=(!q||name.toLowerCase().includes(q))?'flex':'none';
+    });
+}
+
+function downloadFile(path,name,e){
+    if(e)e.stopPropagation();
+    pendingDownload=true;
+    pendingDownloadName=name||basename(path);
+    showToast(`Downloading ${pendingDownloadName}...`);
+    sendJson({type:'control',action:'req_read_file',path});
+}
+
 function mkItem(icon,name,size,fullPath,isDir,onclick){
     const item=document.createElement('div');item.className='fe-item'+(isDir?' is-dir':'');
     const iconEl=document.createElement('span');iconEl.className='fe-icon';iconEl.innerText=icon;
     const nameEl=document.createElement('span');nameEl.className='fe-name';nameEl.innerText=name;
     const sizeEl=document.createElement('span');sizeEl.className='fe-size';sizeEl.innerText=size;
     const aDiv=document.createElement('div');aDiv.className='fe-item-actions';
+    // Download action for files
+    if(!isDir){
+        const dlBtn=document.createElement('button');dlBtn.innerText='⬇';dlBtn.title='Download';dlBtn.className='fe-download';
+        dlBtn.onclick=e=>{e.stopPropagation();downloadFile(fullPath,name,e);};
+        aDiv.appendChild(dlBtn);
+    }
     // Rename
     const renBtn=document.createElement('button');renBtn.innerText='✏️';renBtn.title='Rename';
     renBtn.onclick=e=>{e.stopPropagation();startInlineRename(item,nameEl,fullPath,name);};
@@ -380,16 +580,101 @@ function startInlineDelete(item,path,name,isDir){
 // ===== TOAST =====
 function showToast(msg){
     const el=document.getElementById('fe-toast');el.style.display='flex';
-    el.innerHTML=`<span>⚠ ${esc(msg)}</span>`;
+    el.innerHTML=`<span>ℹ ${esc(msg)}</span>`;
     const btn=document.createElement('button');btn.className='toast-close';btn.innerText='×';btn.onclick=()=>{el.style.display='none';};
     el.appendChild(btn);
-    setTimeout(()=>{el.style.display='none';},5000);
+    setTimeout(()=>{el.style.display='none';},4000);
 }
 
 async function handleFileUpload(e){
     const f=e.target.files[0];if(!f)return;
-    const r=new FileReader();r.onload=()=>{pendingFileBytes=new Uint8Array(r.result);const p=(currentFilePath.endsWith('/')?currentFilePath:currentFilePath+'/')+f.name;sendJson({type:'control',action:'prepare_upload',path:p});};
-    r.readAsArrayBuffer(f);e.target.value='';
+    uploadSingleFile(f);
+    e.target.value='';
+}
+
+function uploadSingleFile(f){
+    const r=new FileReader();
+    r.onload=()=>{
+        pendingFileBytes=new Uint8Array(r.result);
+        const p=(currentFilePath.endsWith('/')?currentFilePath:currentFilePath+'/')+f.name;
+        showToast(`Uploading ${f.name}...`);
+        sendJson({type:'control',action:'prepare_upload',path:p});
+    };
+    r.readAsArrayBuffer(f);
+}
+
+function initDragAndDrop(){
+    const fe=document.getElementById('file-explorer');
+    if(!fe||fe.dataset.dndInit)return;
+    fe.dataset.dndInit='true';
+    ['dragenter','dragover'].forEach(n=>fe.addEventListener(n,e=>{e.preventDefault();e.stopPropagation();fe.classList.add('drag-active');}));
+    ['dragleave','drop'].forEach(n=>fe.addEventListener(n,e=>{e.preventDefault();e.stopPropagation();fe.classList.remove('drag-active');}));
+    fe.addEventListener('drop',e=>{
+        const files=e.dataTransfer?.files;
+        if(files&&files.length){
+            uploadSingleFile(files[0]);
+        }
+    });
+}
+
+function toggleShareModal(show){
+    const m=document.getElementById('share-modal');
+    if(!m)return;
+    const isVisible=m.style.display==='flex';
+    const nextShow=typeof show==='boolean'?show:!isVisible;
+    m.style.display=nextShow?'flex':'none';
+    if(nextShow){
+        const serverVal=document.getElementById('server').value||(location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws-rmte';
+        const sid=document.getElementById('sessionId').value;
+        const pass=document.getElementById('password').value||sessionStorage.getItem('rmte_password')||'';
+        const url=new URL(window.location.href);
+        url.searchParams.set('server',serverVal);
+        if(sid)url.searchParams.set('session',sid);
+        const webLink=url.toString();
+        const linkInp=document.getElementById('share-link-input');
+        if(linkInp)linkInp.value=webLink;
+
+        const cliCmd=`rmte join --server-relay="${serverVal}" --id="${sid}" --pass="${pass||'<your-password>'}"`;
+        const cliInp=document.getElementById('share-cli-input');
+        if(cliInp)cliInp.value=cliCmd;
+    }
+}
+
+function copyWebLink(){
+    const inp=document.getElementById('share-link-input');
+    if(!inp)return;
+    copyToClip(inp.value,document.getElementById('copy-web-link-btn'));
+}
+
+function copyCliCmd(){
+    const inp=document.getElementById('share-cli-input');
+    if(!inp)return;
+    copyToClip(inp.value,document.getElementById('copy-cli-cmd-btn'));
+}
+
+function copyToClip(text,btn){
+    const flash=()=>{
+        if(!btn)return;
+        const old=btn.innerText;
+        btn.innerText='✓ Copied!';
+        btn.classList.add('copied');
+        setTimeout(()=>{btn.innerText=old;btn.classList.remove('copied');},2000);
+    };
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(flash).catch(()=>prompt('Copy text:',text));
+    } else {
+        prompt('Copy text:',text);
+    }
+}
+
+function copyShareableLink(){
+    toggleShareModal(true);
+}
+
+function toggleHelpModal(){
+    const m=document.getElementById('help-modal');
+    if(!m)return;
+    m.style.display=m.style.display==='none'?'flex':'none';
 }
 
 // ===== PRESENCE + CHAT =====
@@ -405,7 +690,7 @@ function appendChat(sender,msg,time){const c=document.getElementById('chat-messa
 
 // ===== UI =====
 function toggleSidebar(){document.getElementById('workspace').classList.toggle('sidebar-collapsed');setTimeout(refitActive,200);}
-function disconnectSession(){manualDisconnect=true;clearReconnectTimer();sessionStorage.setItem('rmte_autoconnect','false');if(ws)ws.close();location.reload();}
+function disconnectSession(){manualDisconnect=true;clearReconnectTimer();stopPing();sessionStorage.setItem('rmte_autoconnect','false');if(ws)ws.close();location.reload();}
 function showError(m){const e=document.getElementById('setup-error');e.style.display='block';e.innerText=m;}
 function hideError(){document.getElementById('setup-error').style.display='none';}
 
@@ -431,9 +716,24 @@ window.addEventListener('DOMContentLoaded',async()=>{
     // Focus password field if server+session already filled
     if(document.getElementById('server').value&&document.getElementById('sessionId').value&&!document.getElementById('password').value){document.getElementById('password').focus();}
     if(sessionStorage.getItem('rmte_autoconnect')==='true')connect();
+
     document.addEventListener('keydown',e=>{
         if((e.ctrlKey||e.metaKey)&&e.key==='s'){
-            const id=currentTab;if(id.startsWith('file:')&&editorTabs[id]&&editorTabs[id].textarea){e.preventDefault();saveEditor(id,editorTabs[id].path);}
+            const id=currentTab;if(id.startsWith('file:')&&editorTabs[id]){e.preventDefault();saveEditor(id,editorTabs[id].path);}
+        }
+        if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){
+            const fi=document.getElementById('fe-filter');
+            if(fi&&fileManagerOpen){
+                e.preventDefault();
+                fi.focus();
+                fi.select();
+            }
+        }
+        if(e.key==='Escape'){
+            const hm=document.getElementById('help-modal');
+            if(hm&&hm.style.display!=='none')toggleHelpModal();
+            const sm=document.getElementById('share-modal');
+            if(sm&&sm.style.display!=='none')toggleShareModal(false);
         }
     });
 });

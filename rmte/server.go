@@ -284,6 +284,12 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 							}
 						}
 						s.Mutex.RUnlock()
+					} else if action == "ping" {
+						conn.WriteJSON(map[string]interface{}{
+							"type":   "control",
+							"action": "pong",
+							"t":      ctrl["t"],
+						})
 					} else if action == "req_sync" ||
 						action == "req_dir" ||
 						action == "req_read_file" ||

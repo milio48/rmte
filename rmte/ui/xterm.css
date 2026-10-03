@@ -428,6 +428,17 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     color: var(--color-orange);
     font-size: 10px;
 }
+.tab-btn-container[draggable="true"] {
+    cursor: grab;
+}
+.tab-btn-container:active {
+    cursor: grabbing;
+}
+.tab-btn-container.tab-dragging {
+    opacity: 0.45;
+    background: var(--color-paper-4);
+    border-bottom: 2px dashed var(--color-accent);
+}
 
 .tab-icon { font-size: var(--text-sm); flex-shrink: 0; }
 
@@ -492,7 +503,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 #toggle-files-btn.active { color: var(--color-accent); }
 
-#toggle-sidebar-btn, #disconnect-btn {
+#toggle-sidebar-btn, #copy-link-btn, #help-btn, #disconnect-btn {
     background: transparent;
     border: none;
     color: var(--color-ink-2);
@@ -508,8 +519,20 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     transition: all var(--dur-short) var(--ease-out);
     border-radius: 0;
 }
-#toggle-sidebar-btn:hover { color: var(--color-accent); background: var(--color-paper-3); }
+#toggle-sidebar-btn:hover, #copy-link-btn:hover, #help-btn:hover { color: var(--color-accent); background: var(--color-paper-3); }
 #disconnect-btn:hover { color: var(--color-red); background: oklch(68% 0.19 25 / 0.06); }
+
+/* Tab dirty indicator */
+.tab-dirty-dot {
+    display: none;
+    color: var(--color-accent);
+    font-size: 11px;
+    margin-left: 4px;
+    line-height: 1;
+}
+.tab-btn-container.dirty .tab-dirty-dot { display: inline-block; }
+.tab-btn-container.dirty:hover .tab-dirty-dot { display: none; }
+.tab-btn-container.dirty:hover .tab-close-btn { opacity: 1; }
 
 /* ═══════════════════════════════════════
    WORKSPACE LAYOUT
@@ -593,6 +616,36 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     min-width: 0;
 }
 .bc-hint { font-size: 9px; color: var(--color-ink-muted); flex-shrink: 0; margin-left: var(--space-2xs); }
+
+/* File Explorer Search / Filter */
+#fe-filter-box {
+    padding: var(--space-3xs) var(--space-sm);
+    background: var(--color-paper-2);
+    border-bottom: 1px solid var(--color-border);
+}
+#fe-filter {
+    width: 100%;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 3px var(--space-xs);
+    font-size: var(--text-xs);
+    font-family: var(--font-body);
+    outline: none;
+    transition: all var(--dur-short) var(--ease-out);
+}
+#fe-filter:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 1px var(--color-accent-glow);
+}
+
+/* Drag & Drop over File Explorer */
+#file-explorer.drag-active {
+    outline: 2px dashed var(--color-accent);
+    outline-offset: -3px;
+    background: var(--color-paper-3);
+}
 
 /* Toast */
 #fe-toast {
@@ -962,9 +1015,196 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 /* ═══════════════════════════════════════
    FOCUS VISIBILITY (a11y)
    ═══════════════════════════════════════ */
-input:focus-visible, textarea:focus-visible, button:focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: 2px;
+/* File item action download */
+.fe-item-actions .fe-download:hover { color: var(--color-accent); }
+
+/* ═══════════════════════════════════════
+   CODEMIRROR INTEGRATION
+   ═══════════════════════════════════════ */
+.CodeMirror {
+    height: 100% !important;
+    flex-grow: 1;
+    font-family: var(--font-mono) !important;
+    font-size: var(--text-sm) !important;
+    line-height: 1.6 !important;
+    background: var(--color-paper) !important;
+    color: var(--color-ink) !important;
 }
-/* Remove double ring on inputs that already glow */
-input:focus:not(:focus-visible) { outline: none; }
+.CodeMirror-gutters {
+    background: var(--color-paper-2) !important;
+    border-right: 1px solid var(--color-border) !important;
+    white-space: nowrap;
+}
+.CodeMirror-linenumber {
+    color: var(--color-ink-muted) !important;
+    padding: 0 8px 0 4px !important;
+}
+.CodeMirror-cursor {
+    border-left: 2px solid var(--color-accent) !important;
+}
+.CodeMirror-selected {
+    background: var(--color-accent-dim) !important;
+}
+.CodeMirror-focused .CodeMirror-selected {
+    background: var(--color-accent-dim) !important;
+}
+.CodeMirror-scroll {
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+}
+
+/* ═══════════════════════════════════════
+   MODAL / SHORTCUTS OVERLAY
+   ═══════════════════════════════════════ */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: oklch(10% 0.01 260 / 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.modal-box {
+    background: var(--color-paper-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 16px 40px oklch(0% 0 0 / 0.5);
+    width: 90%;
+    max-width: 520px;
+    overflow: hidden;
+    animation: modalPop 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes modalPop {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-sm) var(--space-md);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-paper-3);
+}
+.modal-header h3 {
+    margin: 0;
+    font-size: var(--text-md);
+    font-family: var(--font-display);
+    color: var(--color-ink);
+}
+.modal-close {
+    background: transparent;
+    border: none;
+    color: var(--color-ink-muted);
+    font-size: var(--text-lg);
+    cursor: pointer;
+    padding: 0 var(--space-2xs);
+    line-height: 1;
+}
+.modal-close:hover { color: var(--color-red); }
+.modal-body {
+    padding: var(--space-md);
+    max-height: 70vh;
+    overflow-y: auto;
+}
+.shortcuts-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-xs);
+}
+.shortcuts-table td {
+    padding: var(--space-xs) 0;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-ink-2);
+}
+.shortcuts-table td:first-child {
+    width: 45%;
+    white-space: nowrap;
+}
+kbd {
+    background: var(--color-paper-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 2px 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-accent);
+    box-shadow: 0 1px 1px oklch(0% 0 0 / 0.2);
+}
+
+/* ═══════════════════════════════════════
+   SHARE MODAL SPECIFIC
+   ═══════════════════════════════════════ */
+.share-modal-box {
+    max-width: 580px;
+}
+.share-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.share-label {
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--color-ink);
+    font-family: var(--font-display);
+    letter-spacing: 0.02em;
+}
+.share-input-group {
+    display: flex;
+    gap: var(--space-2xs);
+    align-items: center;
+}
+.share-input {
+    flex-grow: 1;
+    background: var(--color-paper);
+    color: var(--color-ink-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 7px 10px;
+    font-size: var(--text-xs);
+    font-family: var(--font-mono);
+    outline: none;
+    transition: all var(--dur-short) var(--ease-out);
+}
+.share-input:focus {
+    border-color: var(--color-accent);
+    color: var(--color-ink);
+    box-shadow: 0 0 0 2px var(--color-accent-dim);
+}
+.share-cli {
+    color: var(--color-orange);
+    background: var(--color-paper-3);
+}
+.share-copy-btn {
+    background: var(--color-paper-3);
+    border: 1px solid var(--color-border);
+    color: var(--color-ink);
+    border-radius: var(--radius-sm);
+    padding: 7px 14px;
+    font-size: var(--text-xs);
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--dur-short) var(--ease-out);
+    font-family: var(--font-body);
+}
+.share-copy-btn:hover {
+    background: var(--color-accent);
+    color: oklch(100% 0 0);
+    border-color: var(--color-accent);
+}
+.share-copy-btn.copied {
+    background: var(--color-green);
+    color: oklch(100% 0 0);
+    border-color: var(--color-green);
+}
+.share-hint {
+    display: block;
+    font-size: 11px;
+    color: var(--color-ink-muted);
+}
+

@@ -5,9 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RMTE — Remote Terminal Relay</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css" />
     <link rel="stylesheet" href="xterm.css" />
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/go/go.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
 </head>
 <body>
     <!-- Login -->
@@ -68,6 +80,8 @@
             <button id="new-tab-btn" onclick="requestNewTab()" title="New Terminal">+</button>
             <button id="toggle-files-btn" onclick="toggleFileManager()" title="File Manager">📁</button>
             <button id="toggle-sidebar-btn" onclick="toggleSidebar()" title="Collaborators">👥</button>
+            <button id="copy-link-btn" onclick="toggleShareModal(true)" title="Share Session">🔗</button>
+            <button id="help-btn" onclick="toggleHelpModal()" title="Keyboard Shortcuts & Tips">❓</button>
             <button id="disconnect-btn" onclick="disconnectSession()" title="Disconnect">⏻</button>
         </div>
         <div id="workspace">
@@ -86,6 +100,9 @@
                     </div>
                 </div>
                 <div id="fe-breadcrumb" ondblclick="editBreadcrumb()"></div>
+                <div id="fe-filter-box">
+                    <input type="text" id="fe-filter" placeholder="Filter files... (Ctrl+F)" oninput="filterFiles(this.value)">
+                </div>
                 <div id="fe-toast" style="display:none;"></div>
                 <div id="fe-inline" style="display:none;"></div>
                 <div id="fe-list"></div>
@@ -115,8 +132,59 @@
             <span id="sb-connection">● Connected</span>
             <span id="sb-session"></span>
             <span id="sb-user"></span>
+            <span id="sb-copy-link" onclick="toggleShareModal(true)" title="Click to share session" style="cursor:pointer;margin-left:auto;">🔗 Share Link</span>
         </div>
     </div>
+
+    <!-- Share Session Modal -->
+    <div id="share-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)toggleShareModal(false)">
+        <div class="modal-box share-modal-box">
+            <div class="modal-header">
+                <h3>🔗 Share Session</h3>
+                <button class="modal-close" onclick="toggleShareModal(false)">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="share-section">
+                    <label class="share-label">🌐 Web Browser Link</label>
+                    <div class="share-input-group">
+                        <input type="text" id="share-link-input" readonly spellcheck="false" class="share-input" onclick="this.select()">
+                        <button id="copy-web-link-btn" class="share-copy-btn" onclick="copyWebLink()">📋 Copy</button>
+                    </div>
+                    <span class="share-hint">Direct link for web browsers. Auto-fills relay and session ID.</span>
+                </div>
+                <div class="share-section" style="margin-top: 16px;">
+                    <label class="share-label">💻 CLI / TUI Join Command</label>
+                    <div class="share-input-group">
+                        <input type="text" id="share-cli-input" readonly spellcheck="false" class="share-input share-cli" onclick="this.select()">
+                        <button id="copy-cli-cmd-btn" class="share-copy-btn" onclick="copyCliCmd()">📋 Copy</button>
+                    </div>
+                    <span class="share-hint">Command to join from terminal using the RMTE CLI client.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help / Shortcuts Modal -->
+    <div id="help-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)toggleHelpModal()">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>Keyboard Shortcuts & Tips</h3>
+                <button class="modal-close" onclick="toggleHelpModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <table class="shortcuts-table">
+                    <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save active file in editor</td></tr>
+                    <tr><td><kbd>Ctrl</kbd> + <kbd>F</kbd></td><td>Focus file filter in Explorer</td></tr>
+                    <tr><td><kbd>Ctrl</kbd> + <kbd>]</kbd></td><td>Escape active terminal in TUI CLI</td></tr>
+                    <tr><td><kbd>Double Click</kbd></td><td>Edit absolute path directly in Explorer breadcrumb</td></tr>
+                    <tr><td><kbd>Drag & Drop</kbd></td><td>Drop files directly into Explorer to upload</td></tr>
+                    <tr><td><kbd>⬇</kbd> Icon</td><td>Download file directly from host to local computer</td></tr>
+                    <tr><td><kbd>Esc</kbd></td><td>Close modal or dismiss inline input</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- Crypto: asmcrypto fallback for HTTP (non-secure context) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/asmCrypto/2.3.2/asmcrypto.all.es5.min.js"></script>
     <script src="crypto_shim.js"></script>
