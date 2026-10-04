@@ -60,6 +60,7 @@ function tryAcquireFileOp(){if(fileOpBusy)return false;fileOpBusy=true;return tr
 function beginFileOp(){if(!tryAcquireFileOp()){showToast('Another file operation is in progress');return false;}return true;}
 function releaseFileOp(){uploadActive=false;fileOpBusy=false;processUploadQueue();}
 function finishUpload(){if(!uploadActive)return;releaseFileOp();}
+function fileOpDone(){if(uploadActive)return;releaseFileOp();}
 // ===== SCOPED SESSION STORAGE =====
 // Credentials and autoconnect states are stored per session ID to allow multi-host tabs.
 // The display name is global and persistent (localStorage) so it is asked only once per browser.
@@ -318,7 +319,10 @@ async function onBinary(raw) {
         const dec=await rmteCrypto.decrypt(iv,aesKey,ct);
         if(!terminals[tabId])initTerminal(tabId);
         terminals[tabId].term.write(new Uint8Array(dec));
-    }catch(e){_log.err('Decrypt fail',{tabId,e:e.message});}
+    }catch(e){
+        _log.err('Decrypt fail',{tabId,e:e.message});
+        if(tabId===DATA_CH)fileOpDone();
+    }
 }
 
 // ===== TAB SYSTEM =====
