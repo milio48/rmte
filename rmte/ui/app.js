@@ -1026,7 +1026,7 @@ window.addEventListener('DOMContentLoaded',async()=>{
         if(r.ok){
             const c=await r.json();
             if(c.ws_path)wsPath=c.ws_path;
-            if(c.version){const b=document.getElementById('brand-version');if(b)b.innerText='v'+c.version;}
+            if(c.version){const b=document.getElementById('brand-version');if(b)b.innerText=c.version.startsWith('v')?c.version:(c.version==='dev'?'dev':'v'+c.version);}
         }
     }catch(e){}
     // Fallback: derive WS URL from the page origin + relay config (ws_path)

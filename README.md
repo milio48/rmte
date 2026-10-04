@@ -1,4 +1,4 @@
-# RMTE — Remote Terminal Relay & Cloud IDE (v0.4.0)
+# RMTE — Remote Terminal Relay & Cloud IDE (v0.4.1)
 
 > "I love sshx, but my endless curiosity to build it from scratch got the best of me 🥲"
 
@@ -102,6 +102,29 @@ git clone https://github.com/milio48/rmte.git
 cd rmte/rmte
 go build -ldflags "-s -w" -o rmte
 ```
+
+<details>
+<summary><h3>🛠️ Development & Testing Guide (click to expand)</h3></summary>
+
+RMTE is designed with zero frontend dependencies. All web assets in `rmte/ui/` (`tokens.css`, `app.css`, `app.js`, `index.html`) are embedded directly into the Go binary at compile time via `//go:embed ui/*` without requiring Node.js, npm, or bundlers.
+
+1. **Run locally without building:**
+   ```bash
+   cd rmte/rmte
+   go run . serve --dir="../"
+   ```
+2. **Run Unit Tests:**
+   ```bash
+   cd rmte/rmte
+   go test -v ./...
+   ```
+3. **Build Binary with Custom Version (`-ldflags`):**
+   ```bash
+   cd rmte/rmte
+   go build -ldflags "-s -w -X main.appVersion=0.4.1" -o rmte
+   ```
+
+</details>
 
 ---
 

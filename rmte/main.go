@@ -7,12 +7,28 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 )
 
+var (
+	// appVersion is set at build time via: -ldflags "-X main.appVersion=..."
+	// Defaults to "dev" for local builds without build tags.
+	appVersion = "dev"
+)
+
+func init() {
+	if appVersion == "dev" {
+		if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+			appVersion = strings.TrimPrefix(bi.Main.Version, "v")
+		}
+	} else {
+		appVersion = strings.TrimPrefix(appVersion, "v")
+	}
+}
+
 const (
-	appVersion      = "0.4.0"
 	protocolVersion = "0.4"
 
 	defaultPort   = 8048

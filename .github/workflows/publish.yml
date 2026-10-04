@@ -44,7 +44,8 @@ jobs:
       - name: Build Binary
         working-directory: ./rmte
         run: |
-          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-s -w" -o ../rmte-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
+          VERSION="${GITHUB_REF_NAME#v}"
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-s -w -X main.appVersion=${VERSION}" -o ../rmte-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
