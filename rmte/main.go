@@ -41,6 +41,7 @@ type ServeConfig struct {
 	NoWeb         bool
 	NoCLI         bool
 	Dir           string // initial working directory for host
+	ID            string // custom session ID for host (optional)
 	InternalToken string // used by the embedded host in standalone mode
 }
 
@@ -81,6 +82,7 @@ func cmdServe() {
 	flag.StringVar(&cfg.WSPath, "ws-path", defaultWSPath, "WebSocket path")
 	flag.StringVar(&cfg.Hostname, "hostname", "", "Public hostname/IP used only for printed links")
 	flag.StringVar(&cfg.Dir, "dir", "", "Initial working directory for File Explorer and terminal")
+	flag.StringVar(&cfg.ID, "id", "", "Custom Session ID (lowercase a-z, 0-9, max 10 chars; random if empty)")
 	flag.BoolVar(&cfg.Public, "public", false, "Bind to 0.0.0.0 (default 127.0.0.1)")
 	flag.BoolVar(&cfg.NoWeb, "no-web", false, "Do not serve the Web UI")
 	flag.BoolVar(&cfg.NoCLI, "no-cli", false, "Reject CLI clients (soft restriction)")
@@ -119,6 +121,13 @@ func cmdServe() {
 			fatalf("Error: --dir=%q does not exist or is not a directory", cfg.Dir)
 		}
 		cfg.Dir = filepath.ToSlash(absDir)
+	}
+
+	if cfg.ID != "" {
+		cfg.ID = strings.ToLower(strings.TrimSpace(cfg.ID))
+		if err := validateSessionID(cfg.ID); err != nil {
+			fatalf("Error: invalid --id: %v", err)
+		}
 	}
 
 	cfg.WebPath = normalizeWebPath(cfg.WebPath)
@@ -160,11 +169,20 @@ func cmdServe() {
 func cmdShare() {
 	server := flag.String("server-relay", defaultServer, "Relay server WebSocket URL")
 	pass := flag.String("pass", "", "Password for E2EE (random if empty)")
+	id := flag.String("id", "", "Custom Session ID (lowercase a-z, 0-9, max 10 chars; random if empty)")
 	bufferMB := flag.Int("buffer", 1, "Max buffer size in MB (terminal ring buffer and file manager)")
 	dir := flag.String("dir", "", "Initial working directory for File Explorer and terminal")
 	flag.Parse()
 	if *bufferMB < 1 {
 		fatalf("Error: --buffer must be >= 1")
+	}
+
+	var cleanID string
+	if *id != "" {
+		cleanID = strings.ToLower(strings.TrimSpace(*id))
+		if err := validateSessionID(cleanID); err != nil {
+			fatalf("Error: invalid --id: %v", err)
+		}
 	}
 
 	var cleanDir string
@@ -187,6 +205,7 @@ func cmdShare() {
 		Buffer:    *bufferMB,
 		Mode:      "share",
 		Dir:       cleanDir,
+		ID:        cleanID,
 	}
 	if opts.Pass == "" {
 		opts.Pass = generatePassword(12)
@@ -232,6 +251,7 @@ func runServeAndShare(cfg *ServeConfig) {
 		InternalToken: cfg.InternalToken,
 		Mode:          cfg.Mode,
 		Dir:           cfg.Dir,
+		ID:            cfg.ID,
 		Serve:         cfg,
 	})
 }
@@ -284,10 +304,10 @@ Terminology:
   Client = Web browser or CLI/TUI viewer
 
 Usage:
-  rmte serve [--mode=standalone|hybrid|relay] [--port=%d] [--pass="secret"] [--buffer=1] [--dir="path"]
-             [--web-path="/"] [--ws-path="%s"] [--hostname="example.com"]
+  rmte serve [--mode=standalone|hybrid|relay] [--port=%d] [--pass="secret"] [--id="mysession"]
+             [--buffer=1] [--dir="path"] [--web-path="/"] [--ws-path="%s"] [--hostname="example.com"]
              [--public] [--no-web | --no-cli]
-  rmte share --server-relay="ws://relay:%d%s" [--pass="secret"] [--buffer=1] [--dir="path"]
+  rmte share --server-relay="ws://relay:%d%s" [--pass="secret"] [--id="mysession"] [--buffer=1] [--dir="path"]
   rmte join  --server-relay="ws://relay:%d%s" --id="..." --pass="secret" [--name="name"]
   rmte help | version
 
@@ -298,6 +318,7 @@ Serve modes:
 
 Notes:
   * If --pass is empty, a random password is generated and printed.
+  * If --id is specified, must be lowercase alphanumeric (a-z, 0-9) up to 10 chars.
   * Default bind is 127.0.0.1; use --public to bind 0.0.0.0.
   * --hostname only affects printed links.
 `, appVersion, defaultPort, defaultWSPath, defaultPort, defaultWSPath, defaultPort, defaultWSPath)

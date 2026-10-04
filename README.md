@@ -121,7 +121,7 @@ go build -ldflags "-s -w" -o rmte
 | Local shell/files (Host) | ✅ | ✅ | ❌ | ✅ | ❌ |
 | Accepts external hosts (`share`) | ❌ | ✅ | ✅ | — | — |
 | Prints Session ID + links | ✅ | ✅ | ❌ | ✅ | — |
-| Uses `--pass` / `--buffer` / `--dir` | ✅ | ✅ | ❌ | ✅ | `--pass` only |
+| Uses `--pass` / `--buffer` / `--dir` / `--id` | ✅ | ✅ | ❌ | ✅ | `--pass` / `--id` |
 | Role | Relay + Host | Relay + Host | Relay | Host | Client (TUI) |
 
 ---
@@ -232,6 +232,7 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 | `--mode` | `standalone` | `standalone` \| `hybrid` \| `relay` |
 | `--port` | `8048` | Listen port |
 | `--pass` | *random* | E2EE password (printed if generated). Ignored in `relay` |
+| `--id` | *random* | Custom persistent Session ID (`a-z`, `0-9`, max 10 chars). Ignored in `relay` |
 | `--dir` | `""` | Initial working directory for File Explorer and terminal |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB). Ignored in `relay` |
 | `--web-path` | `/` | Path of the Web UI (e.g. `/web`) |
@@ -246,6 +247,7 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 | :--- | :--- | :--- |
 | `--server-relay` | `ws://localhost:8048/ws-rmte` | Relay WebSocket URL |
 | `--pass` | *random* | E2EE password (printed if generated) |
+| `--id` | *random* | Custom persistent Session ID (`a-z`, `0-9`, max 10 chars) |
 | `--dir` | `""` | Initial working directory for File Explorer and terminal |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
 

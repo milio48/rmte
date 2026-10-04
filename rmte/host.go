@@ -106,6 +106,7 @@ type HostOptions struct {
 	InternalToken string
 	Mode          string       // standalone | hybrid | share
 	Dir           string       // initial working directory
+	ID            string       // custom session ID (optional)
 	Serve         *ServeConfig // non-nil when embedded in `serve`
 }
 
@@ -203,6 +204,9 @@ func runHost(opts HostOptions) {
 	}
 	if opts.InternalToken != "" {
 		auth["internal_token"] = opts.InternalToken
+	}
+	if opts.ID != "" {
+		auth["session_id"] = opts.ID
 	}
 	conn.WriteJSON(auth)
 

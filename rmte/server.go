@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -99,9 +100,33 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		randBytes := make([]byte, 4)
-		rand.Read(randBytes)
-		sessionID = hex.EncodeToString(randBytes)
+		sessionMu.Lock()
+		if auth.SessionID != "" {
+			reqID := strings.ToLower(strings.TrimSpace(auth.SessionID))
+			if err := validateSessionID(reqID); err != nil {
+				sessionMu.Unlock()
+				conn.WriteJSON(map[string]string{"type": "error", "message": "invalid session_id: " + err.Error()})
+				fmt.Printf("Host rejected from %s: invalid session_id %q: %v\n", r.RemoteAddr, auth.SessionID, err)
+				return
+			}
+			if _, exists := sessions[reqID]; exists {
+				sessionMu.Unlock()
+				conn.WriteJSON(map[string]string{"type": "error", "message": fmt.Sprintf("session ID %q is already in use", reqID)})
+				fmt.Printf("Host rejected from %s: session ID %q is already in use\n", r.RemoteAddr, reqID)
+				return
+			}
+			sessionID = reqID
+		} else {
+			for {
+				randBytes := make([]byte, 4)
+				rand.Read(randBytes)
+				cand := hex.EncodeToString(randBytes)
+				if _, exists := sessions[cand]; !exists {
+					sessionID = cand
+					break
+				}
+			}
+		}
 
 		s := &Session{
 			ID:          sessionID,
@@ -110,7 +135,6 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			ChatHistory: make([]map[string]interface{}, 0),
 			AuthToken:   auth.AuthToken,
 		}
-		sessionMu.Lock()
 		sessions[sessionID] = s
 		sessionMu.Unlock()
 
@@ -343,3 +367,21 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
+
+// validateSessionID verifies that a session ID contains only lowercase
+// alphanumeric characters (a-z, 0-9) and does not exceed 10 characters.
+func validateSessionID(id string) error {
+	if len(id) == 0 {
+		return fmt.Errorf("session ID cannot be empty")
+	}
+	if len(id) > 10 {
+		return fmt.Errorf("session ID %q exceeds maximum length of 10 characters", id)
+	}
+	for _, ch := range id {
+		if !((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+			return fmt.Errorf("session ID %q must only contain lowercase alphanumeric characters (a-z, 0-9)", id)
+		}
+	}
+	return nil
+}
+
