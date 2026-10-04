@@ -6,10 +6,11 @@ let fileManagerOpen = false, currentFilePath = './';
 
 // Auto-reconnect state
 let isConnected = false, manualDisconnect = false;
-let reconnectAttempt = 0, reconnectTimer = null;
+let reconnectAttempt = 0, reconnectTimer = null, reconnectCountdown = null;
 const RECONNECT_BASE = 2000, RECONNECT_MAX = 30000;
 let waitingForFileData = false, pendingFileBytes = null, pendingEditorPath = null;
 let pendingDownload = false, pendingDownloadName = null;
+let uploadQueue = [], uploadActive = false, fileOpBusy = false;
 let pingTimer = null;
 const DATA_CH = 255;
 
@@ -27,7 +28,7 @@ function getCodeMirrorMode(path) {
         sh: 'shell', bash: 'shell', zsh: 'shell',
         yml: 'yaml', yaml: 'yaml'
     };
-    return map[ext] || 'text/plain';
+    return map[ext] || null;
 }
 
 const _log = {
@@ -51,6 +52,15 @@ function fileIcon(name) {
 function fmtSize(b){if(!b)return'0 B';const u=['B','KB','MB','GB'];const i=Math.floor(Math.log(b)/Math.log(1024));return(b/Math.pow(1024,i)).toFixed(i>0?1:0)+' '+u[i];}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 function basename(p){return p.replace(/\\/g,'/').split('/').filter(Boolean).pop()||p;}
+
+// ===== FILE OPERATION SERIALIZATION =====
+// The host keeps a single pending-save slot, so file reads, saves and uploads
+// must run one at a time. Uploads queue; reads/saves are rejected while busy.
+function tryAcquireFileOp(){if(fileOpBusy)return false;fileOpBusy=true;return true;}
+function beginFileOp(){if(!tryAcquireFileOp()){showToast('Another file operation is in progress');return false;}return true;}
+function releaseFileOp(){uploadActive=false;fileOpBusy=false;processUploadQueue();}
+function finishUpload(){if(!uploadActive)return;releaseFileOp();}
+function fileOpDone(){if(uploadActive)return;releaseFileOp();}
 
 // ===== CONNECTION =====
 async function connect() {
@@ -109,18 +119,20 @@ function scheduleReconnect(){
     const s=document.getElementById('sb-connection');
     let remaining=Math.ceil(delay/1000);
     if(s)s.innerText=`● Reconnecting in ${remaining}s...`;
-    const countdown=setInterval(()=>{
+    clearInterval(reconnectCountdown);
+    reconnectCountdown=setInterval(()=>{
         remaining--;
         if(remaining>0&&s)s.innerText=`● Reconnecting in ${remaining}s...`;
     },1000);
     reconnectTimer=setTimeout(()=>{
-        clearInterval(countdown);
+        clearInterval(reconnectCountdown);reconnectCountdown=null;
         if(!manualDisconnect)connect();
     },delay);
 }
 
 function clearReconnectTimer(){
     if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}
+    if(reconnectCountdown){clearInterval(reconnectCountdown);reconnectCountdown=null;}
     reconnectAttempt=0;
 }
 
@@ -140,8 +152,11 @@ async function onJson(msg) {
         ['server','sessionId','password','username'].forEach(k=>sessionStorage.setItem('rmte_'+k,document.getElementById(k).value));
         sessionStorage.setItem('rmte_autoconnect','true');sessionStorage.setItem('rmte_username',myUsername);
         const s=document.getElementById('sb-connection');if(s){s.innerText='● Connected';s.style.color='#3fb950';}
+        // Reset any file-op state left over from a previous connection.
+        waitingForFileData=false;pendingFileBytes=null;pendingEditorPath=null;fileOpBusy=false;uploadActive=false;
         sendJson({type:'control',action:'get_tabs'});
         sendJson({type:'control',action:'get_events'});
+        processUploadQueue();
         setTimeout(initDragAndDrop, 200);
         return;
     }
@@ -182,6 +197,12 @@ async function onJson(msg) {
         case'read_file_start':_log.info('Waiting Tab255',{path:msg.path});waitingForFileData=true;pendingEditorPath=msg.path;break;
         case'ready_for_data':_log.info('Host ready, sending data');await sendPendingFile();break;
         case'file_saved':{
+            if(uploadActive){
+                showToast(`Uploaded ${basename(msg.path||'')}`);
+                requestDir(currentFilePath);
+                finishUpload();
+                break;
+            }
             _log.info('Saved',msg);
             const p=pendingEditorPath||msg.path;
             setEditorStatus(p,'Saved ✓');
@@ -192,11 +213,12 @@ async function onJson(msg) {
                 checkDirty(id);
             }
             requestDir(currentFilePath);
+            fileOpDone();
             break;
         }
-        case'file_created':case'dir_created':requestDir(currentFilePath);break;
+        case'file_created':case'dir_created':requestDir(currentFilePath);finishUpload();break;
         case'file_renamed':case'file_deleted':requestDir(currentFilePath);break;
-        case'fm_error':_log.err('FM: '+msg.message);showToast(msg.message);break;
+        case'fm_error':_log.err('FM: '+msg.message);showToast(msg.message);if(uploadActive)finishUpload();else fileOpDone();break;
         default:_log.warn('Unhandled: '+msg.action);
     }
 }
@@ -225,6 +247,8 @@ async function onBinary(raw) {
                     _log.info('File received',{bytes:dec.byteLength});
                     openEditorTab(pendingEditorPath,txt);
                 }
+                pendingDownloadName=null;
+                fileOpDone();
             }
             else _log.warn('Tab255 data but not waiting');
             return;
@@ -323,7 +347,7 @@ function addTermTabBtn(tabId){
     const sub=document.createElement('span');sub.id='tab-subtext-'+tabId;sub.className='tab-subtext';
     content.appendChild(title);content.appendChild(sub);
     const close=document.createElement('button');close.className='tab-close-btn';close.innerText='×';
-    close.onclick=e=>{e.stopPropagation();if(confirm('Delete Tab '+tabId+'?'))sendJson({type:'control',action:'delete_tab',tab_id:tabId});};
+    close.onclick=async e=>{e.stopPropagation();if(await uiConfirm('Delete Tab '+tabId+'?',{okText:'Delete',danger:true}))sendJson({type:'control',action:'delete_tab',tab_id:tabId});};
     c.appendChild(icon);c.appendChild(content);c.appendChild(close);
     document.getElementById('tabs').appendChild(c);
 }
@@ -429,11 +453,11 @@ function openEditorTab(path,text){
     }
 }
 
-function closeEditorTab(id){
+async function closeEditorTab(id){
     const et=editorTabs[id];
     if(et){
         const val=et.cm?et.cm.getValue():(et.textarea?et.textarea.value:'');
-        if(val!==et.original&&!confirm('File has unsaved changes. Close anyway?'))return;
+        if(val!==et.original&&!await uiConfirm('File has unsaved changes. Close anyway?',{title:'Unsaved Changes',okText:'Close',danger:true}))return;
     }
     const el=document.getElementById('tab-'+CSS.escape(id));if(el)el.remove();
     const cont=document.getElementById('content-'+CSS.escape(id));if(cont)cont.remove();
@@ -443,6 +467,7 @@ function closeEditorTab(id){
 
 function saveEditor(id,path){
     const et=editorTabs[id];if(!et)return;
+    if(!beginFileOp())return;
     const val=et.cm?et.cm.getValue():(et.textarea?et.textarea.value:'');
     pendingFileBytes=new TextEncoder().encode(val);
     pendingEditorPath=path;
@@ -460,7 +485,7 @@ function setEditorStatus(path,text){
         checkDirty(id);
     }
 }
-async function sendPendingFile(){if(!pendingFileBytes){_log.err('No pending data');return;}const d=pendingFileBytes;pendingFileBytes=null;await sendBin(DATA_CH,d);}
+async function sendPendingFile(){if(!pendingFileBytes){_log.err('No pending data');if(uploadActive)finishUpload();else fileOpDone();return;}const d=pendingFileBytes;pendingFileBytes=null;await sendBin(DATA_CH,d);}
 
 // ===== FILE MANAGER =====
 function toggleFileManager(){
@@ -484,7 +509,7 @@ function renderFileList(path,files){
     files.forEach(f=>{
         const fp=(path.endsWith('/')?path:path+'/')+f.name;
         if(f.is_dir){list.appendChild(mkItem('📁',f.name,'',fp,true,()=>requestDir(fp)));}
-        else{list.appendChild(mkItem(fileIcon(f.name),f.name,fmtSize(f.size),fp,false,()=>{_log.info('Open file',{path:fp,isText:isTextFile(f.name)});if(!isTextFile(f.name)){downloadFile(fp,f.name);return;}sendJson({type:'control',action:'req_read_file',path:fp});}));}
+        else{list.appendChild(mkItem(fileIcon(f.name),f.name,fmtSize(f.size),fp,false,()=>{_log.info('Open file',{path:fp,isText:isTextFile(f.name)});if(!isTextFile(f.name)){downloadFile(fp,f.name);return;}openFileForEdit(fp);}));}
     });
 }
 
@@ -500,9 +525,17 @@ function filterFiles(query){
 
 function downloadFile(path,name,e){
     if(e)e.stopPropagation();
+    if(!beginFileOp())return;
     pendingDownload=true;
     pendingDownloadName=name||basename(path);
     showToast(`Downloading ${pendingDownloadName}...`);
+    sendJson({type:'control',action:'req_read_file',path});
+}
+
+function openFileForEdit(path){
+    if(!beginFileOp())return;
+    pendingDownload=false;
+    pendingDownloadName=null;
     sendJson({type:'control',action:'req_read_file',path});
 }
 
@@ -637,13 +670,28 @@ function showToast(msg){
 }
 
 async function handleFileUpload(e){
-    const f=e.target.files[0];if(!f)return;
-    uploadSingleFile(f);
+    const files=Array.from(e.target.files||[]);
     e.target.value='';
+    enqueueUploads(files);
+}
+
+function enqueueUploads(files){
+    for(const f of files||[])uploadQueue.push(f);
+    processUploadQueue();
+}
+
+function processUploadQueue(){
+    if(uploadActive)return;
+    const f=uploadQueue.shift();
+    if(!f)return;
+    if(!tryAcquireFileOp()){uploadQueue.unshift(f);return;}
+    uploadActive=true;
+    uploadSingleFile(f);
 }
 
 function uploadSingleFile(f){
     const r=new FileReader();
+    r.onerror=()=>{showToast(`Failed to read ${f.name}`);finishUpload();};
     r.onload=()=>{
         pendingFileBytes=new Uint8Array(r.result);
         const p=(currentFilePath.endsWith('/')?currentFilePath:currentFilePath+'/')+f.name;
@@ -662,7 +710,7 @@ function initDragAndDrop(){
     fe.addEventListener('drop',e=>{
         const files=e.dataTransfer?.files;
         if(files&&files.length){
-            uploadSingleFile(files[0]);
+            enqueueUploads(Array.from(files));
         }
     });
 }
@@ -710,8 +758,25 @@ function copyToClip(text,btn){
         btn.classList.add('copied');
         setTimeout(()=>{btn.innerText=old;btn.classList.remove('copied');},2000);
     };
-    if(navigator.clipboard&&navigator.clipboard.writeText){
-        navigator.clipboard.writeText(text).then(flash).catch(()=>prompt('Copy text:',text));
+    // Works on HTTP (non-secure) origins where navigator.clipboard is unavailable.
+    const legacyCopy=()=>{
+        try{
+            const ta=document.createElement('textarea');
+            ta.value=text;
+            ta.setAttribute('readonly','');
+            ta.style.cssText='position:fixed;top:-1000px;left:-1000px;opacity:0;';
+            document.body.appendChild(ta);
+            ta.select();
+            ta.setSelectionRange(0,text.length);
+            const ok=document.execCommand('copy');
+            document.body.removeChild(ta);
+            return ok;
+        }catch(e){return false;}
+    };
+    if(navigator.clipboard&&window.isSecureContext){
+        navigator.clipboard.writeText(text).then(flash).catch(()=>{if(!legacyCopy())prompt('Copy text:',text);});
+    } else if(legacyCopy()){
+        flash();
     } else {
         prompt('Copy text:',text);
     }
@@ -725,6 +790,27 @@ function toggleHelpModal(){
     const m=document.getElementById('help-modal');
     if(!m)return;
     m.style.display=m.style.display==='none'?'flex':'none';
+}
+
+// ===== CONFIRM MODAL =====
+let confirmResolver=null;
+function uiConfirm(message,opts){
+    opts=opts||{};
+    const modal=document.getElementById('confirm-modal');
+    if(!modal)return Promise.resolve(window.confirm(message));
+    document.getElementById('confirm-title').textContent=opts.title||'Confirm';
+    document.getElementById('confirm-message').textContent=message;
+    const ok=document.getElementById('confirm-ok'),cancel=document.getElementById('confirm-cancel');
+    ok.textContent=opts.okText||'Confirm';
+    cancel.textContent=opts.cancelText||'Cancel';
+    ok.classList.toggle('danger',!!opts.danger);
+    modal.style.display='flex';
+    return new Promise(resolve=>{confirmResolver=resolve;});
+}
+function closeConfirm(result){
+    const modal=document.getElementById('confirm-modal');
+    if(modal)modal.style.display='none';
+    if(confirmResolver){const r=confirmResolver;confirmResolver=null;r(result);}
 }
 
 // ===== PRESENCE + CHAT =====
@@ -836,22 +922,26 @@ function toggleSidebar(preferredTab){
     setTimeout(refitActive, 200);
 }
 
+function createActivityItem(evt){
+    const it = document.createElement('div');
+    it.className = 'activity-item';
+    const typeClass = (evt.type || 'INFO').replace(/[^a-zA-Z0-9_]/g, '');
+    it.innerHTML = `
+        <div class="activity-item-header">
+            <span class="activity-type ${esc(typeClass)}">${esc(evt.type || 'EVENT')}</span>
+            <span class="activity-time">${esc(evt.time || '')}</span>
+        </div>
+        <div class="activity-msg">${esc(evt.message || '')}</div>
+    `;
+    return it;
+}
+
 function appendActivityLog(evt){
     if(!evt) return;
     eventsLog.push(evt);
     const list = document.getElementById('activity-list');
     if(list){
-        const it = document.createElement('div');
-        it.className = 'activity-item';
-        const typeClass = (evt.type || 'INFO').replace(/[^a-zA-Z0-9_]/g, '');
-        it.innerHTML = `
-            <div class="activity-item-header">
-                <span class="activity-type ${esc(typeClass)}">${esc(evt.type || 'EVENT')}</span>
-                <span class="activity-time">${esc(evt.time || '')}</span>
-            </div>
-            <div class="activity-msg">${esc(evt.message || '')}</div>
-        `;
-        list.appendChild(it);
+        list.appendChild(createActivityItem(evt));
         list.scrollTop = list.scrollHeight;
     }
 
@@ -870,19 +960,7 @@ function renderActivityHistory(events){
     const list = document.getElementById('activity-list');
     if(!list) return;
     list.innerHTML = '';
-    eventsLog.forEach(evt => {
-        const it = document.createElement('div');
-        it.className = 'activity-item';
-        const typeClass = (evt.type || 'INFO').replace(/[^a-zA-Z0-9_]/g, '');
-        it.innerHTML = `
-            <div class="activity-item-header">
-                <span class="activity-type ${esc(typeClass)}">${esc(evt.type || 'EVENT')}</span>
-                <span class="activity-time">${esc(evt.time || '')}</span>
-            </div>
-            <div class="activity-msg">${esc(evt.message || '')}</div>
-        `;
-        list.appendChild(it);
-    });
+    eventsLog.forEach(evt => list.appendChild(createActivityItem(evt)));
     list.scrollTop = list.scrollHeight;
 }
 
@@ -919,10 +997,18 @@ window.addEventListener('DOMContentLoaded',async()=>{
         const el=document.getElementById(k);
         if(!el.value){const v=sessionStorage.getItem('rmte_'+k);if(v)el.value=v;}
     });
+    // Load relay config once: used for the WS URL fallback and the version badge.
+    let wsPath='/ws-rmte';
+    try{
+        const r=await fetch('config.json',{cache:'no-store'});
+        if(r.ok){
+            const c=await r.json();
+            if(c.ws_path)wsPath=c.ws_path;
+            if(c.version){const b=document.getElementById('brand-version');if(b)b.innerText='v'+c.version;}
+        }
+    }catch(e){}
     // Fallback: derive WS URL from the page origin + relay config (ws_path)
     if(!document.getElementById('server').value){
-        let wsPath='/ws-rmte';
-        try{const r=await fetch('config.json',{cache:'no-store'});if(r.ok){const c=await r.json();if(c.ws_path)wsPath=c.ws_path;}}catch(e){}
         document.getElementById('server').value=(location.protocol==='https:'?'wss://':'ws://')+location.host+wsPath;
     }
     // Focus password field if server+session already filled
@@ -942,6 +1028,8 @@ window.addEventListener('DOMContentLoaded',async()=>{
             }
         }
         if(e.key==='Escape'){
+            const cf=document.getElementById('confirm-modal');
+            if(cf&&cf.style.display!=='none')closeConfirm(false);
             const hm=document.getElementById('help-modal');
             if(hm&&hm.style.display!=='none')toggleHelpModal();
             const sm=document.getElementById('share-modal');

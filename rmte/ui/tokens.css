@@ -1,4 +1,6 @@
-/* Hallmark · tokens · theme: Midnight · genre: atmospheric */
+/* Hallmark · tokens · theme: Midnight · genre: atmospheric
+ * Single source of truth for design tokens — loaded before app.css.
+ */
 
 :root {
     /* ── Colour ── */

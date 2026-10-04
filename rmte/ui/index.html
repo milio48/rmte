@@ -7,7 +7,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css" />
-    <link rel="stylesheet" href="xterm.css" />
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="app.css" />
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
@@ -28,7 +29,7 @@
             <!-- Left: Identity -->
             <div class="setup-brand">
                 <div class="brand-content">
-                    <div class="brand-badge">v0.4.0</div>
+                    <div class="brand-badge" id="brand-version">v0.4.0</div>
                     <div id="setup-logo">RMTE</div>
                     <p id="setup-subtitle">Encrypted remote terminal relay</p>
                     <div class="brand-features">
@@ -76,15 +77,15 @@
     <!-- Main IDE -->
     <div id="terminal-container" style="display:none;">
         <div id="tabs-bar">
-            <button id="toggle-files-btn" onclick="toggleFileManager()" title="File Explorer (Toggle)">📁</button>
+            <button id="toggle-files-btn" onclick="toggleFileManager()" title="File Explorer (Toggle)" aria-label="Toggle file explorer">📁</button>
             <div id="tabs"></div>
-            <button id="new-tab-btn" onclick="requestNewTab()" title="New Terminal">+</button>
-            <button id="toggle-sidebar-btn" onclick="toggleSidebar('collab')" title="Collaborators">👥</button>
-            <button id="toggle-chat-btn" onclick="toggleSidebar('chat')" title="Chat">💬</button>
-            <button id="toggle-activity-btn" onclick="toggleSidebar('activity')" title="Activity Log">📜</button>
-            <button id="copy-link-btn" onclick="toggleShareModal(true)" title="Share Session">🔗</button>
-            <button id="help-btn" onclick="toggleHelpModal()" title="Keyboard Shortcuts & Tips">❓</button>
-            <button id="disconnect-btn" onclick="disconnectSession()" title="Disconnect">⏻</button>
+            <button id="new-tab-btn" onclick="requestNewTab()" title="New Terminal" aria-label="New terminal">+</button>
+            <button id="toggle-sidebar-btn" onclick="toggleSidebar('collab')" title="Collaborators" aria-label="Toggle collaborators panel">👥</button>
+            <button id="toggle-chat-btn" onclick="toggleSidebar('chat')" title="Chat" aria-label="Toggle chat panel">💬</button>
+            <button id="toggle-activity-btn" onclick="toggleSidebar('activity')" title="Activity Log" aria-label="Toggle activity log panel">📜</button>
+            <button id="copy-link-btn" onclick="toggleShareModal(true)" title="Share Session" aria-label="Share session">🔗</button>
+            <button id="help-btn" onclick="toggleHelpModal()" title="Keyboard Shortcuts & Tips" aria-label="Help and keyboard shortcuts">❓</button>
+            <button id="disconnect-btn" onclick="disconnectSession()" title="Disconnect" aria-label="Disconnect session">⏻</button>
         </div>
         <div id="workspace">
             <!-- File Explorer -->
@@ -92,13 +93,13 @@
                 <div id="fe-header">
                     <span id="fe-title">EXPLORER</span>
                     <div id="fe-actions">
-                        <button id="fe-new-file" onclick="showInlineInput('file')" title="New File">+📄</button>
-                        <button id="fe-new-dir" onclick="showInlineInput('dir')" title="New Folder">+📁</button>
-                        <label id="upload-label" title="Upload File">
+                        <button id="fe-new-file" onclick="showInlineInput('file')" title="New File" aria-label="New file">+📄</button>
+                        <button id="fe-new-dir" onclick="showInlineInput('dir')" title="New Folder" aria-label="New folder">+📁</button>
+                        <label id="upload-label" title="Upload File" aria-label="Upload file">
                             ⬆
-                            <input type="file" id="upload-input" onchange="handleFileUpload(event)" style="display:none;">
+                            <input type="file" id="upload-input" onchange="handleFileUpload(event)" style="display:none;" multiple>
                         </label>
-                        <button id="fe-refresh" onclick="requestDir(currentFilePath)" title="Refresh">⟳</button>
+                        <button id="fe-refresh" onclick="requestDir(currentFilePath)" title="Refresh" aria-label="Refresh directory">⟳</button>
                     </div>
                 </div>
                 <div id="fe-breadcrumb-wrap">
@@ -140,7 +141,7 @@
                     </div>
                     <div id="chat-input-container">
                         <input type="text" id="chat-input" placeholder="Type a message... (Enter ↵)" onkeydown="handleChatKey(event)">
-                        <button id="chat-send-btn" onclick="sendChatMessage()" title="Send Message">
+                        <button id="chat-send-btn" onclick="sendChatMessage()" title="Send Message" aria-label="Send message">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                         </button>
                     </div>
@@ -168,7 +169,7 @@
         <div class="modal-box share-modal-box">
             <div class="modal-header">
                 <h3>🔗 Share Session</h3>
-                <button class="modal-close" onclick="toggleShareModal(false)">×</button>
+                <button class="modal-close" onclick="toggleShareModal(false)" aria-label="Close share dialog">×</button>
             </div>
             <div class="modal-body">
                 <div class="share-section">
@@ -196,7 +197,7 @@
         <div class="modal-box">
             <div class="modal-header">
                 <h3>Keyboard Shortcuts & Tips</h3>
-                <button class="modal-close" onclick="toggleHelpModal()">×</button>
+                <button class="modal-close" onclick="toggleHelpModal()" aria-label="Close help dialog">×</button>
             </div>
             <div class="modal-body">
                 <table class="shortcuts-table">
@@ -212,9 +213,26 @@
         </div>
     </div>
 
+    <!-- Generic Confirm Modal -->
+    <div id="confirm-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeConfirm(false)">
+        <div class="modal-box confirm-modal-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+            <div class="modal-header">
+                <h3 id="confirm-title">Confirm</h3>
+                <button class="modal-close" onclick="closeConfirm(false)" aria-label="Cancel">×</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-message" class="confirm-message"></p>
+            </div>
+            <div class="confirm-footer">
+                <button id="confirm-cancel" class="confirm-btn confirm-cancel" onclick="closeConfirm(false)">Cancel</button>
+                <button id="confirm-ok" class="confirm-btn confirm-ok" onclick="closeConfirm(true)">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Crypto: asmcrypto fallback for HTTP (non-secure context) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/asmCrypto/2.3.2/asmcrypto.all.es5.min.js"></script>
     <script src="crypto_shim.js"></script>
-    <script src="xterm.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
