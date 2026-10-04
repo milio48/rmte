@@ -60,7 +60,39 @@ function tryAcquireFileOp(){if(fileOpBusy)return false;fileOpBusy=true;return tr
 function beginFileOp(){if(!tryAcquireFileOp()){showToast('Another file operation is in progress');return false;}return true;}
 function releaseFileOp(){uploadActive=false;fileOpBusy=false;processUploadQueue();}
 function finishUpload(){if(!uploadActive)return;releaseFileOp();}
-function fileOpDone(){if(uploadActive)return;releaseFileOp();}
+// ===== SCOPED SESSION STORAGE =====
+// Credentials and autoconnect states are stored per session ID to allow multi-host tabs.
+function saveSessionCredentials(server, sid, password, username, autoconnect){
+    if(server) sessionStorage.setItem('rmte_server', server);
+    if(username) sessionStorage.setItem('rmte_username', username);
+    if(sid){
+        sessionStorage.setItem('rmte_active_session', sid);
+        const creds = {
+            password: password || '',
+            autoconnect: autoconnect === true
+        };
+        sessionStorage.setItem('rmte_sess_' + sid, JSON.stringify(creds));
+    }
+}
+
+function getSessionCredentials(sid){
+    if(!sid) return null;
+    try {
+        const raw = sessionStorage.getItem('rmte_sess_' + sid);
+        if(!raw) return null;
+        return JSON.parse(raw);
+    } catch(e) {
+        return null;
+    }
+}
+
+function clearSessionAutoconnect(sid){
+    if(!sid) sid = document.getElementById('sessionId').value || sessionStorage.getItem('rmte_active_session');
+    if(!sid) return;
+    const creds = getSessionCredentials(sid) || {};
+    creds.autoconnect = false;
+    sessionStorage.setItem('rmte_sess_' + sid, JSON.stringify(creds));
+}
 
 // ===== CONNECTION =====
 async function connect() {
@@ -163,8 +195,10 @@ async function onJson(msg) {
         document.getElementById('terminal-container').style.display='flex';
         document.getElementById('sb-session').innerText='Session: '+(document.getElementById('sessionId').value);
         document.getElementById('sb-user').innerText=myUsername;
-        ['server','sessionId','password','username'].forEach(k=>sessionStorage.setItem('rmte_'+k,document.getElementById(k).value));
-        sessionStorage.setItem('rmte_autoconnect','true');sessionStorage.setItem('rmte_username',myUsername);
+        const serverVal=document.getElementById('server').value;
+        const sidVal=document.getElementById('sessionId').value;
+        const passVal=document.getElementById('password').value;
+        saveSessionCredentials(serverVal, sidVal, passVal, myUsername, true);
         const s=document.getElementById('sb-connection');if(s){s.innerText='● Connected';s.style.color='#3fb950';}
         // Reset any file-op state left over from a previous connection.
         waitingForFileData=false;pendingFileBytes=null;pendingEditorPath=null;pendingDownload=false;pendingDownloadName=null;fileOpBusy=false;uploadActive=false;currentTransferId=0;
@@ -746,7 +780,8 @@ function toggleShareModal(show){
     if(nextShow){
         const serverVal=document.getElementById('server').value||(location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws-rmte';
         const sid=document.getElementById('sessionId').value;
-        const pass=document.getElementById('password').value||sessionStorage.getItem('rmte_password')||'';
+        const creds=getSessionCredentials(sid);
+        const pass=document.getElementById('password').value||(creds?creds.password:'')||'';
         const url=new URL(window.location.href);
         url.searchParams.set('server',serverVal);
         if(sid)url.searchParams.set('session',sid);
@@ -1002,7 +1037,15 @@ function exportActivityLog(){
     document.body.removeChild(a);
     showToast('Activity log exported!');
 }
-function disconnectSession(){manualDisconnect=true;clearReconnectTimer();stopPing();sessionStorage.setItem('rmte_autoconnect','false');if(ws)ws.close();location.reload();}
+function disconnectSession(){
+    manualDisconnect=true;
+    clearReconnectTimer();
+    stopPing();
+    const sid=document.getElementById('sessionId').value||sessionStorage.getItem('rmte_active_session');
+    if(sid)clearSessionAutoconnect(sid);
+    if(ws)ws.close();
+    location.reload();
+}
 function showError(m){const e=document.getElementById('setup-error');e.style.display='block';e.innerText=m;}
 function hideError(){document.getElementById('setup-error').style.display='none';}
 
@@ -1012,13 +1055,45 @@ window.addEventListener('DOMContentLoaded',async()=>{
     const params=new URLSearchParams(window.location.search);
     const paramServer=params.get('server');
     const paramSession=params.get('session');
-    if(paramServer)document.getElementById('server').value=paramServer;
-    if(paramSession)document.getElementById('sessionId').value=paramSession;
-    // Then fill remaining from sessionStorage (won't overwrite URL params)
-    ['server','sessionId','password','username'].forEach(k=>{
-        const el=document.getElementById(k);
-        if(!el.value){const v=sessionStorage.getItem('rmte_'+k);if(v)el.value=v;}
-    });
+
+    // Server
+    if(paramServer){
+        document.getElementById('server').value=paramServer;
+    } else {
+        const savedServer=sessionStorage.getItem('rmte_server');
+        if(savedServer)document.getElementById('server').value=savedServer;
+    }
+
+    // Username
+    const savedUser=sessionStorage.getItem('rmte_username');
+    if(savedUser&&!document.getElementById('username').value){
+        document.getElementById('username').value=savedUser;
+    }
+
+    // Session ID: URL param takes priority, otherwise last active session in this tab
+    let targetSession='';
+    if(paramSession){
+        targetSession=paramSession.trim();
+        document.getElementById('sessionId').value=targetSession;
+    } else {
+        targetSession=(sessionStorage.getItem('rmte_active_session')||'').trim();
+        if(targetSession)document.getElementById('sessionId').value=targetSession;
+    }
+
+    // Load credentials specifically for targetSession (no cross-session leaks)
+    let shouldAutoconnect=false;
+    if(targetSession){
+        const creds=getSessionCredentials(targetSession);
+        if(creds){
+            if(creds.password&&!document.getElementById('password').value){
+                document.getElementById('password').value=creds.password;
+            }
+            if(creds.autoconnect===true){
+                shouldAutoconnect=true;
+            }
+        }
+    }
+
     // Load relay config once: used for the WS URL fallback and the version badge.
     let wsPath='/ws-rmte';
     try{
@@ -1029,13 +1104,21 @@ window.addEventListener('DOMContentLoaded',async()=>{
             if(c.version){const b=document.getElementById('brand-version');if(b)b.innerText=c.version.startsWith('v')?c.version:(c.version==='dev'?'dev':'v'+c.version);}
         }
     }catch(e){}
+
     // Fallback: derive WS URL from the page origin + relay config (ws_path)
     if(!document.getElementById('server').value){
         document.getElementById('server').value=(location.protocol==='https:'?'wss://':'ws://')+location.host+wsPath;
     }
-    // Focus password field if server+session already filled
-    if(document.getElementById('server').value&&document.getElementById('sessionId').value&&!document.getElementById('password').value){document.getElementById('password').focus();}
-    if(sessionStorage.getItem('rmte_autoconnect')==='true')connect();
+
+    // Focus password field if server+session already filled but password is empty
+    if(document.getElementById('server').value&&document.getElementById('sessionId').value&&!document.getElementById('password').value){
+        document.getElementById('password').focus();
+    }
+
+    // Only autoconnect if this specific session has autoconnect flag set!
+    if(shouldAutoconnect&&document.getElementById('server').value&&document.getElementById('sessionId').value&&document.getElementById('password').value){
+        connect();
+    }
 
     document.addEventListener('keydown',e=>{
         if((e.ctrlKey||e.metaKey)&&e.key==='s'){
