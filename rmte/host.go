@@ -64,6 +64,7 @@ type ViewersPresence struct {
 type PendingSave struct {
 	Path       string
 	TargetConn string
+	TransferID uint32
 }
 
 const dataChannelTabID byte = 255
@@ -80,9 +81,9 @@ var (
 	// Dynamic buffer limit (set by --buffer flag)
 	maxBufferSize int
 
-	// Pending file save state: when a viewer sends prepare_save,
-	// we register what path the next Tab 255 binary frame should write to.
-	pendingSave   *PendingSave
+	// Pending file saves keyed by transfer id: when a viewer sends prepare_save,
+	// we register what path the next Tab 255 binary frame with that id should write to.
+	pendingSaves  = make(map[uint32]*PendingSave)
 	pendingSaveMu sync.Mutex
 
 	// Host working directory (sandbox root for file operations)
@@ -262,14 +263,22 @@ func runHost(opts HostOptions) {
 		}
 
 		if mt == websocket.BinaryMessage {
-			tabID, plaintext, err := decryptBinary(data)
-			if err != nil {
+			// Tab 255 = Data Channel for file uploads/saves (framed with a transfer id)
+			if len(data) > 0 && data[0] == dataChannelTabID {
+				transferID, plaintext, err := decryptDataChannel(data)
+				if err != nil {
+					// Legacy frame without transfer id: [255][nonce][ciphertext]
+					if _, legacy, lerr := decryptBinary(data); lerr == nil {
+						handleDataChannelWrite(0, legacy, conn)
+					}
+					continue
+				}
+				handleDataChannelWrite(transferID, plaintext, conn)
 				continue
 			}
 
-			// Tab 255 = Data Channel for file uploads/saves
-			if tabID == dataChannelTabID {
-				handleDataChannelWrite(plaintext, conn)
+			tabID, plaintext, err := decryptBinary(data)
+			if err != nil {
 				continue
 			}
 
@@ -496,17 +505,17 @@ func runHost(opts HostOptions) {
 				case "req_read_file":
 					reqPath, _ := ctrl["path"].(string)
 					targetConn, _ := ctrl["target_conn"].(string)
-					handleReqReadFile(reqPath, targetConn, conn)
+					handleReqReadFile(reqPath, targetConn, ctrlTransferID(ctrl), conn)
 
 				case "prepare_save":
 					reqPath, _ := ctrl["path"].(string)
 					targetConn, _ := ctrl["target_conn"].(string)
-					handlePrepareSave(reqPath, targetConn, conn)
+					handlePrepareSave(reqPath, targetConn, ctrlTransferID(ctrl), conn)
 
 				case "prepare_upload":
 					reqPath, _ := ctrl["path"].(string)
 					targetConn, _ := ctrl["target_conn"].(string)
-					handlePrepareSave(reqPath, targetConn, conn) // Same logic as save
+					handlePrepareSave(reqPath, targetConn, ctrlTransferID(ctrl), conn) // Same logic as save
 
 				case "create_file":
 					reqPath, _ := ctrl["path"].(string)
@@ -535,6 +544,14 @@ func runHost(opts HostOptions) {
 }
 
 // ===== FILE MANAGER HANDLERS =====
+
+// ctrlTransferID extracts the client-chosen transfer id from a control message.
+func ctrlTransferID(ctrl map[string]interface{}) uint32 {
+	if v, ok := ctrl["transfer_id"].(float64); ok {
+		return uint32(v)
+	}
+	return 0
+}
 
 // sanitizePath resolves the requested path relative to the host working directory.
 func sanitizePath(reqPath string) (string, error) {
@@ -614,7 +631,7 @@ func handleReqDir(reqPath, targetConn string, conn *SafeConn) {
 	})
 }
 
-func handleReqReadFile(reqPath, targetConn string, conn *SafeConn) {
+func handleReqReadFile(reqPath, targetConn string, transferID uint32, conn *SafeConn) {
 	absPath, err := sanitizePath(reqPath)
 	if err != nil {
 		conn.WriteJSON(map[string]interface{}{
@@ -673,13 +690,14 @@ func handleReqReadFile(reqPath, targetConn string, conn *SafeConn) {
 		"type":        "control",
 		"action":      "read_file_start",
 		"target_conn": targetConn,
+		"transfer_id": transferID,
 		"path":        filepath.ToSlash(absPath),
 	})
 
 	logEvent(conn, "OPEN_FILE", targetConn, fmt.Sprintf("Opened %s (%d bytes)", filepath.ToSlash(absPath), len(fileData)))
 
 	// Send file content as encrypted binary on Tab 255
-	payload, err := encryptBinary(dataChannelTabID, fileData)
+	payload, err := encryptDataChannel(transferID, fileData)
 	if err != nil {
 		conn.WriteJSON(map[string]interface{}{
 			"type":        "control",
@@ -693,22 +711,24 @@ func handleReqReadFile(reqPath, targetConn string, conn *SafeConn) {
 	conn.WriteMessage(websocket.BinaryMessage, payload)
 }
 
-func handlePrepareSave(reqPath, targetConn string, conn *SafeConn) {
+func handlePrepareSave(reqPath, targetConn string, transferID uint32, conn *SafeConn) {
 	absPath, err := sanitizePath(reqPath)
 	if err != nil {
 		conn.WriteJSON(map[string]interface{}{
 			"type":        "control",
 			"action":      "fm_error",
 			"target_conn": targetConn,
+			"transfer_id": transferID,
 			"message":     err.Error(),
 		})
 		return
 	}
 
 	pendingSaveMu.Lock()
-	pendingSave = &PendingSave{
+	pendingSaves[transferID] = &PendingSave{
 		Path:       absPath,
 		TargetConn: targetConn,
+		TransferID: transferID,
 	}
 	pendingSaveMu.Unlock()
 
@@ -716,18 +736,19 @@ func handlePrepareSave(reqPath, targetConn string, conn *SafeConn) {
 		"type":        "control",
 		"action":      "ready_for_data",
 		"target_conn": targetConn,
+		"transfer_id": transferID,
 		"path":        filepath.ToSlash(absPath),
 	})
 }
 
-func handleDataChannelWrite(plaintext []byte, conn *SafeConn) {
+func handleDataChannelWrite(transferID uint32, plaintext []byte, conn *SafeConn) {
 	pendingSaveMu.Lock()
-	ps := pendingSave
-	pendingSave = nil
+	ps := pendingSaves[transferID]
+	delete(pendingSaves, transferID)
 	pendingSaveMu.Unlock()
 
 	if ps == nil {
-		log.Println("[FileManager] Received Tab 255 data but no pending save registered")
+		log.Printf("[FileManager] Received Tab 255 data for unknown transfer %d", transferID)
 		return
 	}
 
@@ -736,6 +757,7 @@ func handleDataChannelWrite(plaintext []byte, conn *SafeConn) {
 			"type":        "control",
 			"action":      "fm_error",
 			"target_conn": ps.TargetConn,
+			"transfer_id": ps.TransferID,
 			"message":     fmt.Sprintf("file too large: %d bytes (limit: %d bytes)", len(plaintext), maxBufferSize),
 		})
 		return
@@ -759,6 +781,7 @@ func handleDataChannelWrite(plaintext []byte, conn *SafeConn) {
 			"type":        "control",
 			"action":      "fm_error",
 			"target_conn": ps.TargetConn,
+			"transfer_id": ps.TransferID,
 			"message":     fmt.Sprintf("cannot create directory: %v", err),
 		})
 		return
@@ -769,6 +792,7 @@ func handleDataChannelWrite(plaintext []byte, conn *SafeConn) {
 			"type":        "control",
 			"action":      "fm_error",
 			"target_conn": ps.TargetConn,
+			"transfer_id": ps.TransferID,
 			"message":     fmt.Sprintf("write error: %v", err),
 		})
 		return
@@ -778,6 +802,7 @@ func handleDataChannelWrite(plaintext []byte, conn *SafeConn) {
 		"type":        "control",
 		"action":      "file_saved",
 		"target_conn": ps.TargetConn,
+		"transfer_id": ps.TransferID,
 		"path":        ps.Path,
 		"status":      "success",
 		"size":        len(plaintext),

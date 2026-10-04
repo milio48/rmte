@@ -139,6 +139,20 @@ function clearReconnectTimer(){
 function sendRaw(d){if(ws&&ws.readyState===1)ws.send(d);else _log.err('WS not open');}
 function sendJson(m){_log.out('json:'+m.action,m);sendRaw(JSON.stringify(m));}
 async function sendBin(tabId,plain){const iv=rmteCrypto.randomBytes(12);const ct=await rmteCrypto.encrypt(iv,aesKey,plain);const p=new Uint8Array(1+12+ct.byteLength);p[0]=tabId;p.set(iv,1);p.set(ct,13);sendRaw(p);}
+// Data-channel frames add a 4-byte transfer id so concurrent file operations
+// from different viewers can be told apart (the relay broadcasts binary frames).
+let currentTransferId=0;
+function newTransferId(){return (Math.floor(Math.random()*0xFFFFFFFF)>>>0)||1;}
+async function sendDataChannel(plain){
+    const id=currentTransferId>>>0;
+    const iv=rmteCrypto.randomBytes(12);
+    const ct=await rmteCrypto.encrypt(iv,aesKey,plain);
+    const p=new Uint8Array(1+4+12+ct.byteLength);
+    p[0]=DATA_CH;
+    new DataView(p.buffer).setUint32(1,id,false);
+    p.set(iv,5);p.set(ct,17);
+    sendRaw(p);
+}
 
 // ===== MESSAGE HANDLERS =====
 async function onJson(msg) {
@@ -153,7 +167,7 @@ async function onJson(msg) {
         sessionStorage.setItem('rmte_autoconnect','true');sessionStorage.setItem('rmte_username',myUsername);
         const s=document.getElementById('sb-connection');if(s){s.innerText='● Connected';s.style.color='#3fb950';}
         // Reset any file-op state left over from a previous connection.
-        waitingForFileData=false;pendingFileBytes=null;pendingEditorPath=null;fileOpBusy=false;uploadActive=false;
+        waitingForFileData=false;pendingFileBytes=null;pendingEditorPath=null;pendingDownload=false;pendingDownloadName=null;fileOpBusy=false;uploadActive=false;currentTransferId=0;
         sendJson({type:'control',action:'get_tabs'});
         sendJson({type:'control',action:'get_events'});
         processUploadQueue();
@@ -223,36 +237,40 @@ async function onJson(msg) {
     }
 }
 async function onBinary(raw) {
-    const tabId=raw[0],iv=raw.slice(1,13),ct=raw.slice(13);
-    if(ct.length===0){_log.warn('Empty ct',{tabId});return;}
+    const tabId=raw[0];
     try {
-        const dec=await rmteCrypto.decrypt(iv,aesKey,ct);
         if(tabId===DATA_CH){
-            if(waitingForFileData){
-                waitingForFileData=false;
-                if(pendingDownload){
-                    pendingDownload=false;
-                    const blob=new Blob([dec],{type:'application/octet-stream'});
-                    const url=URL.createObjectURL(blob);
-                    const a=document.createElement('a');
-                    a.href=url;
-                    a.download=pendingDownloadName||basename(pendingEditorPath)||'download';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    showToast(`Downloaded ${a.download}`);
-                } else {
-                    const txt=new TextDecoder().decode(dec);
-                    _log.info('File received',{bytes:dec.byteLength});
-                    openEditorTab(pendingEditorPath,txt);
-                }
-                pendingDownloadName=null;
-                fileOpDone();
+            const transferId=new DataView(raw.buffer,raw.byteOffset,raw.byteLength).getUint32(1,false);
+            if(transferId!==currentTransferId){_log.warn('Ignoring data-channel frame for another transfer',{transferId,currentTransferId});return;}
+            const iv=raw.slice(5,17),ct=raw.slice(17);
+            if(ct.length===0){_log.warn('Empty data-channel payload');return;}
+            const dec=await rmteCrypto.decrypt(iv,aesKey,ct);
+            if(!waitingForFileData){_log.warn('Tab255 data but not waiting');return;}
+            waitingForFileData=false;
+            if(pendingDownload){
+                pendingDownload=false;
+                const blob=new Blob([dec],{type:'application/octet-stream'});
+                const url=URL.createObjectURL(blob);
+                const a=document.createElement('a');
+                a.href=url;
+                a.download=pendingDownloadName||basename(pendingEditorPath)||'download';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast(`Downloaded ${a.download}`);
+            } else {
+                const txt=new TextDecoder().decode(dec);
+                _log.info('File received',{bytes:dec.byteLength});
+                openEditorTab(pendingEditorPath,txt);
             }
-            else _log.warn('Tab255 data but not waiting');
+            pendingDownloadName=null;
+            fileOpDone();
             return;
         }
+        const iv=raw.slice(1,13),ct=raw.slice(13);
+        if(ct.length===0){_log.warn('Empty ct',{tabId});return;}
+        const dec=await rmteCrypto.decrypt(iv,aesKey,ct);
         if(!terminals[tabId])initTerminal(tabId);
         terminals[tabId].term.write(new Uint8Array(dec));
     }catch(e){_log.err('Decrypt fail',{tabId,e:e.message});}
@@ -468,11 +486,12 @@ async function closeEditorTab(id){
 function saveEditor(id,path){
     const et=editorTabs[id];if(!et)return;
     if(!beginFileOp())return;
+    currentTransferId=newTransferId();
     const val=et.cm?et.cm.getValue():(et.textarea?et.textarea.value:'');
     pendingFileBytes=new TextEncoder().encode(val);
     pendingEditorPath=path;
     setEditorStatus(path,'Saving...');
-    sendJson({type:'control',action:'prepare_save',path});
+    sendJson({type:'control',action:'prepare_save',path,transfer_id:currentTransferId});
 }
 
 function setEditorStatus(path,text){
@@ -485,7 +504,7 @@ function setEditorStatus(path,text){
         checkDirty(id);
     }
 }
-async function sendPendingFile(){if(!pendingFileBytes){_log.err('No pending data');if(uploadActive)finishUpload();else fileOpDone();return;}const d=pendingFileBytes;pendingFileBytes=null;await sendBin(DATA_CH,d);}
+async function sendPendingFile(){if(!pendingFileBytes){_log.err('No pending data');if(uploadActive)finishUpload();else fileOpDone();return;}const d=pendingFileBytes;pendingFileBytes=null;await sendDataChannel(d);}
 
 // ===== FILE MANAGER =====
 function toggleFileManager(){
@@ -526,17 +545,19 @@ function filterFiles(query){
 function downloadFile(path,name,e){
     if(e)e.stopPropagation();
     if(!beginFileOp())return;
+    currentTransferId=newTransferId();
     pendingDownload=true;
     pendingDownloadName=name||basename(path);
     showToast(`Downloading ${pendingDownloadName}...`);
-    sendJson({type:'control',action:'req_read_file',path});
+    sendJson({type:'control',action:'req_read_file',path,transfer_id:currentTransferId});
 }
 
 function openFileForEdit(path){
     if(!beginFileOp())return;
+    currentTransferId=newTransferId();
     pendingDownload=false;
     pendingDownloadName=null;
-    sendJson({type:'control',action:'req_read_file',path});
+    sendJson({type:'control',action:'req_read_file',path,transfer_id:currentTransferId});
 }
 
 function mkItem(icon,name,size,fullPath,isDir,onclick){
@@ -694,9 +715,10 @@ function uploadSingleFile(f){
     r.onerror=()=>{showToast(`Failed to read ${f.name}`);finishUpload();};
     r.onload=()=>{
         pendingFileBytes=new Uint8Array(r.result);
+        currentTransferId=newTransferId();
         const p=(currentFilePath.endsWith('/')?currentFilePath:currentFilePath+'/')+f.name;
         showToast(`Uploading ${f.name}...`);
-        sendJson({type:'control',action:'prepare_upload',path:p});
+        sendJson({type:'control',action:'prepare_upload',path:p,transfer_id:currentTransferId});
     };
     r.readAsArrayBuffer(f);
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"io"
 )
@@ -55,6 +56,41 @@ func decryptBinary(payload []byte) (byte, []byte, error) {
 	}
 
 	return tabID, plaintext, nil
+}
+
+// encryptDataChannel frames a file-channel message as
+// [dataChannelTabID][4-byte transfer id][12-byte nonce][ciphertext].
+// The transfer id lets concurrent file operations from different viewers
+// be told apart, since the relay broadcasts binary frames to every viewer.
+func encryptDataChannel(transferID uint32, plaintext []byte) ([]byte, error) {
+	payload, err := encryptBinary(dataChannelTabID, plaintext)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]byte, len(payload)+4)
+	out[0] = dataChannelTabID
+	binary.BigEndian.PutUint32(out[1:5], transferID)
+	copy(out[5:], payload[1:])
+
+	return out, nil
+}
+
+func decryptDataChannel(payload []byte) (uint32, []byte, error) {
+	if len(payload) < 1+4+12 {
+		return 0, nil, io.ErrUnexpectedEOF
+	}
+
+	transferID := binary.BigEndian.Uint32(payload[1:5])
+	nonce := payload[5:17]
+	ciphertext := payload[17:]
+
+	plaintext, err := aesGCM.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return transferID, plaintext, nil
 }
 
 func generateAuthToken(password string) string {
