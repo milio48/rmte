@@ -1438,6 +1438,25 @@ kbd {
 .confirm-ok.danger { background: var(--color-red); border-color: var(--color-red); }
 
 /* ═══════════════════════════════════════
+   JOIN MODAL
+   ═══════════════════════════════════════ */
+.join-modal-box { max-width: 400px; }
+.join-modal-box .modal-body { display: flex; flex-direction: column; gap: 6px; }
+.join-session {
+    font-size: var(--text-sm);
+    color: var(--color-ink-2);
+    margin: 0 0 var(--space-xs);
+}
+.join-session-id {
+    font-family: var(--font-mono);
+    color: var(--color-accent);
+    font-weight: 600;
+}
+.join-name-input { font-family: var(--font-body); font-size: var(--text-sm); padding: 9px 12px; color: var(--color-ink); }
+.join-name-input::placeholder { font-family: var(--font-body); }
+.join-error { font-size: var(--text-xs); color: var(--color-red); }
+
+/* ═══════════════════════════════════════
    SHARE MODAL SPECIFIC
    ═══════════════════════════════════════ */
 .share-modal-box {

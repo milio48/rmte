@@ -1097,8 +1097,10 @@ func handleDeleteFile(reqPath, targetConn string, conn *SafeConn) {
 }
 
 // buildShareLink converts a WebSocket relay URL to a browser-accessible sharable link.
-// e.g. ws://host:8048/ws-rmte + "/web/" → http://host:8048/web/?server=ws://host:8048/ws-rmte&session=abc123
-func buildShareLink(serverURL, webPath, sessionID string) string {
+// e.g. ws://host:8048/ws-rmte + "/web/" → http://host:8048/web/?server=ws://host:8048/ws-rmte&session=abc123#pass=secret
+// The password is placed in the URL fragment (#pass=...), which browsers never send
+// to the server, so it never shows up in relay/proxy access logs. Empty pass omits it.
+func buildShareLink(serverURL, webPath, sessionID, pass string) string {
 	parsed, err := url.Parse(serverURL)
 	if err != nil {
 		return fmt.Sprintf("(could not generate link: %v)", err)
@@ -1123,5 +1125,9 @@ func buildShareLink(serverURL, webPath, sessionID string) string {
 	params.Set("server", serverURL)
 	params.Set("session", sessionID)
 
-	return baseURL + "?" + params.Encode()
+	link := baseURL + "?" + params.Encode()
+	if pass != "" {
+		link += "#" + url.Values{"pass": {pass}}.Encode()
+	}
+	return link
 }

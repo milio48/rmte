@@ -62,9 +62,18 @@ function releaseFileOp(){uploadActive=false;fileOpBusy=false;processUploadQueue(
 function finishUpload(){if(!uploadActive)return;releaseFileOp();}
 // ===== SCOPED SESSION STORAGE =====
 // Credentials and autoconnect states are stored per session ID to allow multi-host tabs.
+// The display name is global and persistent (localStorage) so it is asked only once per browser.
+function getSavedUsername(){
+    try{return (localStorage.getItem('rmte_username')||sessionStorage.getItem('rmte_username')||'').trim();}catch(e){return '';}
+}
+function saveUsername(name){
+    name=(name||'').trim();
+    if(!name)return;
+    try{localStorage.setItem('rmte_username',name);}catch(e){sessionStorage.setItem('rmte_username',name);}
+}
 function saveSessionCredentials(server, sid, password, username, autoconnect){
     if(server) sessionStorage.setItem('rmte_server', server);
-    if(username) sessionStorage.setItem('rmte_username', username);
+    if(username) saveUsername(username);
     if(sid){
         sessionStorage.setItem('rmte_active_session', sid);
         const creds = {
@@ -198,7 +207,9 @@ async function onJson(msg) {
         const serverVal=document.getElementById('server').value;
         const sidVal=document.getElementById('sessionId').value;
         const passVal=document.getElementById('password').value;
-        saveSessionCredentials(serverVal, sidVal, passVal, myUsername, true);
+        // Persist only a name the user actually typed (not the random Web-XXXX fallback).
+        const typedName=document.getElementById('username').value.trim();
+        saveSessionCredentials(serverVal, sidVal, passVal, typedName, true);
         const s=document.getElementById('sb-connection');if(s){s.innerText='● Connected';s.style.color='#3fb950';}
         // Reset any file-op state left over from a previous connection.
         waitingForFileData=false;pendingFileBytes=null;pendingEditorPath=null;pendingDownload=false;pendingDownloadName=null;fileOpBusy=false;uploadActive=false;currentTransferId=0;
@@ -783,8 +794,11 @@ function toggleShareModal(show){
         const creds=getSessionCredentials(sid);
         const pass=document.getElementById('password').value||(creds?creds.password:'')||'';
         const url=new URL(window.location.href);
+        url.hash='';
         url.searchParams.set('server',serverVal);
         if(sid)url.searchParams.set('session',sid);
+        // Password goes in the URL fragment (#pass=...): browsers never send it to the relay.
+        if(pass)url.hash=new URLSearchParams({pass}).toString();
         const webLink=url.toString();
         const linkInp=document.getElementById('share-link-input');
         if(linkInp)linkInp.value=webLink;
@@ -1049,6 +1063,49 @@ function disconnectSession(){
 function showError(m){const e=document.getElementById('setup-error');e.style.display='block';e.innerText=m;}
 function hideError(){document.getElementById('setup-error').style.display='none';}
 
+// ===== JOIN MODAL (first-time display name prompt) =====
+function showJoinModal(){
+    const m=document.getElementById('join-modal');
+    if(!m)return;
+    const sid=document.getElementById('sessionId').value;
+    const lbl=document.getElementById('join-session-label');
+    if(lbl)lbl.innerText=sid;
+    const inp=document.getElementById('join-name-input');
+    if(inp)inp.value=document.getElementById('username').value||'';
+    const err=document.getElementById('join-error');
+    if(err)err.style.display='none';
+    m.style.display='flex';
+    if(inp)setTimeout(()=>inp.focus(),30);
+}
+function closeJoinModal(){
+    const m=document.getElementById('join-modal');
+    if(m)m.style.display='none';
+}
+function submitJoinModal(){
+    const inp=document.getElementById('join-name-input');
+    const name=(inp?inp.value:'').trim();
+    if(!name){
+        const err=document.getElementById('join-error');
+        if(err){err.innerText='Please enter a display name';err.style.display='block';}
+        if(inp)inp.focus();
+        return;
+    }
+    saveUsername(name);
+    document.getElementById('username').value=name;
+    closeJoinModal();
+    connect();
+}
+
+// Reads #pass=... from the URL fragment, then wipes the fragment from the
+// address bar and browser history so the password never lingers.
+function consumeHashPassword(){
+    const raw=window.location.hash.slice(1);
+    if(!raw)return '';
+    const pass=new URLSearchParams(raw).get('pass')||'';
+    history.replaceState(null,'',window.location.pathname+window.location.search);
+    return pass;
+}
+
 window.addEventListener('resize',refitActive);
 window.addEventListener('DOMContentLoaded',async()=>{
     // URL params take priority (sharable link: ?server=...&session=...)
@@ -1064,8 +1121,11 @@ window.addEventListener('DOMContentLoaded',async()=>{
         if(savedServer)document.getElementById('server').value=savedServer;
     }
 
-    // Username
-    const savedUser=sessionStorage.getItem('rmte_username');
+    // Password from URL fragment (#pass=...). Read once, then removed from the URL.
+    const hashPass=consumeHashPassword();
+
+    // Username (global, persistent across sessions)
+    const savedUser=getSavedUsername();
     if(savedUser&&!document.getElementById('username').value){
         document.getElementById('username').value=savedUser;
     }
@@ -1078,6 +1138,17 @@ window.addEventListener('DOMContentLoaded',async()=>{
     } else {
         targetSession=(sessionStorage.getItem('rmte_active_session')||'').trim();
         if(targetSession)document.getElementById('sessionId').value=targetSession;
+    }
+
+    // A #pass= link overrides any stored password for this session.
+    let fromHashLink=false;
+    if(hashPass){
+        document.getElementById('password').value=hashPass;
+        if(targetSession){
+            const prev=getSessionCredentials(targetSession)||{};
+            saveSessionCredentials(null,targetSession,hashPass,null,prev.autoconnect===true&&prev.password===hashPass);
+            fromHashLink=true;
+        }
     }
 
     // Load credentials specifically for targetSession (no cross-session leaks)
@@ -1115,8 +1186,13 @@ window.addEventListener('DOMContentLoaded',async()=>{
         document.getElementById('password').focus();
     }
 
-    // Only autoconnect if this specific session has autoconnect flag set!
-    if(shouldAutoconnect&&document.getElementById('server').value&&document.getElementById('sessionId').value&&document.getElementById('password').value){
+    const ready=document.getElementById('server').value&&document.getElementById('sessionId').value&&document.getElementById('password').value;
+    if(ready&&fromHashLink){
+        // One-click link: join immediately if we know the user's name, otherwise ask once.
+        if(document.getElementById('username').value.trim())connect();
+        else showJoinModal();
+    } else if(ready&&shouldAutoconnect){
+        // Only autoconnect if this specific session has autoconnect flag set!
         connect();
     }
 
@@ -1133,6 +1209,8 @@ window.addEventListener('DOMContentLoaded',async()=>{
             }
         }
         if(e.key==='Escape'){
+            const jm=document.getElementById('join-modal');
+            if(jm&&jm.style.display!=='none')closeJoinModal();
             const cf=document.getElementById('confirm-modal');
             if(cf&&cf.style.display!=='none')closeConfirm(false);
             const hm=document.getElementById('help-modal');

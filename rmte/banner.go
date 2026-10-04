@@ -107,7 +107,12 @@ func printBanner(b BannerInfo) {
 		fmt.Fprintf(&sb, "  rmte share --server-relay=\"%s\" --pass=\"secret\"\n", b.RelayURL)
 	} else {
 		if !b.NoWeb {
-			fmt.Fprintf(&sb, "\nShareable link (Web Version):\n  %s\n", buildShareLink(b.RelayURL, b.WebPath, b.SessionID))
+			// Custom passwords are never echoed to the console; only generated ones are embedded.
+			linkPass := ""
+			if b.PassGenerated {
+				linkPass = b.Pass
+			}
+			fmt.Fprintf(&sb, "\nShareable link (Web Version):\n  %s\n", buildShareLink(b.RelayURL, b.WebPath, b.SessionID, linkPass))
 		}
 		if !b.NoCLI {
 			fmt.Fprintf(&sb, "\nJoin CLI / TUI Version:\n  rmte join --server-relay=\"%s\" --id=\"%s\" --pass=\"%s\"\n",
