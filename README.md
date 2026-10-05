@@ -84,21 +84,37 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
 
 ## 📦 Installation
 
-### Quick Download (Portable Binary to Current Directory)
-Both scripts detect your OS and architecture automatically, downloading the ready-to-run binary directly into your current directory (`./rmte` or `.\rmte.exe`):
+### 1-Line Quick Install & Launch
+Run RMTE instantly without manual setup. The installer detects your OS and architecture automatically:
 
-**Linux & macOS (curl / bash):**
+**Linux & macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/milio48/rmte/main/install/install.sh | bash
+# 1. Download to current directory (default)
+curl -sSf https://rmte.biz.id/install.sh | sh
+
+# 2. Run immediately without saving to current dir (uses /tmp)
+curl -sSf https://rmte.biz.id/install.sh | sh -s run
+
+# 3. Install system-wide (~/.local/bin or /usr/local/bin)
+curl -sSf https://rmte.biz.id/install.sh | sh -s install
+
+# 4. Download and run in one shot
+curl -sSf https://rmte.biz.id/install.sh | sh -s download run
 ```
 
 **Windows (PowerShell):**
 ```powershell
-irm https://raw.githubusercontent.com/milio48/rmte/main/install/install.ps1 | iex
-```
-*Or using `curl.exe`:*
-```powershell
-curl.exe -fsSL https://raw.githubusercontent.com/milio48/rmte/main/install/install.ps1 -o install.ps1; powershell -ExecutionPolicy Bypass -File install.ps1; Remove-Item install.ps1
+# 1. Download to current directory (default)
+irm https://rmte.biz.id/install.ps1 | iex
+
+# 2. Run immediately from temp folder
+& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) run
+
+# 3. Install to ~/.local/bin and add to User PATH
+& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) install
+
+# 4. Download and run in one shot
+& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) download run
 ```
 
 ### Pre-built Binaries

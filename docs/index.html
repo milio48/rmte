@@ -258,6 +258,37 @@
       border-bottom-color: var(--accent);
     }
 
+    .action-pills {
+      display: flex;
+      gap: 8px;
+      padding: 14px 20px 0;
+      flex-wrap: wrap;
+    }
+
+    .pill-btn {
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: #161b22;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .pill-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .pill-btn.active {
+      background: rgba(88, 166, 255, 0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
     .install-body {
       padding: 20px 24px;
       display: flex;
@@ -468,12 +499,18 @@
     <!-- Installation Box -->
     <div class="install-box" id="install">
       <div class="install-tabs">
-        <button class="tab-btn active" onclick="switchTab('linux')">Linux / macOS</button>
-        <button class="tab-btn" onclick="switchTab('windows')">Windows (PowerShell)</button>
+        <button class="tab-btn active" id="tab-linux" onclick="switchOs('linux')">Linux / macOS</button>
+        <button class="tab-btn" id="tab-windows" onclick="switchOs('windows')">Windows (PowerShell)</button>
+      </div>
+      <div class="action-pills">
+        <button class="pill-btn active" id="pill-download" onclick="switchAction('download')">Download to Directory</button>
+        <button class="pill-btn" id="pill-run" onclick="switchAction('run')">Run Directly (tmp)</button>
+        <button class="pill-btn" id="pill-install" onclick="switchAction('install')">Install to PATH</button>
+        <button class="pill-btn" id="pill-download-run" onclick="switchAction('download-run')">Download & Run</button>
       </div>
       <div class="install-body">
         <div class="code-content" id="command-text">
-          curl -fsSL https://raw.githubusercontent.com/milio48/rmte/main/install/install.sh | bash
+          curl -sSf https://rmte.biz.id/install.sh | sh
         </div>
         <button class="copy-btn" id="copy-btn" onclick="copyCommand()">Copy Command</button>
       </div>
@@ -578,20 +615,42 @@
 
   <script>
     const commands = {
-      linux: 'curl -fsSL https://raw.githubusercontent.com/milio48/rmte/main/install/install.sh | bash',
-      windows: 'irm https://raw.githubusercontent.com/milio48/rmte/main/install/install.ps1 | iex'
+      linux: {
+        'download': 'curl -sSf https://rmte.biz.id/install.sh | sh',
+        'run': 'curl -sSf https://rmte.biz.id/install.sh | sh -s run',
+        'install': 'curl -sSf https://rmte.biz.id/install.sh | sh -s install',
+        'download-run': 'curl -sSf https://rmte.biz.id/install.sh | sh -s download run'
+      },
+      windows: {
+        'download': 'irm https://rmte.biz.id/install.ps1 | iex',
+        'run': '& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) run',
+        'install': '& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) install',
+        'download-run': '& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) download run'
+      }
     };
-    let currentTab = 'linux';
+    let currentOs = 'linux';
+    let currentAction = 'download';
 
-    function switchTab(tab) {
-      currentTab = tab;
+    function updateCommand() {
+      document.getElementById('command-text').textContent = commands[currentOs][currentAction];
+    }
+
+    function switchOs(os) {
+      currentOs = os;
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-      event.target.classList.add('active');
-      document.getElementById('command-text').textContent = commands[tab];
+      document.getElementById('tab-' + os).classList.add('active');
+      updateCommand();
+    }
+
+    function switchAction(action) {
+      currentAction = action;
+      document.querySelectorAll('.pill-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('pill-' + action).classList.add('active');
+      updateCommand();
     }
 
     function copyCommand() {
-      const text = commands[currentTab];
+      const text = commands[currentOs][currentAction];
       navigator.clipboard.writeText(text).then(() => {
         const btn = document.getElementById('copy-btn');
         btn.textContent = 'Copied!';
