@@ -52,7 +52,9 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
 * **Share Session Dialog (`🔗`):** Convenient modal to copy browser links or CLI join commands with one click.
 * **Dynamic Max Buffer Limits:** Set customizable memory limits via CLI (e.g. `--buffer=5` for 5MB limits) to configure both the terminal ring buffer and the maximum allowed file sizes.
 * **Zero-copy Binary Data Channel (Tab ID `255`):** Avoids heavy Base64 parsing overhead. Files are sent as pure, encrypted binary frames over a reserved channel.
-* **Auto-Reconnect:** On unexpected disconnect, the web client retries with exponential backoff (2s → 4s → 8s → max 30s) with a live countdown in the status bar.
+* **Background / Quiet Mode (`-q` / `--quiet` & `rmte stop`):**
+  * Run `rmte serve` or `rmte share` as a detached background daemon. Prints the connection banner, shareable link, and PID to stdout, then immediately returns control to your shell.
+  * Stop background sessions cleanly anytime using `rmte stop <session_id | pid>`.
 * **State Persistence & Auto-Reconnect:** Connection credentials live safely in `sessionStorage` for immediate recovery upon page refresh.
 
 </details>
@@ -273,6 +275,7 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 | `--no-web` | `false` | Don't serve the Web UI |
 | `--no-cli` | `false` | Reject CLI clients (soft restriction: clients self-declare) |
 | `--web-preview` | `false` | Enable Embedded Web Browser Preview reverse proxy (`--preview` alias) |
+| `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 
 ### `rmte share`
 | Flag | Default | Description |
@@ -283,6 +286,7 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 | `--dir` | `""` | Initial working directory for File Explorer and terminal |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
 | `--web-preview` | `false` | Enable Embedded Web Browser Preview reverse proxy (`--preview` alias) |
+| `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 
 ### `rmte join`
 | Flag | Default | Description |
@@ -291,6 +295,16 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 | `--id` | *required* | Session ID |
 | `--pass` | *required* | E2EE password |
 | `--name` | *prompt* | Display name |
+
+### `rmte stop`
+Stop a background session running in quiet mode (`-q`):
+```bash
+# Stop using Session ID:
+rmte stop <session_id>
+
+# Or stop using PID:
+rmte stop <pid>
+```
 
 ---
 

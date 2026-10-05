@@ -57,12 +57,16 @@ type ServeConfig struct {
 	NoWeb         bool
 	NoCLI         bool
 	Preview       bool   // enable Embedded Web Browser Preview reverse proxy
+	Quiet         bool   // run in background (daemon) and print startup banner + PID
 	Dir           string // initial working directory for host
 	ID            string // custom session ID for host (optional)
 	InternalToken string // used by the embedded host in standalone mode
 }
 
+var origArgs []string
+
 func main() {
+	origArgs = append([]string(nil), os.Args...)
 	if len(os.Args) < 2 {
 		printUsage()
 		return
@@ -78,6 +82,8 @@ func main() {
 		cmdShare()
 	case "join":
 		cmdJoin()
+	case "stop":
+		cmdStop()
 	case "help", "-h", "--help":
 		printUsage()
 	case "version", "-v", "--version":
@@ -105,7 +111,13 @@ func cmdServe() {
 	flag.BoolVar(&cfg.NoCLI, "no-cli", false, "Reject CLI clients (soft restriction)")
 	flag.BoolVar(&cfg.Preview, "web-preview", false, "Enable Embedded Web Browser Preview reverse proxy")
 	flag.BoolVar(&cfg.Preview, "preview", false, "Alias for --web-preview")
+	flag.BoolVar(&cfg.Quiet, "quiet", false, "Run in background (detached) and print connection info with PID")
+	flag.BoolVar(&cfg.Quiet, "q", false, "Alias for --quiet")
 	flag.Parse()
+
+	if cfg.Quiet && !isDaemonChild() {
+		runAsDaemon()
+	}
 
 	passSet, bufferSet := false, false
 	flag.Visit(func(f *flag.Flag) {
@@ -179,6 +191,7 @@ func cmdServe() {
 
 	if cfg.Mode == modeRelay {
 		printBanner(bannerFromServe(&cfg, ""))
+		markDaemonReady("")
 		runServer(&cfg)
 		return
 	}
@@ -193,7 +206,14 @@ func cmdShare() {
 	dir := flag.String("dir", "", "Initial working directory for File Explorer and terminal")
 	webPreview := flag.Bool("web-preview", false, "Enable Embedded Web Browser Preview reverse proxy")
 	preview := flag.Bool("preview", false, "Alias for --web-preview")
+	quiet := flag.Bool("quiet", false, "Run in background (detached) and print connection info with PID")
+	q := flag.Bool("q", false, "Alias for --quiet")
 	flag.Parse()
+
+	if (*quiet || *q) && !isDaemonChild() {
+		runAsDaemon()
+	}
+
 	if *bufferMB < 1 {
 		fatalf("Error: --buffer must be >= 1")
 	}
@@ -329,10 +349,11 @@ Terminology:
 Usage:
   rmte serve [--mode=standalone|hybrid|relay] [--port=%d] [--pass="secret"] [--id="mysession"]
              [--buffer=1] [--dir="path"] [--web-path="/"] [--ws-path="%s"] [--hostname="example.com"]
-             [--public] [--no-web | --no-cli] [--web-preview]
+             [--public] [--no-web | --no-cli] [--web-preview] [-q | --quiet]
   rmte share --server-relay="ws://relay:%d%s" [--pass="secret"] [--id="mysession"] [--buffer=1] [--dir="path"]
-             [--web-preview]
+             [--web-preview] [-q | --quiet]
   rmte join  --server-relay="ws://relay:%d%s" --id="..." --pass="secret" [--name="name"]
+  rmte stop  <session_id | pid>
   rmte help | version
 
 Serve modes:

@@ -294,6 +294,9 @@ func runHost(opts HostOptions) {
 	initEventLog(authResp.SessionID)
 	logEvent(conn, "HOST_START", "host", fmt.Sprintf("Host session %s active in %s", authResp.SessionID, hostWorkDir))
 
+	// Signal parent if running in background daemon mode
+	markDaemonReady(authResp.SessionID)
+
 	// Create initial tab (ID 0)
 	createTab(0, conn)
 
@@ -301,6 +304,7 @@ func runHost(opts HostOptions) {
 	for {
 		mt, data, err := conn.ReadMessage()
 		if err != nil {
+			log.Printf("[Host] conn.ReadMessage error: %v", err)
 			break
 		}
 
