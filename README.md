@@ -1,10 +1,10 @@
-# RMTE — Remote Terminal Relay & Cloud IDE (v0.4.1)
+# RMTE — Remote Terminal Relay & Cloud IDE (v0.5.0)
 
 > "I love sshx, but my endless curiosity to build it from scratch got the best of me 🥲"
 
 RMTE is a secure, real-time, multi-user remote terminal sharing system and lightweight Cloud IDE. It is built entirely in Go with a centralized WebSocket relay architecture, securing all traffic with **AES-GCM 256-bit End-to-End Encryption (E2EE)**.
 
-It allows hosts to share terminal sessions, navigate directories using a clean absolute-path File Explorer, and edit files in real-time via a multi-tab Web UI or an interactive TUI-based CLI client—all packed into a single binary.
+It allows hosts to share terminal sessions, navigate directories using a clean absolute-path File Explorer, edit files in real-time via a multi-tab Web UI, and inspect local web servers via an embedded Mini Browser—all packed into a single binary.
 
 ---
 
@@ -21,15 +21,23 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
 <details>
 <summary><h3>✨ Key Features (click to expand)</h3></summary>
 
+* **Embedded Web Browser Preview (`🌐`):**
+  * Built-in mini-browser directly inside the Web IDE tab bar, allowing developers to test local web apps (Vite, Next.js, React, Bun, Python, Dufs, Go, etc.) without leaving RMTE.
+  * **Relay-Assisted Reverse Proxy**: Proxies any local port via path `/p/<session>/<port>/` over the single relay port with **zero external DNS dependency** (runs on plain raw IP).
+  * **Anti-Lag Transport**: Uses an isolated secondary WebSocket (`{$ws-path}-proxy`) multiplexed with `smux v2` so high-bandwidth downloads never lag the PTY terminal.
+  * **Full HMR & WebSocket Hijacking**: Automatically hijacks WebSocket upgrade requests for live Hot Module Reloading.
+  * **Interactive Toolbar & Responsive 390px Mobile View**: Smart address bar, navigation controls (`[◀] [▶] [⟳]`), and mobile device inspection frame.
+* **Windows Native ConPTY:**
+  * Full pseudo-terminal support on Windows 10/11 using ConPTY: command history recall with arrow keys (`↑` / `↓`), horizontal cursor navigation (`←` / `→`), tab completion, and native ANSI color rendering.
 * **Absolute Privacy (AES-GCM 256-bit):** Encryption keys and terminal/file I/O payloads are processed locally. The central relay server acts as a "dumb pipe" that only routes encrypted binary frames. It never sees your plaintext data, your files, or your password.
 * **Single-Command Setup:** Run `rmte serve` to start a relay and host session in one process. A random password and a shareable link are printed automatically.
 * **HTTP Compatible:** Works on plain HTTP (no HTTPS required). A built-in crypto polyfill (asmcrypto.js) handles AES-GCM when `crypto.subtle` is unavailable.
 * **Shareable Links & Auto-fill UI:** Running a host session generates a web URL with pre-filled `?server=` and `?session=` parameters. The Web UI parses these and auto-focuses the password input for seamless onboarding.
 * **Modern Web Redesign:** A sleek, split-viewport interface using OKLCH atmospheric themes, Space Grotesk/Inter/JetBrains Mono typography, and portable CSS design tokens (`tokens.css`).
 * **Split-Workspace Cloud IDE:** Toggle the folder icon `📁` in the browser tab bar to open a split-view workspace:
-  * **Left Panel**: Advanced File Explorer.
+  * **Left Panel**: Advanced File Explorer with resizable drag handle (persisted across reloads).
   * **Right Panel**: Tabbed text editor powered by **CodeMirror** (syntax highlighting, line numbers, unsaved indicators `●`, direct `Ctrl + S` saving).
-  * **Bottom Panel**: Interactive, multi-tab terminal shells.
+  * **Bottom Panel**: Interactive, multi-tab terminal shells (`+ Terminal`).
 * **Modern File Explorer & Manager:**
   * **Absolute PWD & Segment Breadcrumbs**: Displays the full host working directory with clickable path segments and a quick edit button (`✏️` or double-click) to type any path directly.
   * **Drag & Drop Upload & One-Click Download**: Drag files from your computer into the Explorer to upload; click the `⬇` icon to download host files locally.
@@ -264,6 +272,7 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 | `--public` | `false` | Bind `0.0.0.0` instead of `127.0.0.1` |
 | `--no-web` | `false` | Don't serve the Web UI |
 | `--no-cli` | `false` | Reject CLI clients (soft restriction: clients self-declare) |
+| `--web-preview` | `false` | Enable Embedded Web Browser Preview reverse proxy (`--preview` alias) |
 
 ### `rmte share`
 | Flag | Default | Description |
@@ -273,6 +282,7 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 | `--id` | *random* | Custom persistent Session ID (`a-z`, `0-9`, max 10 chars) |
 | `--dir` | `""` | Initial working directory for File Explorer and terminal |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
+| `--web-preview` | `false` | Enable Embedded Web Browser Preview reverse proxy (`--preview` alias) |
 
 ### `rmte join`
 | Flag | Default | Description |

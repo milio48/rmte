@@ -1,8 +1,9 @@
-// RMTE v0.4 — Web Viewer with Editor Tabs + File Manager
-let ws, aesKey, currentTab = 'term-0', myUsername = '';
+// RMTE v0.5 — Web Viewer with Editor Tabs + File Manager + Web Preview
+let ws, aesKey, rawAesKeyBytes = null, currentTab = 'term-0', myUsername = '';
 const myViewerId = 'v-web-' + Math.random().toString(16).slice(2,10);
 let terminals = {}, editorTabs = {};
 let fileManagerOpen = false, currentFilePath = './';
+let webPreviewOpen = false, previewPort = 8080, previewPath = '', previewMobileMode = false;
 
 // Auto-reconnect state
 let isConnected = false, manualDisconnect = false;
@@ -117,13 +118,14 @@ async function connect() {
     try {
         const enc=new TextEncoder();
         const keyHash=await rmteCrypto.sha256(enc.encode(password));
+        rawAesKeyBytes=keyHash;
         aesKey=await rmteCrypto.importKey(keyHash);
         const authHash=await rmteCrypto.sha256(enc.encode('rmte-auth:'+password));
         const authToken=Array.from(authHash).map(b=>b.toString(16).padStart(2,'0')).join('');
         ws=new WebSocket(server); ws.binaryType='arraybuffer';
         ws.onopen=()=>{
             _log.info('WS connected');
-            sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.4',client:'web'}));
+            sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.5',client:'web'}));
             startPing();
         };
         ws.onclose=e=>{
@@ -329,6 +331,9 @@ async function onBinary(raw) {
 // Tab IDs: "term-N" for terminals, "file:path" for editors
 function activeTabId(){return currentTab;}
 function switchToTab(id){
+    if(webPreviewOpen){
+        toggleWebPreview(false);
+    }
     currentTab=id;
     document.querySelectorAll('.tab-btn-container').forEach(b=>b.classList.remove('active'));
     const el=document.getElementById('tab-'+CSS.escape(id));
@@ -366,6 +371,21 @@ function initTerminal(tabId){
     cont.style.cssText='height:100%;width:100%;display:'+(currentTab===id?'block':'none');
     document.getElementById('terminal-wrapper').appendChild(cont);
     const t=new Terminal({cursorBlink:true,convertEol:true,theme:{background:'#0d1117',foreground:'#e6edf3',cursor:'#58a6ff'},fontFamily:"'Consolas','Courier New',monospace",fontSize:14});
+    t.attachCustomKeyEventHandler(e => {
+        if (e.type === 'keydown' && (e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+            if (t.hasSelection()) {
+                const sel = t.getSelection();
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(sel).catch(()=>{});
+                }
+                return false;
+            } else {
+                sendBin(tabId, new Uint8Array([3]));
+                return false;
+            }
+        }
+        return true;
+    });
     const fa=new FitAddon.FitAddon();t.loadAddon(fa);
     terminals[tabId]={term:t,fitAddon:fa};
     t.open(cont);fa.fit();
@@ -556,12 +576,15 @@ function setEditorStatus(path,text){
 async function sendPendingFile(){if(!pendingFileBytes){_log.err('No pending data');if(uploadActive)finishUpload();else fileOpDone();return;}const d=pendingFileBytes;pendingFileBytes=null;await sendDataChannel(d);}
 
 // ===== FILE MANAGER =====
-function toggleFileManager(){
-    fileManagerOpen=!fileManagerOpen;
+function toggleFileManager(force){
+    fileManagerOpen=typeof force==='boolean'?force:!fileManagerOpen;
     document.getElementById('file-explorer').style.display=fileManagerOpen?'flex':'none';
-    document.getElementById('toggle-files-btn').classList.toggle('active',fileManagerOpen);
+    const resizer=document.getElementById('fe-resizer');
+    if(resizer)resizer.style.display=fileManagerOpen?'block':'none';
+    const b=document.getElementById('toggle-files-btn');
+    if(b)b.classList.toggle('active',fileManagerOpen);
     if(fileManagerOpen)requestDir(currentFilePath);
-    setTimeout(refitActive,200);
+    setTimeout(refitActive,100);
 }
 function requestDir(p){currentFilePath=p;sendJson({type:'control',action:'req_dir',path:p});}
 
@@ -1223,4 +1246,202 @@ window.addEventListener('DOMContentLoaded',async()=>{
             if(sm&&sm.style.display!=='none')toggleShareModal(false);
         }
     });
+
+    initFileExplorerResizer();
 });
+
+function initFileExplorerResizer() {
+    const resizer = document.getElementById('fe-resizer');
+    const fe = document.getElementById('file-explorer');
+    if (!resizer || !fe) return;
+
+    try {
+        const saved = localStorage.getItem('rmte_fe_width');
+        if (saved) {
+            const w = parseInt(saved, 10);
+            if (w >= 180 && w <= window.innerWidth * 0.6) {
+                fe.style.width = w + 'px';
+            }
+        }
+    } catch(e) {}
+
+    let isDragging = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    resizer.addEventListener('mousedown', e => {
+        isDragging = true;
+        startX = e.clientX;
+        startWidth = fe.getBoundingClientRect().width;
+        resizer.classList.add('is-dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        let newWidth = startWidth + dx;
+        const minW = 180;
+        const maxW = Math.max(minW, Math.floor(window.innerWidth * 0.6));
+        if (newWidth < minW) newWidth = minW;
+        if (newWidth > maxW) newWidth = maxW;
+        fe.style.width = newWidth + 'px';
+        refitActive();
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            resizer.classList.remove('is-dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            try {
+                localStorage.setItem('rmte_fe_width', parseInt(fe.style.width, 10));
+            } catch(e) {}
+            refitActive();
+        }
+    });
+}
+
+// ═══════════════════════════════════════
+// MINI BROWSER PREVIEW CONTROLLER
+// ═══════════════════════════════════════
+
+function toggleWebPreview(force) {
+    if (typeof force === 'boolean') {
+        webPreviewOpen = force;
+    } else {
+        webPreviewOpen = !webPreviewOpen;
+    }
+    const panel = document.getElementById('preview-panel');
+    const termWrap = document.getElementById('terminal-wrapper');
+    const btn = document.getElementById('toggle-preview-btn');
+    if (panel) panel.style.display = webPreviewOpen ? 'flex' : 'none';
+    if (termWrap) termWrap.style.display = webPreviewOpen ? 'none' : 'block';
+    if (btn) btn.classList.toggle('active', webPreviewOpen);
+
+    if (webPreviewOpen) {
+        document.querySelectorAll('.tab-btn-container').forEach(b => b.classList.remove('active'));
+        const portInput = document.getElementById('preview-port-input');
+        if (portInput && !portInput.value) {
+            portInput.value = previewPort || 8080;
+        }
+        const frame = document.getElementById('preview-frame');
+        if (frame && (!frame.src || frame.src === 'about:blank')) {
+            previewNavigate();
+        }
+    } else {
+        switchToTab(currentTab || 'term-0');
+    }
+}
+
+async function getPreviewTicket(sessionId, port) {
+    if (!rawAesKeyBytes) return '';
+    const expiresAt = Math.floor(Date.now() / 1000) + 60;
+    const nonce = Math.random().toString(36).slice(2, 10);
+    const enc = new TextEncoder();
+    const subKey = await rmteCrypto.hmacSha256(rawAesKeyBytes, enc.encode("rmte-preview-subauth"));
+    const msg = `${sessionId}:${port}:${expiresAt}:${nonce}`;
+    const sig = await rmteCrypto.hmacSha256(subKey, enc.encode(msg));
+    const sigHex = Array.from(sig).map(b => b.toString(16).padStart(2, '0')).join('');
+    return `${expiresAt}:${nonce}:${sigHex}`;
+}
+
+async function previewNavigate() {
+    const portInput = document.getElementById('preview-port-input');
+    const pathInput = document.getElementById('preview-path-input');
+    const frame = document.getElementById('preview-frame');
+    if (!portInput || !frame) return;
+
+    let port = parseInt(portInput.value) || 8080;
+    if (port < 1) port = 1;
+    if (port > 65535) port = 65535;
+    portInput.value = port;
+    previewPort = port;
+
+    let subPath = (pathInput ? pathInput.value.trim() : '');
+    if (subPath && !subPath.startsWith('/')) {
+        subPath = '/' + subPath;
+    }
+    previewPath = subPath;
+
+    const sid = document.getElementById('sessionId').value || sessionStorage.getItem('rmte_active_session') || '';
+    if (!sid) {
+        showToast('No active session for preview');
+        return;
+    }
+
+    try {
+        const ticket = await getPreviewTicket(sid, port);
+        let targetUrl = `/p/${encodeURIComponent(sid)}/${port}${subPath ? subPath : '/'}`;
+        if (ticket) {
+            targetUrl += (targetUrl.includes('?') ? '&' : '?') + 'ticket=' + encodeURIComponent(ticket);
+        }
+        frame.src = targetUrl;
+        _log.info('Preview navigate', { port, subPath, targetUrl });
+    } catch (err) {
+        _log.err('Failed to generate preview ticket', err);
+        showToast('Failed to authorize preview: ' + err.message);
+    }
+}
+
+function previewGoBack() {
+    const frame = document.getElementById('preview-frame');
+    try {
+        if (frame && frame.contentWindow) frame.contentWindow.history.back();
+    } catch(e) {}
+}
+
+function previewGoForward() {
+    const frame = document.getElementById('preview-frame');
+    try {
+        if (frame && frame.contentWindow) frame.contentWindow.history.forward();
+    } catch(e) {}
+}
+
+function previewReload() {
+    const frame = document.getElementById('preview-frame');
+    try {
+        if (frame && frame.contentWindow) frame.contentWindow.location.reload();
+        else previewNavigate();
+    } catch(e) {
+        previewNavigate();
+    }
+}
+
+async function previewOpenInNewTab() {
+    const port = parseInt(document.getElementById('preview-port-input')?.value) || 8080;
+    const subPath = document.getElementById('preview-path-input')?.value.trim() || '';
+    const sid = document.getElementById('sessionId').value || sessionStorage.getItem('rmte_active_session') || '';
+    if (!sid) return;
+
+    const ticket = await getPreviewTicket(sid, port);
+    let targetUrl = `/p/${encodeURIComponent(sid)}/${port}${subPath ? (subPath.startsWith('/') ? subPath : '/' + subPath) : '/'}`;
+    if (ticket) {
+        targetUrl += (targetUrl.includes('?') ? '&' : '?') + 'ticket=' + encodeURIComponent(ticket);
+    }
+    window.open(targetUrl, '_blank');
+}
+
+function togglePreviewMobile() {
+    previewMobileMode = !previewMobileMode;
+    const wrap = document.getElementById('preview-viewport-wrap');
+    const btn = document.getElementById('preview-mobile-btn');
+    if (wrap) wrap.classList.toggle('mobile-view', previewMobileMode);
+    if (btn) btn.classList.toggle('active', previewMobileMode);
+}
+
+function handlePreviewPortKey(e) {
+    if (e.key === 'Enter') {
+        previewNavigate();
+    }
+}
+
+function handlePreviewPathKey(e) {
+    if (e.key === 'Enter') {
+        previewNavigate();
+    }
+}
+

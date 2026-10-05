@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/xtaci/smux/v2"
 )
 
 var upgrader = websocket.Upgrader{
@@ -25,6 +26,12 @@ type Session struct {
 	ChatHistory []map[string]interface{}
 	AuthToken   string // S4: password-derived token for access control
 	Mutex       sync.RWMutex
+
+	// Preview Proxy fields
+	PreviewEnabled bool
+	ProxySecret    string
+	SmuxSession    *smux.Session
+	SmuxMu         sync.RWMutex
 }
 
 const maxViewersPerSession = 50
@@ -41,6 +48,8 @@ func runServer(cfg *ServeConfig) {
 	serverCfg = cfg
 	mux := http.NewServeMux()
 	mux.HandleFunc(cfg.WSPath, handleWS)
+	mux.HandleFunc(cfg.WSPath+"-proxy", handleWSProxy)
+	mux.HandleFunc("/p/", handlePreviewHTTP)
 	if !cfg.NoWeb {
 		setupWebHandler(mux, cfg.WebPath, cfg.WSPath)
 	}
@@ -82,6 +91,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		ProtocolVersion string `json:"protocol_version"`
 		InternalToken   string `json:"internal_token"`
 		Client          string `json:"client"` // "web" | "cli" (self-declared)
+		Preview         bool   `json:"preview"`
 	}
 
 	if err := json.Unmarshal(msg, &auth); err != nil || auth.Type != "auth" {
@@ -128,12 +138,19 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		var proxySecret string
+		if auth.Preview {
+			proxySecret = generatePassword(32)
+		}
+
 		s := &Session{
-			ID:          sessionID,
-			Host:        conn,
-			Viewers:     make(map[string]map[string]*SafeConn),
-			ChatHistory: make([]map[string]interface{}, 0),
-			AuthToken:   auth.AuthToken,
+			ID:             sessionID,
+			Host:           conn,
+			Viewers:        make(map[string]map[string]*SafeConn),
+			ChatHistory:    make([]map[string]interface{}, 0),
+			AuthToken:      auth.AuthToken,
+			PreviewEnabled: auth.Preview,
+			ProxySecret:    proxySecret,
 		}
 		sessions[sessionID] = s
 		sessionMu.Unlock()
@@ -149,12 +166,27 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			resp["no_web"] = serverCfg.NoWeb
 			resp["no_cli"] = serverCfg.NoCLI
 		}
+		if auth.Preview {
+			resp["preview_enabled"] = true
+			resp["proxy_secret"] = proxySecret
+			if serverCfg != nil {
+				resp["ws_proxy_path"] = serverCfg.WSPath + "-proxy"
+			}
+			resp["capabilities"] = []string{"preview_v1"}
+		}
 		conn.WriteJSON(resp)
 
 		fmt.Printf("Host connected. Session: %s (Protocol: %s)\n", sessionID, auth.ProtocolVersion)
 
 		defer func() {
 			sessionMu.Lock()
+			if sess, ok := sessions[sessionID]; ok {
+				sess.SmuxMu.Lock()
+				if sess.SmuxSession != nil {
+					sess.SmuxSession.Close()
+				}
+				sess.SmuxMu.Unlock()
+			}
 			delete(sessions, sessionID)
 			sessionMu.Unlock()
 			fmt.Printf("Host disconnected. Session %s closed.\n", sessionID)

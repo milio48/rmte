@@ -10,10 +10,15 @@ import (
 	"io"
 )
 
-var aesGCM cipher.AEAD
+var (
+	aesGCM           cipher.AEAD
+	rawEncryptionKey []byte
+)
 
 func setupCrypto(password string) error {
 	key := sha256.Sum256([]byte(password))
+	rawEncryptionKey = make([]byte, len(key))
+	copy(rawEncryptionKey, key[:])
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return err

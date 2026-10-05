@@ -20,6 +20,7 @@ type BannerInfo struct {
 	Buffer        int
 	NoWeb         bool
 	NoCLI         bool
+	Preview       bool
 	Dir           string
 }
 
@@ -42,6 +43,7 @@ func bannerFromServe(cfg *ServeConfig, sessionID string) BannerInfo {
 		Buffer:        cfg.Buffer,
 		NoWeb:         cfg.NoWeb,
 		NoCLI:         cfg.NoCLI,
+		Preview:       cfg.Preview,
 		Dir:           cfg.Dir,
 	}
 }
@@ -95,6 +97,10 @@ func printBanner(b BannerInfo) {
 		if b.NoCLI {
 			line("CLI Clients", "❌ disabled (--no-cli)")
 		}
+	}
+
+	if b.Preview {
+		line("Web Preview", "✅ Enabled (Proxied reverse-proxy)")
 	}
 
 	passDisplay := b.Pass

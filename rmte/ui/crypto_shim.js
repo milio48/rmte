@@ -20,6 +20,11 @@ const rmteCrypto = (function() {
             const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, ciphertext);
             return new Uint8Array(pt);
         },
+        async hmacSha256(keyBytes, dataBytes) {
+            const hmacKey = await crypto.subtle.importKey('raw', keyBytes, {name: 'HMAC', hash: 'SHA-256'}, false, ['sign']);
+            const sig = await crypto.subtle.sign('HMAC', hmacKey, dataBytes);
+            return new Uint8Array(sig);
+        },
         randomBytes(n) {
             return crypto.getRandomValues(new Uint8Array(n));
         }
@@ -44,6 +49,29 @@ const rmteCrypto = (function() {
         async decrypt(iv, key, ciphertext) {
             // asmCrypto.AES_GCM.decrypt(data, key, nonce, adata, tagSize)
             return new Uint8Array(asmCrypto.AES_GCM.decrypt(ciphertext, key, iv, undefined, 16));
+        },
+        async hmacSha256(keyBytes, dataBytes) {
+            let key = keyBytes;
+            if (key.length > 64) {
+                key = await fallback.sha256(key);
+            }
+            const paddedKey = new Uint8Array(64);
+            paddedKey.set(key);
+            const ipad = new Uint8Array(64);
+            const opad = new Uint8Array(64);
+            for (let i = 0; i < 64; i++) {
+                ipad[i] = paddedKey[i] ^ 0x36;
+                opad[i] = paddedKey[i] ^ 0x5c;
+            }
+            const inner = new Uint8Array(64 + dataBytes.length);
+            inner.set(ipad);
+            inner.set(dataBytes, 64);
+            const innerHash = await fallback.sha256(inner);
+
+            const outer = new Uint8Array(64 + innerHash.length);
+            outer.set(opad);
+            outer.set(innerHash, 64);
+            return await fallback.sha256(outer);
         },
         randomBytes(n) {
             // crypto.getRandomValues works even in insecure contexts
@@ -71,6 +99,7 @@ const rmteCrypto = (function() {
         importKey: impl.importKey,
         encrypt: impl.encrypt,
         decrypt: impl.decrypt,
+        hmacSha256: impl.hmacSha256,
         randomBytes: impl.randomBytes,
     };
 })();

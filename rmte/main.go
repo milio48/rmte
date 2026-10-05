@@ -29,7 +29,7 @@ func init() {
 }
 
 const (
-	protocolVersion = "0.4"
+	protocolVersion = "0.5"
 
 	defaultPort   = 8048
 	defaultWSPath = "/ws-rmte"
@@ -56,6 +56,7 @@ type ServeConfig struct {
 	Public        bool
 	NoWeb         bool
 	NoCLI         bool
+	Preview       bool   // enable Embedded Web Browser Preview reverse proxy
 	Dir           string // initial working directory for host
 	ID            string // custom session ID for host (optional)
 	InternalToken string // used by the embedded host in standalone mode
@@ -102,6 +103,8 @@ func cmdServe() {
 	flag.BoolVar(&cfg.Public, "public", false, "Bind to 0.0.0.0 (default 127.0.0.1)")
 	flag.BoolVar(&cfg.NoWeb, "no-web", false, "Do not serve the Web UI")
 	flag.BoolVar(&cfg.NoCLI, "no-cli", false, "Reject CLI clients (soft restriction)")
+	flag.BoolVar(&cfg.Preview, "web-preview", false, "Enable Embedded Web Browser Preview reverse proxy")
+	flag.BoolVar(&cfg.Preview, "preview", false, "Alias for --web-preview")
 	flag.Parse()
 
 	passSet, bufferSet := false, false
@@ -188,6 +191,8 @@ func cmdShare() {
 	id := flag.String("id", "", "Custom Session ID (lowercase a-z, 0-9, max 10 chars; random if empty)")
 	bufferMB := flag.Int("buffer", 1, "Max buffer size in MB (terminal ring buffer and file manager)")
 	dir := flag.String("dir", "", "Initial working directory for File Explorer and terminal")
+	webPreview := flag.Bool("web-preview", false, "Enable Embedded Web Browser Preview reverse proxy")
+	preview := flag.Bool("preview", false, "Alias for --web-preview")
 	flag.Parse()
 	if *bufferMB < 1 {
 		fatalf("Error: --buffer must be >= 1")
@@ -222,6 +227,7 @@ func cmdShare() {
 		Mode:      "share",
 		Dir:       cleanDir,
 		ID:        cleanID,
+		Preview:   *webPreview || *preview,
 	}
 	if opts.Pass == "" {
 		opts.Pass = generatePassword(12)
@@ -268,6 +274,7 @@ func runServeAndShare(cfg *ServeConfig) {
 		Mode:          cfg.Mode,
 		Dir:           cfg.Dir,
 		ID:            cfg.ID,
+		Preview:       cfg.Preview,
 		Serve:         cfg,
 	})
 }
@@ -322,8 +329,9 @@ Terminology:
 Usage:
   rmte serve [--mode=standalone|hybrid|relay] [--port=%d] [--pass="secret"] [--id="mysession"]
              [--buffer=1] [--dir="path"] [--web-path="/"] [--ws-path="%s"] [--hostname="example.com"]
-             [--public] [--no-web | --no-cli]
+             [--public] [--no-web | --no-cli] [--web-preview]
   rmte share --server-relay="ws://relay:%d%s" [--pass="secret"] [--id="mysession"] [--buffer=1] [--dir="path"]
+             [--web-preview]
   rmte join  --server-relay="ws://relay:%d%s" --id="..." --pass="secret" [--name="name"]
   rmte help | version
 

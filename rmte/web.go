@@ -23,8 +23,9 @@ func setupWebHandler(mux *http.ServeMux, webPath, wsPath string) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		json.NewEncoder(w).Encode(map[string]string{
-			"ws_path": wsPath,
-			"version": appVersion,
+			"ws_path":       wsPath,
+			"ws_proxy_path": wsPath + "-proxy",
+			"version":       appVersion,
 		})
 	})
 

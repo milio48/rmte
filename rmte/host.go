@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
 )
 
@@ -53,6 +52,30 @@ type TabSession struct {
 
 	// LineBuffer for Windows Pipe mode to emulate PTY backspace
 	LineBuffer []byte
+	Resizer    func(cols, rows int) error
+	CloseFn    func() error
+	closeOnce  sync.Once
+}
+
+func (t *TabSession) Close() {
+	if t == nil {
+		return
+	}
+	t.closeOnce.Do(func() {
+		if t.CloseFn != nil {
+			t.CloseFn()
+		} else {
+			if t.Cmd != nil && t.Cmd.Process != nil {
+				t.Cmd.Process.Kill()
+			}
+			if t.ReadCloser != nil {
+				t.ReadCloser.Close()
+			}
+			if t.WriteCloser != nil && any(t.WriteCloser) != any(t.ReadCloser) {
+				t.WriteCloser.Close()
+			}
+		}
+	})
 }
 
 type ViewersPresence struct {
@@ -107,6 +130,7 @@ type HostOptions struct {
 	Mode          string       // standalone | hybrid | share
 	Dir           string       // initial working directory
 	ID            string       // custom session ID (optional)
+	Preview       bool         // enable Embedded Web Browser Preview reverse proxy
 	Serve         *ServeConfig // non-nil when embedded in `serve`
 }
 
@@ -196,11 +220,12 @@ func runHost(opts HostOptions) {
 	}
 
 	// Auth as host
-	auth := map[string]string{
+	auth := map[string]interface{}{
 		"type":             "auth",
 		"role":             "host",
 		"auth_token":       generateAuthToken(opts.Pass),
 		"protocol_version": protocolVersion,
+		"preview":          opts.Preview,
 	}
 	if opts.InternalToken != "" {
 		auth["internal_token"] = opts.InternalToken
@@ -212,12 +237,15 @@ func runHost(opts HostOptions) {
 
 	// Wait for session ID
 	var authResp struct {
-		Type      string `json:"type"`
-		SessionID string `json:"session_id"`
-		Message   string `json:"message"`
-		WebPath   string `json:"web_path"`
-		NoWeb     bool   `json:"no_web"`
-		NoCLI     bool   `json:"no_cli"`
+		Type           string `json:"type"`
+		SessionID      string `json:"session_id"`
+		Message        string `json:"message"`
+		WebPath        string `json:"web_path"`
+		NoWeb          bool   `json:"no_web"`
+		NoCLI          bool   `json:"no_cli"`
+		PreviewEnabled bool   `json:"preview_enabled"`
+		ProxySecret    string `json:"proxy_secret"`
+		WSProxyPath    string `json:"ws_proxy_path"`
 	}
 	if err := conn.ReadJSON(&authResp); err != nil {
 		log.Fatal("Auth failed: ", err)
@@ -247,10 +275,20 @@ func runHost(opts HostOptions) {
 			Buffer:        opts.Buffer,
 			NoWeb:         authResp.NoWeb,
 			NoCLI:         authResp.NoCLI,
+			Preview:       opts.Preview,
 			Dir:           opts.Dir,
 		}
 	}
 	printBanner(info)
+
+	// Launch secondary WebSocket proxy connection for preview if enabled
+	if opts.Preview && authResp.PreviewEnabled && authResp.ProxySecret != "" {
+		proxyPath := authResp.WSProxyPath
+		if proxyPath == "" {
+			proxyPath = "/ws-rmte-proxy"
+		}
+		go runHostProxy(opts, authResp.SessionID, authResp.ProxySecret, proxyPath)
+	}
 
 	// Initialize Event Log file on Host
 	initEventLog(authResp.SessionID)
@@ -308,6 +346,17 @@ func runHost(opts HostOptions) {
 							tab.Mutex.Unlock()
 
 							tab.WriteCloser.Write(sendData)
+						} else if b == '\x03' {
+							// Ctrl+C (ETX): clear line buffer, echo ^C, and terminate child process
+							tab.Mutex.Lock()
+							tab.LineBuffer = nil
+							tab.Mutex.Unlock()
+
+							payload, _ := encryptBinary(tabID, []byte("^C\r\n"))
+							conn.WriteMessage(websocket.BinaryMessage, payload)
+
+							tab.WriteCloser.Write([]byte{3})
+							go interruptTabProcess(tab)
 						} else if b == '\x7f' || b == '\x08' {
 							// Backspace: remove last character and erase visually
 							tab.Mutex.Lock()
@@ -373,10 +422,8 @@ func runHost(opts HostOptions) {
 					tabsMu.RLock()
 					tab, ok := tabs[tabID]
 					tabsMu.RUnlock()
-					if ok {
-						if f, isFile := tab.ReadCloser.(*os.File); isFile {
-							pty.Setsize(f, &pty.Winsize{Cols: uint16(colsFloat), Rows: uint16(rowsFloat)})
-						}
+					if ok && tab.Resizer != nil {
+						tab.Resizer(int(colsFloat), int(rowsFloat))
 					}
 				case "req_sync":
 					tabIDFloat, _ := ctrl["tab_id"].(float64)
@@ -408,15 +455,7 @@ func runHost(opts HostOptions) {
 					tabsMu.Lock()
 					tab, ok := tabs[tabID]
 					if ok {
-						if tab.Cmd != nil && tab.Cmd.Process != nil {
-							tab.Cmd.Process.Kill()
-						}
-						if tab.ReadCloser != nil {
-							tab.ReadCloser.Close()
-						}
-						if tab.WriteCloser != nil {
-							tab.WriteCloser.Close()
-						}
+						tab.Close()
 						delete(tabs, tabID)
 					}
 					tabsMu.Unlock()
@@ -818,38 +857,9 @@ func handleDataChannelWrite(transferID uint32, plaintext []byte, conn *SafeConn)
 // ===== TERMINAL TAB MANAGEMENT =====
 
 func createTab(id byte, ws *SafeConn) {
-	shell := "bash"
-	var args []string
-	if runtime.GOOS == "windows" {
-		shell = "cmd"
-		if os.Getenv("COMSPEC") != "" {
-			shell = os.Getenv("COMSPEC")
-		}
-		args = []string{"/q"}
-	} else if os.Getenv("SHELL") != "" {
-		shell = os.Getenv("SHELL")
-	}
-
-	c := exec.Command(shell, args...)
-	if hostWorkDir != "" {
-		c.Dir = hostWorkDir
-	}
-	f, err := pty.Start(c)
-	if err != nil {
-		if runtime.GOOS == "windows" {
-			log.Printf("PTY not supported on Windows, falling back to Pipes for Tab %d", id)
-			runWithPipes(id, c, ws)
-			return
-		}
-		log.Printf("Failed to start PTY for tab %d: %v", id, err)
+	tab, err := startPlatformTab(id, ws)
+	if err != nil || tab == nil {
 		return
-	}
-
-	tab := &TabSession{
-		Cmd:         c,
-		ReadCloser:  f,
-		WriteCloser: f,
-		IsPipe:      false,
 	}
 
 	tabsMu.Lock()
@@ -877,6 +887,7 @@ func createTab(id byte, ws *SafeConn) {
 				ws.WriteMessage(websocket.BinaryMessage, payload)
 			}
 		}
+		tab.Close()
 	}()
 }
 
@@ -898,6 +909,15 @@ func runWithPipes(id byte, c *exec.Cmd, ws *SafeConn) {
 		ReadCloser:  pr,
 		WriteCloser: stdin,
 		IsPipe:      true,
+		CloseFn: func() error {
+			pr.Close()
+			pw.Close()
+			stdin.Close()
+			if c.Process != nil {
+				c.Process.Kill()
+			}
+			return nil
+		},
 	}
 
 	tabsMu.Lock()

@@ -1,3 +1,5 @@
 ignored/
 *.log
 rmte/rmte
+*.exe
+*.old

@@ -78,8 +78,9 @@
     <div id="terminal-container" style="display:none;">
         <div id="tabs-bar">
             <button id="toggle-files-btn" onclick="toggleFileManager()" title="File Explorer (Toggle)" aria-label="Toggle file explorer">📁</button>
+            <button id="toggle-preview-btn" onclick="toggleWebPreview()" title="Web Browser Preview (Toggle)" aria-label="Toggle browser preview">🌐</button>
             <div id="tabs"></div>
-            <button id="new-tab-btn" onclick="requestNewTab()" title="New Terminal" aria-label="New terminal">+</button>
+            <button id="new-tab-btn" onclick="requestNewTab()" title="Open New Terminal Tab (+)" aria-label="New terminal"><span class="new-tab-plus">+</span><span class="new-tab-label">Terminal</span></button>
             <button id="toggle-sidebar-btn" onclick="toggleSidebar('collab')" title="Collaborators" aria-label="Toggle collaborators panel">👥</button>
             <button id="toggle-chat-btn" onclick="toggleSidebar('chat')" title="Chat" aria-label="Toggle chat panel">💬</button>
             <button id="toggle-activity-btn" onclick="toggleSidebar('activity')" title="Activity Log" aria-label="Toggle activity log panel">📜</button>
@@ -113,9 +114,37 @@
                 <div id="fe-inline" style="display:none;"></div>
                 <div id="fe-list"></div>
             </div>
+            <!-- File Explorer Resizer Handle -->
+            <div id="fe-resizer" title="Drag to resize file explorer"></div>
             <!-- Main Area -->
             <div id="main-area">
                 <div id="terminal-wrapper"></div>
+                <!-- Mini Browser Preview Panel -->
+                <div id="preview-panel" style="display:none;">
+                    <div id="preview-toolbar">
+                        <div class="preview-nav-group">
+                            <button class="preview-btn" id="preview-back-btn" onclick="previewGoBack()" title="Back">◀</button>
+                            <button class="preview-btn" id="preview-forward-btn" onclick="previewGoForward()" title="Forward">▶</button>
+                            <button class="preview-btn" id="preview-reload-btn" onclick="previewReload()" title="Reload">⟳</button>
+                        </div>
+                        <div class="preview-address-bar">
+                            <span class="preview-address-icon">🌐</span>
+                            <span class="preview-address-prefix">http://localhost:</span>
+                            <input type="number" id="preview-port-input" min="1" max="65535" placeholder="8080" onkeydown="handlePreviewPortKey(event)">
+                            <span class="preview-address-slash">/</span>
+                            <input type="text" id="preview-path-input" placeholder="" onkeydown="handlePreviewPathKey(event)">
+                            <button id="preview-go-btn" onclick="previewNavigate()" title="Go">↵</button>
+                        </div>
+                        <div class="preview-actions-group">
+                            <button class="preview-btn" id="preview-open-tab-btn" onclick="previewOpenInNewTab()" title="Open in New Tab">↗</button>
+                            <button class="preview-btn" id="preview-mobile-btn" onclick="togglePreviewMobile()" title="Toggle Mobile View (390px)">📱</button>
+                            <button class="preview-btn preview-close-btn" onclick="toggleWebPreview(false)" title="Close Preview">✕</button>
+                        </div>
+                    </div>
+                    <div id="preview-viewport-wrap">
+                        <iframe id="preview-frame" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-same-origin" src="about:blank"></iframe>
+                    </div>
+                </div>
             </div>
             <!-- Sidebar -->
             <div id="users-sidebar">
