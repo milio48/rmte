@@ -113,8 +113,8 @@ if ($doRun) {
     if ($extraArgs.Count -gt 0) {
         & $targetExe @extraArgs
     } else {
-        & $targetExe serve --web-preview
+        & $targetExe
     }
 } else {
-    Write-Host "`nRun '$targetExe help' or '$targetExe serve --web-preview' to get started.`n" -ForegroundColor Green
+    Write-Host "`nRun '$targetExe help' or '$targetExe' to get started.`n" -ForegroundColor Green
 }

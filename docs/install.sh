@@ -148,8 +148,8 @@ if [ "$DO_RUN" -eq 1 ]; then
     # shellcheck disable=SC2086
     exec "${TARGET_FILE}" ${EXTRA_ARGS}
   else
-    exec "${TARGET_FILE}" serve --web-preview
+    exec "${TARGET_FILE}"
   fi
 else
-  printf "\nRun '${GREEN}%s help${NC}' or '${GREEN}%s serve --web-preview${NC}' to get started!\n" "${TARGET_FILE}" "${TARGET_FILE}"
+  printf "\nRun '${GREEN}%s help${NC}' or '${GREEN}%s${NC}' to get started!\n" "${TARGET_FILE}" "${TARGET_FILE}"
 fi

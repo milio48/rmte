@@ -31,9 +31,10 @@ func init() {
 const (
 	protocolVersion = "0.5"
 
-	defaultPort   = 8048
-	defaultWSPath = "/ws-rmte"
-	defaultServer = "ws://localhost:8048/ws-rmte"
+	defaultPort        = 8048
+	defaultWSPath      = "/ws-rmte"
+	defaultServer      = "ws://localhost:8048/ws-rmte"
+	defaultPublicRelay = "wss://my.rmte.biz.id/ws-rmte"
 )
 
 // Serve modes
@@ -68,25 +69,43 @@ var origArgs []string
 func main() {
 	origArgs = append([]string(nil), os.Args...)
 	if len(os.Args) < 2 {
-		printUsage()
+		// Bare `./rmte` invocation: connect to public relay
+		runShare(nil)
 		return
 	}
 
 	mode := os.Args[1]
+
+	// If mode starts with "-" (e.g. `./rmte -q`, `./rmte --pass=...`), treat as quick share
+	// UNLESS it is help or version
+	if strings.HasPrefix(mode, "-") {
+		switch mode {
+		case "-h", "--help":
+			printUsage()
+			return
+		case "-v", "--version":
+			fmt.Printf("rmte v%s (protocol %s)\n", appVersion, protocolVersion)
+			return
+		default:
+			runShare(os.Args[1:])
+			return
+		}
+	}
+
 	os.Args = os.Args[1:] // shift args for flags
 
 	switch mode {
 	case "serve":
 		cmdServe()
 	case "share":
-		cmdShare()
+		runShare(os.Args)
 	case "join":
 		cmdJoin()
 	case "stop":
 		cmdStop()
-	case "help", "-h", "--help":
+	case "help":
 		printUsage()
-	case "version", "-v", "--version":
+	case "version":
 		fmt.Printf("rmte v%s (protocol %s)\n", appVersion, protocolVersion)
 	default:
 		fmt.Printf("Unknown command: %s\n\n", mode)
@@ -198,20 +217,36 @@ func cmdServe() {
 	runServeAndShare(&cfg)
 }
 
-func cmdShare() {
-	server := flag.String("server-relay", defaultServer, "Relay server WebSocket URL")
-	pass := flag.String("pass", "", "Password for E2EE (random if empty)")
-	id := flag.String("id", "", "Custom Session ID (lowercase a-z, 0-9, max 10 chars; random if empty)")
-	bufferMB := flag.Int("buffer", 1, "Max buffer size in MB (terminal ring buffer and file manager)")
-	dir := flag.String("dir", "", "Initial working directory for File Explorer and terminal")
-	webPreview := flag.Bool("web-preview", false, "Enable Embedded Web Browser Preview reverse proxy")
-	preview := flag.Bool("preview", false, "Alias for --web-preview")
-	quiet := flag.Bool("quiet", false, "Run in background (detached) and print connection info with PID")
-	q := flag.Bool("q", false, "Alias for --quiet")
-	flag.Parse()
+func runShare(args []string) {
+	fs := flag.NewFlagSet("share", flag.ExitOnError)
+	server := fs.String("server-relay", defaultPublicRelay, "Relay server WebSocket URL")
+	serverAlias := fs.String("server", "", "Alias for --server-relay")
+	pass := fs.String("pass", "", "Password for E2EE (random if empty)")
+	password := fs.String("password", "", "Alias for --pass")
+	id := fs.String("id", "", "Custom Session ID (lowercase a-z, 0-9, max 10 chars; random if empty)")
+	bufferMB := fs.Int("buffer", 1, "Max buffer size in MB (terminal ring buffer and file manager)")
+	dir := fs.String("dir", "", "Initial working directory for File Explorer and terminal")
+	webPreview := fs.Bool("web-preview", true, "Enable Embedded Web Browser Preview reverse proxy")
+	preview := fs.Bool("preview", true, "Alias for --web-preview")
+	quiet := fs.Bool("quiet", false, "Run in background (detached) and print connection info with PID")
+	q := fs.Bool("q", false, "Alias for --quiet")
+
+	if len(args) > 0 {
+		_ = fs.Parse(args)
+	}
 
 	if (*quiet || *q) && !isDaemonChild() {
 		runAsDaemon()
+	}
+
+	relayURL := *server
+	if *serverAlias != "" {
+		relayURL = *serverAlias
+	}
+
+	chosenPass := *pass
+	if *password != "" {
+		chosenPass = *password
 	}
 
 	if *bufferMB < 1 {
@@ -240,14 +275,14 @@ func cmdShare() {
 	}
 
 	opts := HostOptions{
-		DialURL:   *server,
-		PublicURL: *server,
-		Pass:      *pass,
+		DialURL:   relayURL,
+		PublicURL: relayURL,
+		Pass:      chosenPass,
 		Buffer:    *bufferMB,
 		Mode:      "share",
 		Dir:       cleanDir,
 		ID:        cleanID,
-		Preview:   *webPreview || *preview,
+		Preview:   *webPreview && *preview,
 	}
 	if opts.Pass == "" {
 		opts.Pass = generatePassword(12)
@@ -339,19 +374,20 @@ func fatalf(format string, a ...interface{}) {
 }
 
 func printUsage() {
-	fmt.Printf(`rmte v%s - Remote Terminal Relay
+	fmt.Printf(`rmte v%s - Remote Terminal Relay & Cloud IDE
 
-Terminology:
-  Relay  = machine that opens a port (HTTP + WebSocket)
-  Host   = controlled machine (PTY + files)
-  Client = Web browser or CLI/TUI viewer
+Instant Sharing:
+  rmte                                  Share terminal & Web IDE to %s
+  rmte -q                               Run detached in background (prints share link & PID)
+  rmte --id="mysession" --pass="secret" Custom session ID and password
+  rmte --dir="/path" --buffer=2         Custom workspace directory and memory limit
 
 Usage:
+  rmte       [--pass="secret"] [--id="mysession"] [--dir="path"] [--buffer=1] [-q]
+  rmte share [--server-relay="%s"] [--pass="secret"] [--id="mysession"] [--buffer=1] [--dir="path"] [-q]
   rmte serve [--mode=standalone|hybrid|relay] [--port=%d] [--pass="secret"] [--id="mysession"]
              [--buffer=1] [--dir="path"] [--web-path="/"] [--ws-path="%s"] [--hostname="example.com"]
              [--public] [--no-web | --no-cli] [--web-preview] [-q | --quiet]
-  rmte share --server-relay="ws://relay:%d%s" [--pass="secret"] [--id="mysession"] [--buffer=1] [--dir="path"]
-             [--web-preview] [-q | --quiet]
   rmte join  --server-relay="ws://relay:%d%s" --id="..." --pass="secret" [--name="name"]
   rmte stop  <session_id | pid>
   rmte help | version
@@ -364,7 +400,7 @@ Serve modes:
 Notes:
   * If --pass is empty, a random password is generated and printed.
   * If --id is specified, must be lowercase alphanumeric (a-z, 0-9) up to 10 chars.
-  * Default bind is 127.0.0.1; use --public to bind 0.0.0.0.
-  * --hostname only affects printed links.
-`, appVersion, defaultPort, defaultWSPath, defaultPort, defaultWSPath, defaultPort, defaultWSPath)
+  * Web Browser Preview is enabled by default.
+  * Default bind for serve is 127.0.0.1; use --public to bind 0.0.0.0.
+`, appVersion, defaultPublicRelay, defaultPublicRelay, defaultPort, defaultWSPath, defaultPort, defaultWSPath)
 }

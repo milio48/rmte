@@ -177,7 +177,21 @@ RMTE is designed with zero frontend dependencies. All web assets in `rmte/ui/` (
 
 ## 🚀 Quick Start Guide
 
-### 1. Quick local session
+### 0. Instant E2EE Share (Zero-Configuration)
+Run `rmte` directly without subcommands to instantly connect to the public relay `my.rmte.biz.id` with Web Preview enabled:
+```bash
+./rmte
+```
+Or run detached in the background:
+```bash
+./rmte -q
+```
+Or with custom credentials:
+```bash
+./rmte --id="mysession" --pass="supersecret" -q
+```
+
+### 1. Quick local session (Self-hosted standalone)
 ```bash
 ./rmte serve
 ```
@@ -275,6 +289,30 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 
 ## 📖 Flag Reference
 
+### `rmte` (Zero-Config Instant Share)
+Run `rmte` without subcommands to share directly to `my.rmte.biz.id`:
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--pass`, `--password` | *random* | E2EE password (printed if generated) |
+| `--id` | *random* | Custom persistent Session ID (`a-z`, `0-9`, max 10 chars) |
+| `--dir` | `""` | Initial working directory for File Explorer and terminal |
+| `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
+| `--web-preview` | `true` | Embedded Web Browser Preview reverse proxy (`--preview` alias) |
+| `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
+| `--server-relay`, `--server` | `wss://my.rmte.biz.id/ws-rmte` | Relay WebSocket URL |
+
+### `rmte share`
+Connect a host to a relay server (defaults to public relay):
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--server-relay`, `--server` | `wss://my.rmte.biz.id/ws-rmte` | Relay WebSocket URL |
+| `--pass`, `--password` | *random* | E2EE password (printed if generated) |
+| `--id` | *random* | Custom persistent Session ID (`a-z`, `0-9`, max 10 chars) |
+| `--dir` | `""` | Initial working directory for File Explorer and terminal |
+| `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
+| `--web-preview` | `true` | Embedded Web Browser Preview reverse proxy (`--preview` alias) |
+| `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
+
 ### `rmte serve`
 | Flag | Default | Description |
 | :--- | :--- | :--- |
@@ -290,17 +328,6 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 | `--public` | `false` | Bind `0.0.0.0` instead of `127.0.0.1` |
 | `--no-web` | `false` | Don't serve the Web UI |
 | `--no-cli` | `false` | Reject CLI clients (soft restriction: clients self-declare) |
-| `--web-preview` | `false` | Enable Embedded Web Browser Preview reverse proxy (`--preview` alias) |
-| `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
-
-### `rmte share`
-| Flag | Default | Description |
-| :--- | :--- | :--- |
-| `--server-relay` | `ws://localhost:8048/ws-rmte` | Relay WebSocket URL |
-| `--pass` | *random* | E2EE password (printed if generated) |
-| `--id` | *random* | Custom persistent Session ID (`a-z`, `0-9`, max 10 chars) |
-| `--dir` | `""` | Initial working directory for File Explorer and terminal |
-| `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
 | `--web-preview` | `false` | Enable Embedded Web Browser Preview reverse proxy (`--preview` alias) |
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 
