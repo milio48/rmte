@@ -28,9 +28,6 @@ func markDaemonReady(sessionID string) {
 
 	if sessionID != "" {
 		pidFile := fmt.Sprintf("rmte-%s.pid", sessionID)
-		if hostWorkDir != "" {
-			pidFile = filepath.Join(hostWorkDir, pidFile)
-		}
 		_ = os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0644)
 	}
 

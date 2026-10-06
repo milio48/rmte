@@ -297,7 +297,7 @@ func runHost(opts HostOptions) {
 	// Signal parent if running in background daemon mode
 	markDaemonReady(authResp.SessionID)
 	if isDaemonChild() {
-		_ = saveSessionMeta(SessionMeta{
+		meta := SessionMeta{
 			SessionID:   authResp.SessionID,
 			Password:    opts.Pass,
 			ServerRelay: opts.DialURL,
@@ -306,7 +306,17 @@ func runHost(opts HostOptions) {
 			Preview:     opts.Preview,
 			PID:         os.Getpid(),
 			Mode:        opts.Mode,
-		})
+		}
+		if serverCfg != nil {
+			meta.Port = serverCfg.Port
+			meta.Public = serverCfg.Public
+			meta.Hostname = serverCfg.Hostname
+			meta.WebPath = serverCfg.WebPath
+			meta.WSPath = serverCfg.WSPath
+			meta.AdminPath = serverCfg.AdminPath
+			meta.AdminPass = serverCfg.AdminPass
+		}
+		_ = saveSessionMeta(meta)
 		defer removeSessionMeta(authResp.SessionID)
 	}
 
@@ -632,6 +642,17 @@ func sanitizePath(reqPath string) (string, error) {
 	return absPath, nil
 }
 
+// isInternalRmteFile returns true for internal runtime artifacts (rmte-*.meta, rmte-*.pid, rmte-*.log)
+func isInternalRmteFile(pathOrName string) bool {
+	base := filepath.Base(pathOrName)
+	if strings.HasPrefix(base, "rmte-") {
+		if strings.HasSuffix(base, ".meta") || strings.HasSuffix(base, ".pid") || strings.HasSuffix(base, ".log") {
+			return true
+		}
+	}
+	return false
+}
+
 func handleReqDir(reqPath, targetConn string, conn *SafeConn) {
 	absPath, err := sanitizePath(reqPath)
 	if err != nil {
@@ -663,6 +684,9 @@ func handleReqDir(reqPath, targetConn string, conn *SafeConn) {
 
 	var files []FileEntry
 	for _, e := range entries {
+		if isInternalRmteFile(e.Name()) {
+			continue
+		}
 		info, err := e.Info()
 		if err != nil {
 			continue
@@ -699,6 +723,16 @@ func handleReqReadFile(reqPath, targetConn string, transferID uint32, conn *Safe
 			"action":      "fm_error",
 			"target_conn": targetConn,
 			"message":     err.Error(),
+		})
+		return
+	}
+
+	if isInternalRmteFile(absPath) {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": targetConn,
+			"message":     "access to internal RMTE runtime files is restricted",
 		})
 		return
 	}
@@ -780,6 +814,17 @@ func handlePrepareSave(reqPath, targetConn string, transferID uint32, conn *Safe
 			"target_conn": targetConn,
 			"transfer_id": transferID,
 			"message":     err.Error(),
+		})
+		return
+	}
+
+	if isInternalRmteFile(absPath) {
+		conn.WriteJSON(map[string]interface{}{
+			"type":        "control",
+			"action":      "fm_error",
+			"target_conn": targetConn,
+			"transfer_id": transferID,
+			"message":     "modifying internal RMTE runtime files is restricted",
 		})
 		return
 	}
@@ -1063,6 +1108,14 @@ func handleRenameFile(oldPath, newPath, targetConn string, conn *SafeConn) {
 		return
 	}
 
+	if isInternalRmteFile(absOld) || isInternalRmteFile(absNew) {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn, "message": "modifying internal RMTE runtime files is restricted",
+		})
+		return
+	}
+
 	// Ensure target parent exists
 	if err := os.MkdirAll(filepath.Dir(absNew), 0755); err != nil {
 		conn.WriteJSON(map[string]interface{}{
@@ -1097,6 +1150,14 @@ func handleDeleteFile(reqPath, targetConn string, conn *SafeConn) {
 		conn.WriteJSON(map[string]interface{}{
 			"type": "control", "action": "fm_error",
 			"target_conn": targetConn, "message": err.Error(),
+		})
+		return
+	}
+
+	if isInternalRmteFile(absPath) {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn, "message": "deleting internal RMTE runtime files is restricted",
 		})
 		return
 	}

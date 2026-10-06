@@ -210,6 +210,13 @@ func cmdServe() {
 		if cfg.AdminPath == cfg.WSPath || cfg.AdminPath == cfg.WSPath+"-proxy" {
 			fatalf("Error: --admin-path and --ws-path must differ")
 		}
+		if cfg.AdminPath == "/p" || cfg.AdminPath == "/p/" {
+			fatalf("Error: --admin-path cannot be %q (reserved for Web Browser Preview)", cfg.AdminPath)
+		}
+		cfgJSONPath := strings.TrimSuffix(cfg.WebPath, "/") + "/config.json"
+		if cfg.AdminPath == "/config.json" || (!cfg.NoWeb && cfg.AdminPath == cfgJSONPath) {
+			fatalf("Error: --admin-path cannot conflict with web configuration endpoint")
+		}
 	}
 
 	if cfg.Hostname == "" {

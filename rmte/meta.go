@@ -9,19 +9,25 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 )
 
 // SessionMeta holds runtime parameters of an active RMTE host session.
 type SessionMeta struct {
 	SessionID   string `json:"session_id"`
 	Password    string `json:"password"`
-	ServerRelay string `json:"server_relay"`
-	Dir         string `json:"dir"`
-	Buffer      int    `json:"buffer"`
+	ServerRelay string `json:"server_relay,omitempty"`
+	Dir         string `json:"dir,omitempty"`
+	Buffer      int    `json:"buffer,omitempty"`
 	Preview     bool   `json:"preview"`
 	PID         int    `json:"pid"`
 	Mode        string `json:"mode"`
+	Port        int    `json:"port,omitempty"`
+	Public      bool   `json:"public,omitempty"`
+	Hostname    string `json:"hostname,omitempty"`
+	WebPath     string `json:"web_path,omitempty"`
+	WSPath      string `json:"ws_path,omitempty"`
+	AdminPath   string `json:"admin_path,omitempty"`
+	AdminPass   string `json:"admin_pass,omitempty"`
 }
 
 // getLocalSecretKey derives an AES-256 key bound to the local machine, user, and binary path.
@@ -76,11 +82,7 @@ func decryptLocalData(data []byte) ([]byte, error) {
 }
 
 func metaFilename(sessionID string) string {
-	name := fmt.Sprintf("rmte-%s.meta", sessionID)
-	if hostWorkDir != "" {
-		return filepath.Join(hostWorkDir, name)
-	}
-	return name
+	return fmt.Sprintf("rmte-%s.meta", sessionID)
 }
 
 // saveSessionMeta encrypts and writes session parameters to a restricted-permission file.

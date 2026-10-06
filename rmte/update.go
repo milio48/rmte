@@ -255,6 +255,27 @@ func restartActiveSession(exePath string) {
 			if meta.Preview {
 				args = append(args, "--web-preview")
 			}
+			if meta.Port > 0 {
+				args = append(args, fmt.Sprintf("--port=%d", meta.Port))
+			}
+			if meta.Public {
+				args = append(args, "--public")
+			}
+			if meta.Hostname != "" {
+				args = append(args, "--hostname="+meta.Hostname)
+			}
+			if meta.WebPath != "" {
+				args = append(args, "--web-path="+meta.WebPath)
+			}
+			if meta.WSPath != "" {
+				args = append(args, "--ws-path="+meta.WSPath)
+			}
+			if meta.AdminPath != "" {
+				args = append(args, "--admin-path="+meta.AdminPath)
+			}
+			if meta.AdminPass != "" {
+				args = append(args, "--admin-pass="+meta.AdminPass)
+			}
 			fmt.Printf("Restoring %s serve session %q with original encrypted credentials & configuration...\n", meta.Mode, sessionID)
 		} else {
 			args = []string{"--id=" + sessionID, "-q"}
