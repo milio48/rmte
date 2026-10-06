@@ -35,12 +35,11 @@ type Session struct {
 	SmuxMu         sync.RWMutex
 
 	// Metrics & Admin monitoring
-	HostIP     string
-	CreatedAt  time.Time
-	LastActive time.Time
-	BytesRx    uint64
-	BytesTx    uint64
-	FileBytes  uint64
+	HostIP    string
+	CreatedAt time.Time
+	BytesRx   uint64
+	BytesTx   uint64
+	FileBytes uint64
 }
 
 const maxViewersPerSession = 50
@@ -174,7 +173,6 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			ProxySecret:    proxySecret,
 			HostIP:         clientIP,
 			CreatedAt:      time.Now(),
-			LastActive:     time.Now(),
 		}
 		sessions[sessionID] = s
 		sessionMu.Unlock()
@@ -330,7 +328,6 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 
 		msgLen := uint64(len(data))
 		atomic.AddUint64(&s.BytesRx, msgLen)
-		s.LastActive = time.Now()
 
 		if mt == websocket.BinaryMessage {
 			if len(data) > 0 && data[0] == 255 {

@@ -3,4 +3,5 @@ ignored/
 rmte/rmte
 *.exe
 *.old
-*.pid
+*.pid
+*.meta

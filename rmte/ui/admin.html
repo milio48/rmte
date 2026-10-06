@@ -784,8 +784,8 @@
                             <td>${previewBadge}</td>
                             <td>
                                 <div class="actions-group">
-                                    <button class="btn-action btn-danger" onclick="terminateSession('${escapeHtml(s.id)}')">Terminate</button>
-                                    <button class="btn-action btn-danger" onclick="banSessionHost('${escapeHtml(s.id)}', '${escapeHtml(s.host_ip)}')">Ban IP</button>
+                                    <button class="btn-action btn-danger" data-action="terminate" data-id="${escapeHtml(s.id)}">Terminate</button>
+                                    <button class="btn-action btn-danger" data-action="ban" data-id="${escapeHtml(s.id)}" data-ip="${escapeHtml(s.host_ip)}">Ban IP</button>
                                 </div>
                             </td>
                         </tr>
@@ -831,13 +831,27 @@
                             <td>${escapeHtml(b.reason)}</td>
                             <td style="color:var(--text-muted); font-size:0.78rem;">${banDate}</td>
                             <td>
-                                <button class="btn-action btn-unban" onclick="unbanIP('${escapeHtml(b.ip)}')">Unban</button>
+                                <button class="btn-action btn-unban" data-action="unban" data-ip="${escapeHtml(b.ip)}">Unban</button>
                             </td>
                         </tr>
                     `;
                 }).join('');
             }
         }
+
+        // Safe event delegation for table actions
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-action]');
+            if (!btn) return;
+            const action = btn.dataset.action;
+            if (action === 'terminate') {
+                terminateSession(btn.dataset.id);
+            } else if (action === 'ban') {
+                banSessionHost(btn.dataset.id, btn.dataset.ip);
+            } else if (action === 'unban') {
+                unbanIP(btn.dataset.ip);
+            }
+        });
 
         function escapeHtml(str) {
             if (!str) return '';

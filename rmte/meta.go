@@ -21,6 +21,7 @@ type SessionMeta struct {
 	Buffer      int    `json:"buffer"`
 	Preview     bool   `json:"preview"`
 	PID         int    `json:"pid"`
+	Mode        string `json:"mode"`
 }
 
 // getLocalSecretKey derives an AES-256 key bound to the local machine, user, and binary path.

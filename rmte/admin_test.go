@@ -48,6 +48,16 @@ func TestGetClientIP(t *testing.T) {
 			remote:   "203.0.113.195:34567",
 			expected: "203.0.113.195",
 		},
+		{
+			name: "Malicious non-IP header ignored",
+			headers: map[string]string{
+				"CF-Connecting-IP": "');alert(1)//",
+				"X-Forwarded-For":  "<script>evil()</script>",
+				"X-Real-IP":        "bad-ip-string",
+			},
+			remote:   "203.0.113.195:34567",
+			expected: "203.0.113.195",
+		},
 	}
 
 	for _, tc := range tests {

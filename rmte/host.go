@@ -305,6 +305,7 @@ func runHost(opts HostOptions) {
 			Buffer:      opts.Buffer,
 			Preview:     opts.Preview,
 			PID:         os.Getpid(),
+			Mode:        opts.Mode,
 		})
 		defer removeSessionMeta(authResp.SessionID)
 	}

@@ -204,6 +204,12 @@ func cmdServe() {
 		if cfg.AdminPath == "" {
 			cfg.AdminPath = "/admin"
 		}
+		if !cfg.NoWeb && (cfg.AdminPath == strings.TrimSuffix(cfg.WebPath, "/") || cfg.AdminPath+"/" == cfg.WebPath) {
+			fatalf("Error: --admin-path and --web-path must differ")
+		}
+		if cfg.AdminPath == cfg.WSPath || cfg.AdminPath == cfg.WSPath+"-proxy" {
+			fatalf("Error: --admin-path and --ws-path must differ")
+		}
 	}
 
 	if cfg.Hostname == "" {

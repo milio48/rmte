@@ -68,25 +68,35 @@ var (
 	serverStartTime = time.Now()
 )
 
-// getClientIP extracts real client IP with priority for Cloudflare CF-Connecting-IP.
+// getClientIP extracts real client IP with priority for Cloudflare CF-Connecting-IP, validating with net.ParseIP.
 func getClientIP(r *http.Request) string {
-	if cfIP := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); cfIP != "" {
-		return cfIP
+	candidates := []string{
+		r.Header.Get("CF-Connecting-IP"),
+		"", // will populate with first X-Forwarded-For part below
+		r.Header.Get("X-Real-IP"),
 	}
 	if xff := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); xff != "" {
 		parts := strings.Split(xff, ",")
-		if len(parts) > 0 && strings.TrimSpace(parts[0]) != "" {
-			return strings.TrimSpace(parts[0])
+		if len(parts) > 0 {
+			candidates[1] = parts[0]
 		}
 	}
-	if xri := strings.TrimSpace(r.Header.Get("X-Real-IP")); xri != "" {
-		return xri
+
+	for _, cand := range candidates {
+		cand = strings.TrimSpace(cand)
+		if cand != "" && net.ParseIP(cand) != nil {
+			return cand
+		}
 	}
+
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil && host != "" {
+	if err == nil && net.ParseIP(host) != nil {
 		return host
 	}
-	return r.RemoteAddr
+	if net.ParseIP(r.RemoteAddr) != nil {
+		return r.RemoteAddr
+	}
+	return "unknown"
 }
 
 func isIPBanned(ip string) bool {

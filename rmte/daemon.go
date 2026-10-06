@@ -134,6 +134,15 @@ func cmdStop() {
 		if err := killPid(pid); err != nil {
 			fatalf("Error stopping process %d: %v", pid, err)
 		}
+		if matches, err := filepath.Glob("rmte-*.pid"); err == nil {
+			for _, pf := range matches {
+				if d, err := os.ReadFile(pf); err == nil && strings.TrimSpace(string(d)) == strconv.Itoa(pid) {
+					_ = os.Remove(pf)
+					sID := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(pf), "rmte-"), ".pid")
+					removeSessionMeta(sID)
+				}
+			}
+		}
 		fmt.Printf("✅ RMTE background process (PID %d) stopped.\n", pid)
 		return
 	}

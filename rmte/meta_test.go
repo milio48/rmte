@@ -38,6 +38,7 @@ func TestSaveAndLoadSessionMeta(t *testing.T) {
 		Buffer:      2,
 		Preview:     true,
 		PID:         12345,
+		Mode:        "share",
 	}
 
 	defer removeSessionMeta(testMeta.SessionID)

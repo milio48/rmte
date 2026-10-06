@@ -240,13 +240,11 @@ func restartActiveSession(exePath string) {
 
 		time.Sleep(500 * time.Millisecond)
 
-		args := []string{"--id=" + sessionID, "-q"}
-		if metaErr == nil && meta != nil {
+		var args []string
+		if metaErr == nil && meta != nil && (meta.Mode == modeStandalone || meta.Mode == modeHybrid) {
+			args = []string{"serve", "--mode=" + meta.Mode, "--id=" + sessionID, "-q"}
 			if meta.Password != "" {
 				args = append(args, "--pass="+meta.Password)
-			}
-			if meta.ServerRelay != "" {
-				args = append(args, "--server-relay="+meta.ServerRelay)
 			}
 			if meta.Dir != "" {
 				args = append(args, "--dir="+meta.Dir)
@@ -254,12 +252,32 @@ func restartActiveSession(exePath string) {
 			if meta.Buffer > 0 {
 				args = append(args, fmt.Sprintf("--buffer=%d", meta.Buffer))
 			}
-			if !meta.Preview {
-				args = append(args, "--web-preview=false")
+			if meta.Preview {
+				args = append(args, "--web-preview")
 			}
-			fmt.Printf("Restoring session %q with original encrypted credentials & configuration...\n", sessionID)
+			fmt.Printf("Restoring %s serve session %q with original encrypted credentials & configuration...\n", meta.Mode, sessionID)
 		} else {
-			fmt.Printf("Restarting session %q with new binary...\n", sessionID)
+			args = []string{"--id=" + sessionID, "-q"}
+			if metaErr == nil && meta != nil {
+				if meta.Password != "" {
+					args = append(args, "--pass="+meta.Password)
+				}
+				if meta.ServerRelay != "" {
+					args = append(args, "--server-relay="+meta.ServerRelay)
+				}
+				if meta.Dir != "" {
+					args = append(args, "--dir="+meta.Dir)
+				}
+				if meta.Buffer > 0 {
+					args = append(args, fmt.Sprintf("--buffer=%d", meta.Buffer))
+				}
+				if !meta.Preview {
+					args = append(args, "--web-preview=false")
+				}
+				fmt.Printf("Restoring share session %q with original encrypted credentials & configuration...\n", sessionID)
+			} else {
+				fmt.Printf("Restarting session %q with new binary...\n", sessionID)
+			}
 		}
 
 		cmd := exec.Command(exePath, args...)
