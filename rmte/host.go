@@ -643,8 +643,9 @@ func sanitizePath(reqPath string) (string, error) {
 }
 
 // isInternalRmteFile returns true for internal runtime artifacts (rmte-*.meta, rmte-*.pid, rmte-*.log)
+// It performs case-insensitive matching to protect against case-folding filesystem attacks (e.g. Windows).
 func isInternalRmteFile(pathOrName string) bool {
-	base := filepath.Base(pathOrName)
+	base := strings.ToLower(filepath.Base(pathOrName))
 	if strings.HasPrefix(base, "rmte-") {
 		if strings.HasSuffix(base, ".meta") || strings.HasSuffix(base, ".pid") || strings.HasSuffix(base, ".log") {
 			return true
@@ -1025,6 +1026,14 @@ func handleCreateFile(reqPath, targetConn string, conn *SafeConn) {
 		return
 	}
 
+	if isInternalRmteFile(absPath) {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn, "message": "creating internal RMTE runtime files is restricted",
+		})
+		return
+	}
+
 	// Ensure parent directory exists
 	dir := filepath.Dir(absPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -1068,6 +1077,14 @@ func handleCreateDir(reqPath, targetConn string, conn *SafeConn) {
 		conn.WriteJSON(map[string]interface{}{
 			"type": "control", "action": "fm_error",
 			"target_conn": targetConn, "message": err.Error(),
+		})
+		return
+	}
+
+	if isInternalRmteFile(absPath) {
+		conn.WriteJSON(map[string]interface{}{
+			"type": "control", "action": "fm_error",
+			"target_conn": targetConn, "message": "creating internal RMTE runtime files is restricted",
 		})
 		return
 	}
