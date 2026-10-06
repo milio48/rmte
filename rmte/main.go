@@ -67,6 +67,7 @@ type ServeConfig struct {
 var origArgs []string
 
 func main() {
+	cleanOldBinary()
 	origArgs = append([]string(nil), os.Args...)
 	if len(os.Args) < 2 {
 		// Bare `./rmte` invocation: connect to public relay
@@ -103,6 +104,8 @@ func main() {
 		cmdJoin()
 	case "stop":
 		cmdStop()
+	case "update", "upgrade":
+		cmdUpdate()
 	case "help":
 		printUsage()
 	case "version":
@@ -388,8 +391,9 @@ Usage:
   rmte serve [--mode=standalone|hybrid|relay] [--port=%d] [--pass="secret"] [--id="mysession"]
              [--buffer=1] [--dir="path"] [--web-path="/"] [--ws-path="%s"] [--hostname="example.com"]
              [--public] [--no-web | --no-cli] [--web-preview] [-q | --quiet]
-  rmte join  --server-relay="ws://relay:%d%s" --id="..." --pass="secret" [--name="name"]
-  rmte stop  <session_id | pid>
+  rmte join   --server-relay="ws://relay:%d%s" --id="..." --pass="secret" [--name="name"]
+  rmte stop   <session_id | pid>
+  rmte update [--check] [--force] [--restart]
   rmte help | version
 
 Serve modes:

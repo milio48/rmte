@@ -349,6 +349,23 @@ rmte stop <session_id>
 rmte stop <pid>
 ```
 
+### `rmte update` (or `rmte upgrade`)
+Update the `rmte` binary in-place directly from official GitHub releases:
+```bash
+# Check if a new version is available without downloading
+rmte update --check
+
+# Download and replace the current binary
+rmte update
+
+# Force download even if already on the latest version
+rmte update --force
+
+# Update binary and seamlessly restart active background session
+rmte update --restart
+```
+> **Seamless Viewer Reconnect:** When restarting sessions using `--restart` (or reusing the same `--id`), connected browser tabs will automatically reconnect through their exponential-backoff retry loop without re-entering credentials.
+
 ---
 
 <details>
