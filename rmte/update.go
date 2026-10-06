@@ -232,14 +232,37 @@ func restartActiveSession(exePath string) {
 		}
 
 		sessionID := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(pidFile), "rmte-"), ".pid")
+		meta, metaErr := loadSessionMeta(sessionID)
+
 		fmt.Printf("Stopping previous background session %q (PID %d)...\n", sessionID, pid)
 		_ = killPid(pid)
 		_ = os.Remove(pidFile)
 
 		time.Sleep(500 * time.Millisecond)
 
-		fmt.Printf("Restarting session %q with new binary...\n", sessionID)
-		cmd := exec.Command(exePath, "--id="+sessionID, "-q")
+		args := []string{"--id=" + sessionID, "-q"}
+		if metaErr == nil && meta != nil {
+			if meta.Password != "" {
+				args = append(args, "--pass="+meta.Password)
+			}
+			if meta.ServerRelay != "" {
+				args = append(args, "--server-relay="+meta.ServerRelay)
+			}
+			if meta.Dir != "" {
+				args = append(args, "--dir="+meta.Dir)
+			}
+			if meta.Buffer > 0 {
+				args = append(args, fmt.Sprintf("--buffer=%d", meta.Buffer))
+			}
+			if !meta.Preview {
+				args = append(args, "--web-preview=false")
+			}
+			fmt.Printf("Restoring session %q with original encrypted credentials & configuration...\n", sessionID)
+		} else {
+			fmt.Printf("Restarting session %q with new binary...\n", sessionID)
+		}
+
+		cmd := exec.Command(exePath, args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {

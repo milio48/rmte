@@ -164,5 +164,7 @@ func cmdStop() {
 	}
 
 	_ = os.Remove(pidFilename)
+	sessionID := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(pidFilename), "rmte-"), ".pid")
+	removeSessionMeta(sessionID)
 	fmt.Printf("✅ RMTE session %q (PID %d) stopped.\n", target, pid)
 }

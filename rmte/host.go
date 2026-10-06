@@ -296,6 +296,18 @@ func runHost(opts HostOptions) {
 
 	// Signal parent if running in background daemon mode
 	markDaemonReady(authResp.SessionID)
+	if isDaemonChild() {
+		_ = saveSessionMeta(SessionMeta{
+			SessionID:   authResp.SessionID,
+			Password:    opts.Pass,
+			ServerRelay: opts.DialURL,
+			Dir:         hostWorkDir,
+			Buffer:      opts.Buffer,
+			Preview:     opts.Preview,
+			PID:         os.Getpid(),
+		})
+		defer removeSessionMeta(authResp.SessionID)
+	}
 
 	// Create initial tab (ID 0)
 	createTab(0, conn)
