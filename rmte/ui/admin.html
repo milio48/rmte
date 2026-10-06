@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RMTE Relay Admin Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0d1117;
+            --bg-card: #161b22;
+            --bg-card-hover: #1c222c;
+            --border: #30363d;
+            --border-subtle: #21262d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --accent-purple: #bc8cff;
+            --danger: #f85149;
+            --danger-bg: rgba(248, 81, 73, 0.12);
+            --danger-border: rgba(248, 81, 73, 0.3);
+            --warning: #e3b341;
+            --warning-bg: rgba(227, 179, 65, 0.12);
+            --success: #3fb950;
+            --success-bg: rgba(63, 185, 80, 0.12);
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius: 10px;
+            --radius-sm: 6px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            min-height: 100vh;
+            line-height: 1.5;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Nav */
+        header {
+            border-bottom: 1px solid var(--border);
+            background: #0b0e14;
+            padding: 14px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text);
+        }
+
+        .logo-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(88, 166, 255, 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(88, 166, 255, 0.3);
+            letter-spacing: 0.5px;
+        }
+
+        .brand-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .refresh-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 4px 10px;
+            border-radius: 999px;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 6px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .btn-logout {
+            background: #21262d;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 5px 12px;
+            border-radius: var(--radius-sm);
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-logout:hover {
+            color: var(--text);
+            background: #30363d;
+            border-color: #8b949e;
+        }
+
+        /* Layout */
+        main {
+            flex: 1;
+            max-width: 1240px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 28px 24px 60px;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .metric-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            transition: border-color 0.15s ease;
+        }
+
+        .metric-card:hover {
+            border-color: rgba(88, 166, 255, 0.4);
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-val {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            color: var(--text);
+            font-family: var(--font-mono);
+        }
+
+        .metric-sub {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        /* Section Cards */
+        .section-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .section-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .badge-count {
+            background: var(--border-subtle);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 1px 7px;
+            border-radius: 999px;
+            font-family: var(--font-mono);
+        }
+
+        /* Data Tables */
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.86rem;
+            text-align: left;
+        }
+
+        th {
+            background: #0f141c;
+            color: var(--text-muted);
+            font-weight: 600;
+            padding: 11px 16px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-subtle);
+            color: var(--text);
+            vertical-align: middle;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .code-cell {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 2px 7px;
+            border-radius: 4px;
+            color: var(--accent);
+            display: inline-block;
+        }
+
+        .ip-cell {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            color: #d29922;
+        }
+
+        .badge-pill {
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .badge-active {
+            background: var(--success-bg);
+            color: var(--success);
+            border: 1px solid rgba(63, 185, 80, 0.3);
+        }
+
+        .badge-heavy {
+            background: var(--danger-bg);
+            color: var(--danger);
+            border: 1px solid var(--danger-border);
+        }
+
+        .badge-warn {
+            background: var(--warning-bg);
+            color: var(--warning);
+            border: 1px solid rgba(227, 179, 65, 0.3);
+        }
+
+        /* Action Buttons */
+        .actions-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .btn-action {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            font-size: 0.76rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-action:hover {
+            color: var(--text);
+            border-color: #8b949e;
+        }
+
+        .btn-danger {
+            color: var(--danger);
+            border-color: var(--danger-border);
+            background: var(--danger-bg);
+        }
+
+        .btn-danger:hover {
+            color: #fff;
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+
+        .btn-unban {
+            color: var(--accent);
+            border-color: rgba(88, 166, 255, 0.3);
+            background: rgba(88, 166, 255, 0.1);
+        }
+
+        .btn-unban:hover {
+            color: #fff;
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        /* Empty State */
+        .empty-state {
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Login Overlay Modal */
+        #login-view {
+            position: fixed;
+            inset: 0;
+            background: rgba(13, 17, 23, 0.95);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            max-width: 380px;
+            width: 100%;
+            padding: 32px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+        }
+
+        .login-header {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .login-header h2 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .login-header p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .login-input {
+            width: 100%;
+            background: #0b0e14;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 11px 14px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+
+        .login-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+        }
+
+        .btn-submit {
+            background: var(--accent);
+            color: #0b0e14;
+            border: none;
+            padding: 11px;
+            border-radius: 8px;
+            font-size: 0.92rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s ease;
+        }
+
+        .btn-submit:hover {
+            opacity: 0.9;
+        }
+
+        .login-error {
+            color: var(--danger);
+            font-size: 0.82rem;
+            text-align: center;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Login Dialog -->
+    <div id="login-view" style="display:none;">
+        <div class="login-card">
+            <div class="login-header">
+                <span class="logo-badge">RMTE RELAY</span>
+                <h2>Admin Authentication</h2>
+                <p>Enter administrator credentials configured in --admin-pass</p>
+            </div>
+            <form id="login-form" onsubmit="handleLogin(event)" style="display:flex; flex-direction:column; gap:16px;">
+                <input type="password" id="admin-pass-input" class="login-input" placeholder="Admin Password" required autofocus autocomplete="current-password">
+                <div id="login-err" class="login-error"></div>
+                <button type="submit" class="btn-submit" id="btn-login-submit">Authenticate</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Header -->
+    <header>
+        <a href="#" class="header-brand">
+            <span class="logo-badge">RELAY ADMIN</span>
+            <span class="brand-title">⚡ RMTE Dashboard</span>
+        </a>
+        <div class="header-actions">
+            <div class="refresh-pill">
+                <span class="pulse-dot"></span>
+                <span>Live (3s)</span>
+            </div>
+            <button class="btn-logout" onclick="handleLogout()">Sign Out</button>
+        </div>
+    </header>
+
+    <!-- Content -->
+    <main>
+        <!-- Metrics -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <span class="metric-label">Active Sessions</span>
+                <span class="metric-val" id="metric-sessions">0</span>
+                <span class="metric-sub">Registered hosts on relay</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Connected Viewers</span>
+                <span class="metric-val" id="metric-viewers">0</span>
+                <span class="metric-sub">Live web & CLI connections</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Relay Uptime</span>
+                <span class="metric-val" id="metric-uptime">0s</span>
+                <span class="metric-sub" id="metric-version">RMTE Relay</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">Banned Hosts</span>
+                <span class="metric-val" id="metric-banned">0</span>
+                <span class="metric-sub">Blocked IP addresses</span>
+            </div>
+        </div>
+
+        <!-- Active Sessions Section -->
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>🟢 Active Sessions</span>
+                    <span class="badge-count" id="active-count-badge">0</span>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Session ID</th>
+                            <th>Host IP (CF / Proxy)</th>
+                            <th>Viewers</th>
+                            <th>Uptime</th>
+                            <th>Bandwidth Rx / Tx</th>
+                            <th>File Transfer</th>
+                            <th>Web Preview</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="active-sessions-tbody">
+                        <tr>
+                            <td colspan="8" class="empty-state">Loading active sessions...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Recent Session History -->
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>📜 Recent Closed Sessions</span>
+                    <span class="badge-count" id="history-count-badge">0</span>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Session ID</th>
+                            <th>Host IP</th>
+                            <th>Duration</th>
+                            <th>Total Bandwidth</th>
+                            <th>File Transfer</th>
+                            <th>Termination Reason</th>
+                            <th>Closed At</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-sessions-tbody">
+                        <tr>
+                            <td colspan="7" class="empty-state">No historical sessions recorded yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Banned Entities -->
+        <div class="section-card">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>🚫 Banned IP Addresses</span>
+                    <span class="badge-count" id="banned-count-badge">0</span>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Banned IP</th>
+                            <th>Reason</th>
+                            <th>Timestamp</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="banned-tbody">
+                        <tr>
+                            <td colspan="4" class="empty-state">No IPs currently blacklisted.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_PREFIX = window.location.pathname.replace(/\/$/, '') + '/api';
+        let refreshTimer = null;
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        async function fetchStats() {
+            try {
+                const res = await fetch(API_PREFIX + '/stats', { credentials: 'same-origin' });
+                if (res.status === 401) {
+                    showLogin();
+                    return;
+                }
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                hideLogin();
+                renderDashboard(data);
+            } catch (err) {
+                console.error('Failed to load stats:', err);
+            }
+        }
+
+        function showLogin() {
+            document.getElementById('login-view').style.display = 'flex';
+            if (refreshTimer) clearInterval(refreshTimer);
+        }
+
+        function hideLogin() {
+            document.getElementById('login-view').style.display = 'none';
+            if (!refreshTimer) {
+                refreshTimer = setInterval(fetchStats, 3000);
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const pass = document.getElementById('admin-pass-input').value;
+            const errEl = document.getElementById('login-err');
+            const submitBtn = document.getElementById('btn-login-submit');
+
+            errEl.style.display = 'none';
+            submitBtn.disabled = true;
+
+            try {
+                const res = await fetch(API_PREFIX + '/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: pass }),
+                    credentials: 'same-origin'
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    document.getElementById('admin-pass-input').value = '';
+                    hideLogin();
+                    fetchStats();
+                } else {
+                    errEl.textContent = data.error || 'Authentication failed';
+                    errEl.style.display = 'block';
+                }
+            } catch (err) {
+                errEl.textContent = 'Network error contacting relay';
+                errEl.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+            }
+        }
+
+        async function handleLogout() {
+            try {
+                await fetch(API_PREFIX + '/logout', { method: 'POST', credentials: 'same-origin' });
+            } finally {
+                showLogin();
+            }
+        }
+
+        async function terminateSession(sessionID) {
+            if (!confirm(`Are you sure you want to terminate session "${sessionID}"? Connected viewers and host will be disconnected immediately.`)) {
+                return;
+            }
+            try {
+                const res = await fetch(API_PREFIX + '/terminate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionID }),
+                    credentials: 'same-origin'
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    fetchStats();
+                } else {
+                    alert('Failed to terminate session: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Request failed: ' + err.message);
+            }
+        }
+
+        async function banSessionHost(sessionID, ip) {
+            if (!confirm(`Are you sure you want to BAN IP "${ip}" and terminate session "${sessionID}"? This IP will be rejected from registering or connecting.`)) {
+                return;
+            }
+            try {
+                const res = await fetch(API_PREFIX + '/ban', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionID, ip: ip }),
+                    credentials: 'same-origin'
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    fetchStats();
+                } else {
+                    alert('Failed to ban IP: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Request failed: ' + err.message);
+            }
+        }
+
+        async function unbanIP(ip) {
+            if (!confirm(`Unban IP "${ip}"?`)) return;
+            try {
+                const res = await fetch(API_PREFIX + '/unban', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip: ip }),
+                    credentials: 'same-origin'
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    fetchStats();
+                } else {
+                    alert('Failed to unban IP: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Request failed: ' + err.message);
+            }
+        }
+
+        function renderDashboard(data) {
+            // Metrics
+            document.getElementById('metric-sessions').textContent = data.total_sessions || 0;
+            document.getElementById('metric-viewers').textContent = data.total_viewers || 0;
+            document.getElementById('metric-uptime').textContent = data.relay_uptime || '0s';
+            document.getElementById('metric-version').textContent = 'RMTE v' + (data.server_version || '0.5');
+            document.getElementById('metric-banned').textContent = (data.banned_ips || []).length;
+
+            document.getElementById('active-count-badge').textContent = (data.active_sessions || []).length;
+            document.getElementById('history-count-badge').textContent = (data.history || []).length;
+            document.getElementById('banned-count-badge').textContent = (data.banned_ips || []).length;
+
+            // Active Sessions Table
+            const activeTbody = document.getElementById('active-sessions-tbody');
+            if (!data.active_sessions || data.active_sessions.length === 0) {
+                activeTbody.innerHTML = `<tr><td colspan="8" class="empty-state">No active sessions currently running on relay.</td></tr>`;
+            } else {
+                activeTbody.innerHTML = data.active_sessions.map(s => {
+                    const isHeavy = s.file_bytes > 50 * 1024 * 1024;
+                    const previewBadge = s.preview_enabled ? 
+                        `<span class="badge-pill badge-active">Active</span>` : 
+                        `<span style="color:var(--text-muted); font-size:0.75rem;">Off</span>`;
+                    const fileBadge = isHeavy ? 
+                        `<span class="badge-pill badge-heavy" title="High file consumption">⚠️ ${formatBytes(s.file_bytes)}</span>` : 
+                        `<span>${formatBytes(s.file_bytes)}</span>`;
+
+                    return `
+                        <tr>
+                            <td><span class="code-cell">${escapeHtml(s.id)}</span></td>
+                            <td><span class="ip-cell">${escapeHtml(s.host_ip || 'unknown')}</span></td>
+                            <td><strong>${s.viewers_count}</strong></td>
+                            <td>${escapeHtml(s.uptime)}</td>
+                            <td>${formatBytes(s.bytes_rx)} / ${formatBytes(s.bytes_tx)}</td>
+                            <td>${fileBadge}</td>
+                            <td>${previewBadge}</td>
+                            <td>
+                                <div class="actions-group">
+                                    <button class="btn-action btn-danger" onclick="terminateSession('${escapeHtml(s.id)}')">Terminate</button>
+                                    <button class="btn-action btn-danger" onclick="banSessionHost('${escapeHtml(s.id)}', '${escapeHtml(s.host_ip)}')">Ban IP</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // History Table
+            const histTbody = document.getElementById('history-sessions-tbody');
+            if (!data.history || data.history.length === 0) {
+                histTbody.innerHTML = `<tr><td colspan="7" class="empty-state">No historical sessions recorded yet.</td></tr>`;
+            } else {
+                histTbody.innerHTML = data.history.slice().reverse().map(h => {
+                    const totalBytes = (h.bytes_rx || 0) + (h.bytes_tx || 0);
+                    const isBan = h.reason.toLowerCase().includes('ban');
+                    const reasonClass = isBan ? 'badge-heavy' : 'badge-warn';
+                    const timeStr = new Date(h.closed_at).toLocaleTimeString();
+
+                    return `
+                        <tr>
+                            <td><span class="code-cell">${escapeHtml(h.session_id)}</span></td>
+                            <td><span class="ip-cell">${escapeHtml(h.host_ip || 'unknown')}</span></td>
+                            <td>${escapeHtml(h.duration)}</td>
+                            <td>${formatBytes(totalBytes)}</td>
+                            <td>${formatBytes(h.file_bytes)}</td>
+                            <td><span class="badge-pill ${reasonClass}">${escapeHtml(h.reason)}</span></td>
+                            <td style="color:var(--text-muted); font-size:0.78rem;">${timeStr}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // Banned IPs Table
+            const banTbody = document.getElementById('banned-tbody');
+            if (!data.banned_ips || data.banned_ips.length === 0) {
+                banTbody.innerHTML = `<tr><td colspan="4" class="empty-state">No IP addresses currently blacklisted.</td></tr>`;
+            } else {
+                banTbody.innerHTML = data.banned_ips.map(b => {
+                    const banDate = new Date(b.banned_at).toLocaleString();
+                    return `
+                        <tr>
+                            <td><span class="ip-cell">${escapeHtml(b.ip)}</span></td>
+                            <td>${escapeHtml(b.reason)}</td>
+                            <td style="color:var(--text-muted); font-size:0.78rem;">${banDate}</td>
+                            <td>
+                                <button class="btn-action btn-unban" onclick="unbanIP('${escapeHtml(b.ip)}')">Unban</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // Initial fetch
+        fetchStats();
+    </script>
+</body>
+</html>

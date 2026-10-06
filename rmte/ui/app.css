@@ -147,9 +147,35 @@ body {
     z-index: 1;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: var(--space-xs);
     font-size: var(--text-xs);
     color: var(--color-ink-muted);
+}
+.brand-github-link {
+    color: var(--color-ink-2);
+    text-decoration: none;
+    font-size: var(--text-xs);
+    font-weight: 500;
+    transition: color 0.15s ease;
+}
+.brand-github-link:hover {
+    color: var(--color-accent);
+}
+#github-link-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-size: 15px;
+    padding: 0 var(--space-xs);
+    color: var(--color-ink-2);
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+}
+#github-link-btn:hover {
+    color: var(--color-ink);
+    background: var(--color-hover);
 }
 .brand-dot {
     width: 6px;

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -32,6 +33,14 @@ type Session struct {
 	ProxySecret    string
 	SmuxSession    *smux.Session
 	SmuxMu         sync.RWMutex
+
+	// Metrics & Admin monitoring
+	HostIP     string
+	CreatedAt  time.Time
+	LastActive time.Time
+	BytesRx    uint64
+	BytesTx    uint64
+	FileBytes  uint64
 }
 
 const maxViewersPerSession = 50
@@ -53,6 +62,9 @@ func runServer(cfg *ServeConfig) {
 	if !cfg.NoWeb {
 		setupWebHandler(mux, cfg.WebPath, cfg.WSPath)
 	}
+	if cfg.AdminPass != "" {
+		setupAdminHandler(mux, cfg.AdminPath, cfg.AdminPass)
+	}
 
 	bindHost := "127.0.0.1"
 	if cfg.Public {
@@ -60,10 +72,19 @@ func runServer(cfg *ServeConfig) {
 	}
 	addr := fmt.Sprintf("%s:%d", bindHost, cfg.Port)
 	fmt.Printf("Relay Server started on %s\n", addr)
+	if cfg.AdminPass != "" {
+		fmt.Printf("Relay Admin Dashboard enabled at %s\n", cfg.AdminPath)
+	}
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
 func handleWS(w http.ResponseWriter, r *http.Request) {
+	clientIP := getClientIP(r)
+	if isIPBanned(clientIP) {
+		http.Error(w, "Forbidden: IP address is banned on this relay", http.StatusForbidden)
+		return
+	}
+
 	rawConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
@@ -151,6 +172,9 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			AuthToken:      auth.AuthToken,
 			PreviewEnabled: auth.Preview,
 			ProxySecret:    proxySecret,
+			HostIP:         clientIP,
+			CreatedAt:      time.Now(),
+			LastActive:     time.Now(),
 		}
 		sessions[sessionID] = s
 		sessionMu.Unlock()
@@ -181,6 +205,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			sessionMu.Lock()
 			if sess, ok := sessions[sessionID]; ok {
+				recordClosedSession(sess, "Closed by host")
 				sess.SmuxMu.Lock()
 				if sess.SmuxSession != nil {
 					sess.SmuxSession.Close()
@@ -303,20 +328,33 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
+		msgLen := uint64(len(data))
+		atomic.AddUint64(&s.BytesRx, msgLen)
+		s.LastActive = time.Now()
+
 		if mt == websocket.BinaryMessage {
+			if len(data) > 0 && data[0] == 255 {
+				atomic.AddUint64(&s.FileBytes, msgLen)
+			}
 			// Proxy binary message
 			if role == "host" {
 				// Broadcast to all viewers
 				s.Mutex.RLock()
+				vCount := 0
 				for _, conns := range s.Viewers {
 					for _, vConn := range conns {
 						vConn.WriteMessage(websocket.BinaryMessage, data)
+						vCount++
 					}
 				}
 				s.Mutex.RUnlock()
+				if vCount > 0 {
+					atomic.AddUint64(&s.BytesTx, msgLen*uint64(vCount))
+				}
 			} else {
 				// Send to host
 				s.Host.WriteMessage(websocket.BinaryMessage, data)
+				atomic.AddUint64(&s.BytesTx, msgLen)
 			}
 		} else if mt == websocket.TextMessage {
 			// Handle control messages

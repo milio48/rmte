@@ -62,6 +62,8 @@ type ServeConfig struct {
 	Dir           string // initial working directory for host
 	ID            string // custom session ID for host (optional)
 	InternalToken string // used by the embedded host in standalone mode
+	AdminPath     string // HTTP path for Admin Dashboard (e.g. /admin or /admin-rmte)
+	AdminPass     string // Password for Admin Dashboard (disabled if empty)
 }
 
 var origArgs []string
@@ -135,6 +137,10 @@ func cmdServe() {
 	flag.BoolVar(&cfg.Preview, "preview", false, "Alias for --web-preview")
 	flag.BoolVar(&cfg.Quiet, "quiet", false, "Run in background (detached) and print connection info with PID")
 	flag.BoolVar(&cfg.Quiet, "q", false, "Alias for --quiet")
+	flag.StringVar(&cfg.AdminPath, "admin-path", "/admin", "HTTP path for Relay Admin Dashboard")
+	flag.StringVar(&cfg.AdminPath, "path-admin", "/admin", "Alias for --admin-path")
+	flag.StringVar(&cfg.AdminPass, "admin-pass", "", "Password for Relay Admin Dashboard (disabled if empty)")
+	flag.StringVar(&cfg.AdminPass, "password-admin", "", "Alias for --admin-pass")
 	flag.Parse()
 
 	if cfg.Quiet && !isDaemonChild() {
@@ -187,6 +193,17 @@ func cmdServe() {
 	cfg.WSPath = normalizePath(cfg.WSPath)
 	if !cfg.NoWeb && cfg.WSPath+"/" == cfg.WebPath {
 		fatalf("Error: --ws-path and --web-path must differ")
+	}
+
+	if cfg.AdminPass != "" {
+		cfg.AdminPath = strings.TrimSpace(cfg.AdminPath)
+		if !strings.HasPrefix(cfg.AdminPath, "/") {
+			cfg.AdminPath = "/" + cfg.AdminPath
+		}
+		cfg.AdminPath = strings.TrimSuffix(cfg.AdminPath, "/")
+		if cfg.AdminPath == "" {
+			cfg.AdminPath = "/admin"
+		}
 	}
 
 	if cfg.Hostname == "" {
@@ -391,6 +408,7 @@ Usage:
   rmte serve [--mode=standalone|hybrid|relay] [--port=%d] [--pass="secret"] [--id="mysession"]
              [--buffer=1] [--dir="path"] [--web-path="/"] [--ws-path="%s"] [--hostname="example.com"]
              [--public] [--no-web | --no-cli] [--web-preview] [-q | --quiet]
+             [--admin-path="/admin"] [--admin-pass="secret"]
   rmte join   --server-relay="ws://relay:%d%s" --id="..." --pass="secret" [--name="name"]
   rmte stop   <session_id | pid>
   rmte update [--check] [--force] [--restart]

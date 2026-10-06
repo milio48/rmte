@@ -330,6 +330,8 @@ Connect a host to a relay server (defaults to public relay):
 | `--no-cli` | `false` | Reject CLI clients (soft restriction: clients self-declare) |
 | `--web-preview` | `false` | Enable Embedded Web Browser Preview reverse proxy (`--preview` alias) |
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
+| `--admin-path`, `--path-admin` | `/admin` | HTTP path for Relay Admin Dashboard |
+| `--admin-pass`, `--password-admin` | `""` | Password for Relay Admin Dashboard (disabled if empty) |
 
 ### `rmte join`
 | Flag | Default | Description |

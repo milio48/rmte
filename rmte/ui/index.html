@@ -40,8 +40,11 @@
                     </div>
                 </div>
                 <div class="brand-footer">
-                    <span class="brand-dot"></span>
-                    <span>Ready to connect</span>
+                    <div style="display:flex;align-items:center;gap:var(--space-xs);">
+                        <span class="brand-dot"></span>
+                        <span>Ready to connect</span>
+                    </div>
+                    <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" class="brand-github-link" title="View on GitHub">GitHub ↗</a>
                 </div>
             </div>
             <!-- Right: Connect form -->
@@ -86,6 +89,7 @@
             <button id="toggle-activity-btn" onclick="toggleSidebar('activity')" title="Activity Log" aria-label="Toggle activity log panel">📜</button>
             <button id="copy-link-btn" onclick="toggleShareModal(true)" title="Share Session" aria-label="Share session">🔗</button>
             <button id="help-btn" onclick="toggleHelpModal()" title="Keyboard Shortcuts & Tips" aria-label="Help and keyboard shortcuts">❓</button>
+            <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" id="github-link-btn" title="View RMTE on GitHub" aria-label="GitHub repository">🐙</a>
             <button id="disconnect-btn" onclick="disconnectSession()" title="Disconnect" aria-label="Disconnect session">⏻</button>
         </div>
         <div id="workspace">
