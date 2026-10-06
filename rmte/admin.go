@@ -419,6 +419,27 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 		_, _ = w.Write(data)
 	}
 
-	mux.HandleFunc(adminPath, adminUIHandler)
-	mux.HandleFunc(adminPath+"/", adminUIHandler)
+	trimmedPath := strings.TrimSuffix(adminPath, "/")
+	if !strings.HasSuffix(adminPath, "/") {
+		mux.HandleFunc(adminPath, func(w http.ResponseWriter, r *http.Request) {
+			target := trimmedPath + "/"
+			if r.URL.RawQuery != "" {
+				target += "?" + r.URL.RawQuery
+			}
+			http.Redirect(w, r, target, http.StatusFound)
+		})
+	}
+
+	mux.HandleFunc(trimmedPath+"/rmte.svg", func(w http.ResponseWriter, r *http.Request) {
+		data, err := uiAssets.ReadFile("ui/rmte.svg")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/svg+xml")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		_, _ = w.Write(data)
+	})
+
+	mux.HandleFunc(trimmedPath+"/", adminUIHandler)
 }

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <g transform="translate(50,50) scale(1.25) translate(-52,-46)" fill="none" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <!-- R -->
+    <path d="M 20 42 L 36 26 L 20 10" stroke="#38bdf8"/>
+    <!-- M -->
+    <path d="M 52 42 L 64 26 L 76 42 L 88 26" stroke="#a78bfa"/>
+    <!-- T -->
+    <line x1="30" y1="56" x2="30" y2="82" stroke="#34d399"/>
+    <line x1="16" y1="69" x2="44" y2="69" stroke="#34d399"/>
+    <!-- E -->
+    <line x1="56" y1="56" x2="84" y2="56" stroke="#fb7185"/>
+    <line x1="56" y1="69" x2="76" y2="69" stroke="#fb7185"/>
+    <line x1="56" y1="82" x2="84" y2="82" stroke="#fb7185"/>
+  </g>
+</svg>

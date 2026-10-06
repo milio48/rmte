@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RMTE — Remote Terminal Relay</title>
+    <link rel="icon" type="image/svg+xml" href="rmte.svg" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css" />
@@ -30,7 +31,10 @@
             <div class="setup-brand">
                 <div class="brand-content">
                     <div class="brand-badge" id="brand-version">RMTE</div>
-                    <div id="setup-logo">RMTE</div>
+                    <div id="setup-logo">
+                        <img src="rmte.svg" alt="RMTE Logo" class="brand-logo-img" />
+                        <span>RMTE</span>
+                    </div>
                     <p id="setup-subtitle">Encrypted remote terminal relay</p>
                     <div class="brand-features">
                         <span>AES-256 E2EE</span>
@@ -80,6 +84,9 @@
     <!-- Main IDE -->
     <div id="terminal-container" style="display:none;">
         <div id="tabs-bar">
+            <div class="tabs-brand" title="RMTE — Remote Terminal Relay">
+                <img src="rmte.svg" alt="RMTE Logo" class="tabs-brand-logo" />
+            </div>
             <button id="toggle-files-btn" onclick="toggleFileManager()" title="File Explorer (Toggle)" aria-label="Toggle file explorer">📁</button>
             <button id="toggle-preview-btn" onclick="toggleWebPreview()" title="Web Browser Preview (Toggle)" aria-label="Toggle browser preview">🌐</button>
             <div id="tabs"></div>
