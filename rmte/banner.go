@@ -2,14 +2,81 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 )
+
+// resolvePublicRelayURL computes the advertised public WebSocket relay URL from --public-url.
+// It supports:
+//   - Full URLs with schemes: https://my.rmte.biz.id, http://serverku.net:8041, wss://my.rmte.biz.id/ws-rmte
+//   - Host with custom port: serverku.net:8041 -> ws://serverku.net:8041/ws-rmte
+//   - Host without port: my.rmte.biz.id -> wss://my.rmte.biz.id/ws-rmte (defaults to TLS wss)
+//   - Empty (default): ws://localhost:<port>/<ws-path>
+func resolvePublicRelayURL(raw string, port int, wsPath string) (relayURL string, publicDisplay string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fmt.Sprintf("ws://localhost:%d%s", port, wsPath), ""
+	}
+
+	normalized := raw
+	// If no scheme is present, deduce whether to default to wss or ws
+	if !strings.Contains(normalized, "://") {
+		hasExplicitPort := false
+		isPort443 := false
+		if strings.HasPrefix(normalized, "[") {
+			// Bracketed IPv6: e.g. [::1]:8048
+			if idx := strings.LastIndex(normalized, "]:"); idx != -1 {
+				hasExplicitPort = true
+				if normalized[idx+2:] == "443" {
+					isPort443 = true
+				}
+			}
+		} else if strings.Count(normalized, ":") == 1 {
+			// Single colon indicates host:port (e.g. serverku.net:8041)
+			parts := strings.Split(normalized, ":")
+			hasExplicitPort = true
+			if parts[1] == "443" {
+				isPort443 = true
+			}
+		}
+
+		if isPort443 {
+			normalized = "wss://" + normalized
+		} else if hasExplicitPort {
+			normalized = "ws://" + normalized
+		} else {
+			// Domain or host without explicit port (e.g. my.rmte.biz.id) defaults to wss/https
+			normalized = "wss://" + normalized
+		}
+	}
+
+	u, err := url.Parse(normalized)
+	if err != nil || u.Host == "" {
+		// Fallback
+		return fmt.Sprintf("ws://%s:%d%s", raw, port, wsPath), raw
+	}
+
+	wsScheme := "ws"
+	if u.Scheme == "https" || u.Scheme == "wss" {
+		wsScheme = "wss"
+	}
+
+	path := u.Path
+	if path == "" || path == "/" {
+		path = wsPath
+	} else if !strings.HasSuffix(path, wsPath) && u.Scheme != "ws" && u.Scheme != "wss" {
+		path = strings.TrimSuffix(path, "/") + wsPath
+	}
+
+	relayURL = fmt.Sprintf("%s://%s%s", wsScheme, u.Host, path)
+	return relayURL, raw
+}
 
 // BannerInfo holds everything printed in the startup banner of `serve` and `share`.
 type BannerInfo struct {
 	Mode          string // standalone | hybrid | relay | share
 	Bind          string // only for serve
-	Hostname      string // only for serve
+	PublicURL     string // only for serve
 	Port          int    // only for serve
 	RelayURL      string // public WebSocket URL of the relay
 	WebPath       string
@@ -29,12 +96,13 @@ func bannerFromServe(cfg *ServeConfig, sessionID string) BannerInfo {
 	if cfg.Public {
 		bind = "0.0.0.0"
 	}
+	relayURL, publicDisplay := resolvePublicRelayURL(cfg.PublicURL, cfg.Port, cfg.WSPath)
 	return BannerInfo{
 		Mode:          cfg.Mode,
 		Bind:          fmt.Sprintf("%s:%d", bind, cfg.Port),
-		Hostname:      cfg.Hostname,
+		PublicURL:     publicDisplay,
 		Port:          cfg.Port,
-		RelayURL:      fmt.Sprintf("ws://%s:%d%s", cfg.Hostname, cfg.Port, cfg.WSPath),
+		RelayURL:      relayURL,
 		WebPath:       cfg.WebPath,
 		WSPath:        cfg.WSPath,
 		Pass:          cfg.Pass,
@@ -66,7 +134,9 @@ func printBanner(b BannerInfo) {
 		line("Relay", b.RelayURL)
 	} else {
 		line("Bind", b.Bind)
-		line("Host Name", b.Hostname)
+		if b.PublicURL != "" {
+			line("Public URL", b.PublicURL)
+		}
 		line("Rmte Port", fmt.Sprint(b.Port))
 		line("Open to Relay", yesNo(b.Mode == modeHybrid || b.Mode == modeRelay))
 	}
@@ -123,8 +193,8 @@ func printBanner(b BannerInfo) {
 			fmt.Fprintf(&sb, "\nConnect more hosts to this relay:\n  rmte share --server-relay=\"%s\" --pass=\"secret\"\n", b.RelayURL)
 		}
 	}
-	if b.Hostname == "unknown" {
-		sb.WriteString("\nTip: set --hostname=<public-ip-or-domain> to get ready-to-share links.\n")
+	if b.PublicURL == "" && strings.HasPrefix(b.Bind, "0.0.0.0:") {
+		sb.WriteString("\nTip: set --public-url=<domain-or-url> (e.g. https://my.rmte.biz.id or http://host:port) to generate ready-to-share links.\n")
 	}
 	sb.WriteString("\n")
 	fmt.Print(sb.String())

@@ -3,6 +3,7 @@
 # Usage:
 #   curl -sSf https://rmte.biz.id/install.sh | sh                   # Default: Download to current directory
 #   curl -sSf https://rmte.biz.id/install.sh | sh -s run            # Download to /tmp and run immediately
+#   curl -sSf https://rmte.biz.id/install.sh | sh -s run -q         # Download to /tmp and run in background daemon (quiet)
 #   curl -sSf https://rmte.biz.id/install.sh | sh -s download       # Download to current directory
 #   curl -sSf https://rmte.biz.id/install.sh | sh -s install        # Install to ~/.local/bin or /usr/local/bin
 #   curl -sSf https://rmte.biz.id/install.sh | sh -s download run   # Download to current directory and run
@@ -21,13 +22,9 @@ NC='\033[0m'
 DO_DOWNLOAD=0
 DO_INSTALL=0
 DO_RUN=0
+QUIET_MODE=0
 CUSTOM_DIR=""
 EXTRA_ARGS=""
-
-# Parse arguments
-if [ $# -eq 0 ]; then
-  DO_DOWNLOAD=1
-fi
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -41,6 +38,11 @@ while [ $# -gt 0 ]; do
       ;;
     install)
       DO_INSTALL=1
+      shift
+      ;;
+    -q|--quiet)
+      QUIET_MODE=1
+      EXTRA_ARGS="${EXTRA_ARGS} -q"
       shift
       ;;
     --dir=*)
@@ -60,6 +62,17 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
+
+# Default behaviors:
+# If no action specified, default to download.
+# If only -q specified without run/download/install, default to ephemeral run in quiet mode.
+if [ "$DO_DOWNLOAD" -eq 0 ] && [ "$DO_INSTALL" -eq 0 ] && [ "$DO_RUN" -eq 0 ]; then
+  if [ "$QUIET_MODE" -eq 1 ]; then
+    DO_RUN=1
+  else
+    DO_DOWNLOAD=1
+  fi
+fi
 
 # If only 'run' was specified without download/install, target temporary folder
 if [ "$DO_DOWNLOAD" -eq 0 ] && [ "$DO_INSTALL" -eq 0 ] && [ "$DO_RUN" -eq 1 ]; then
@@ -108,16 +121,26 @@ TARGET_FILE="${TARGET_DIR}/rmte${EXE_EXT}"
 
 mkdir -p "${TARGET_DIR}"
 
-printf "${BLUE}==>${NC} Detected platform: ${GREEN}%s/%s${NC}\n" "${OS}" "${ARCH}"
-printf "${BLUE}==>${NC} Downloading ${CYAN}%s${NC}...\n" "${DOWNLOAD_URL}"
+if [ "$QUIET_MODE" -eq 0 ]; then
+  printf "${BLUE}==>${NC} Detected platform: ${GREEN}%s/%s${NC}\n" "${OS}" "${ARCH}"
+  printf "${BLUE}==>${NC} Downloading ${CYAN}%s${NC}...\n" "${DOWNLOAD_URL}"
+fi
 
 TEMP_FILE="${TARGET_DIR}/rmte.tmp.$$"
 trap 'rm -f "${TEMP_FILE}"' EXIT INT TERM
 
 if command -v curl >/dev/null 2>&1; then
-  curl -fL --progress-bar "${DOWNLOAD_URL}" -o "${TEMP_FILE}"
+  if [ "$QUIET_MODE" -eq 1 ]; then
+    curl -sSfL "${DOWNLOAD_URL}" -o "${TEMP_FILE}"
+  else
+    curl -fL --progress-bar "${DOWNLOAD_URL}" -o "${TEMP_FILE}"
+  fi
 elif command -v wget >/dev/null 2>&1; then
-  wget -q --show-progress "${DOWNLOAD_URL}" -O "${TEMP_FILE}"
+  if [ "$QUIET_MODE" -eq 1 ]; then
+    wget -q "${DOWNLOAD_URL}" -O "${TEMP_FILE}"
+  else
+    wget -q --show-progress "${DOWNLOAD_URL}" -O "${TEMP_FILE}"
+  fi
 else
   printf "${RED}Error: curl or wget is required to download rmte.${NC}\n" >&2
   exit 1
@@ -127,7 +150,9 @@ chmod +x "${TEMP_FILE}"
 mv -f "${TEMP_FILE}" "${TARGET_FILE}"
 trap - EXIT INT TERM
 
-printf "${GREEN}==>${NC} Ready: ${GREEN}%s${NC}\n" "${TARGET_FILE}"
+if [ "$QUIET_MODE" -eq 0 ]; then
+  printf "${GREEN}==>${NC} Ready: ${GREEN}%s${NC}\n" "${TARGET_FILE}"
+fi
 
 # If installed to ~/.local/bin, verify it is in PATH
 if [ "$DO_INSTALL" -eq 1 ]; then
@@ -143,7 +168,9 @@ fi
 
 # Run binary if requested
 if [ "$DO_RUN" -eq 1 ]; then
-  printf "${BLUE}==>${NC} Launching RMTE...\n\n"
+  if [ "$QUIET_MODE" -eq 0 ]; then
+    printf "${BLUE}==>${NC} Launching RMTE...\n\n"
+  fi
   if [ -n "${EXTRA_ARGS}" ]; then
     # shellcheck disable=SC2086
     exec "${TARGET_FILE}" ${EXTRA_ARGS}

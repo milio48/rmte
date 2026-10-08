@@ -2,6 +2,7 @@
 # Usage:
 #   irm https://rmte.biz.id/install.ps1 | iex                                              # Default: Download to current dir
 #   & ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) run                   # Download to %TEMP% and run
+#   & ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) run -q                # Download to %TEMP% and run in background daemon (quiet)
 #   & ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) download              # Download to current dir
 #   & ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) install               # Install to ~/.local/bin and update PATH
 #   & ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) download run          # Download to current dir and run
@@ -22,13 +23,14 @@ if (-not $Actions -or $Actions.Count -eq 0) {
     } elseif ($env:RMTE_ACTION) {
         $Actions = $env:RMTE_ACTION -split '\s+'
     } else {
-        $Actions = @("download")
+        $Actions = @()
     }
 }
 
 $doDownload = $false
 $doInstall = $false
 $doRun = $false
+$quiet = $false
 $extraArgs = @()
 
 foreach ($action in $Actions) {
@@ -36,7 +38,17 @@ foreach ($action in $Actions) {
         "run"      { $doRun = $true }
         "download" { $doDownload = $true }
         "install"  { $doInstall = $true }
+        "-q"       { $quiet = $true; $extraArgs += "-q" }
+        "--quiet"  { $quiet = $true; $extraArgs += "--quiet" }
         default    { $extraArgs += $action }
+    }
+}
+
+if (-not $doDownload -and -not $doInstall -and -not $doRun) {
+    if ($quiet) {
+        $doRun = $true
+    } else {
+        $doDownload = $true
     }
 }
 
@@ -56,7 +68,9 @@ if (-not (Test-Path $targetDir)) {
 $targetExe = Join-Path $targetDir "rmte.exe"
 $tempExe = Join-Path $targetDir ("rmte.tmp." + [System.Guid]::NewGuid().ToString("N").Substring(0, 8) + ".exe")
 
-Write-Host "==> Preparing RMTE binary for Windows..." -ForegroundColor Cyan
+if (-not $quiet) {
+    Write-Host "==> Preparing RMTE binary for Windows..." -ForegroundColor Cyan
+}
 
 # Detect Architecture
 $arch = $env:PROCESSOR_ARCHITECTURE
@@ -72,13 +86,19 @@ switch -Regex ($arch) {
 $binaryName = "rmte-windows-$arch.exe"
 $downloadUrl = "https://github.com/milio48/rmte/releases/latest/download/$binaryName"
 
-Write-Host "==> Detected platform: windows/$arch" -ForegroundColor Cyan
-Write-Host "==> Downloading $downloadUrl..." -ForegroundColor Cyan
+if (-not $quiet) {
+    Write-Host "==> Detected platform: windows/$arch" -ForegroundColor Cyan
+    Write-Host "==> Downloading $downloadUrl..." -ForegroundColor Cyan
+}
 
 try {
-    # Prefer curl.exe if available (clean progress indicator)
+    # Prefer curl.exe if available
     if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-        & curl.exe -fL --progress-bar "$downloadUrl" -o "$tempExe"
+        if ($quiet) {
+            & curl.exe -sSfL "$downloadUrl" -o "$tempExe"
+        } else {
+            & curl.exe -fL --progress-bar "$downloadUrl" -o "$tempExe"
+        }
         if ($LASTEXITCODE -ne 0) {
             throw "curl.exe exited with code $LASTEXITCODE"
         }
@@ -95,7 +115,9 @@ try {
 # Move temporary file to final target
 Move-Item -Path $tempExe -Destination $targetExe -Force
 
-Write-Host "==> Ready: $targetExe" -ForegroundColor Green
+if (-not $quiet) {
+    Write-Host "==> Ready: $targetExe" -ForegroundColor Green
+}
 
 # If install mode, check and add to User PATH
 if ($doInstall) {
@@ -109,7 +131,9 @@ if ($doInstall) {
 
 # Run binary if requested
 if ($doRun) {
-    Write-Host "`n==> Launching RMTE...`n" -ForegroundColor Green
+    if (-not $quiet) {
+        Write-Host "`n==> Launching RMTE...`n" -ForegroundColor Green
+    }
     if ($extraArgs.Count -gt 0) {
         & $targetExe @extraArgs
     } else {

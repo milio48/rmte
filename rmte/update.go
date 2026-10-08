@@ -261,8 +261,8 @@ func restartActiveSession(exePath string) {
 			if meta.Public {
 				args = append(args, "--public")
 			}
-			if meta.Hostname != "" {
-				args = append(args, "--hostname="+meta.Hostname)
+			if meta.PublicURL != "" {
+				args = append(args, "--public-url="+meta.PublicURL)
 			}
 			if meta.WebPath != "" {
 				args = append(args, "--web-path="+meta.WebPath)

@@ -23,7 +23,7 @@ type SessionMeta struct {
 	Mode        string `json:"mode"`
 	Port        int    `json:"port,omitempty"`
 	Public      bool   `json:"public,omitempty"`
-	Hostname    string `json:"hostname,omitempty"`
+	PublicURL   string `json:"public_url,omitempty"`
 	WebPath     string `json:"web_path,omitempty"`
 	WSPath      string `json:"ws_path,omitempty"`
 	AdminPath   string `json:"admin_path,omitempty"`

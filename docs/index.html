@@ -1296,7 +1296,7 @@
     <a href="#" class="brand">
       <img src="rmte.svg" alt="RMTE Logo" width="28" height="28">
       <span>RMTE</span>
-      <span class="brand-badge">v0.6.0</span>
+      <span class="brand-badge">v0.6.1</span>
     </a>
     <div class="nav-links">
       <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" class="nav-link">
@@ -1311,7 +1311,7 @@
   <main>
     <section class="hero">
       <div class="hero-tag">
-        ✨ v0.6.0 Released • Web Preview & Windows ConPTY
+        ✨ v0.6.1 Released • Web Preview & Windows ConPTY
       </div>
       <h1>Remote Terminal Relay & Cloud IDE</h1>
       <p>
@@ -1685,7 +1685,7 @@
                 <td><strong>Supported Flags</strong></td>
                 <td><code>--port</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>-q</code>, <code>--admin-pass</code>, <code>--admin-path</code></td>
                 <td><code>--port</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--public</code>, <code>--web-preview</code>, <code>-q</code>, <code>--admin-pass</code>, <code>--admin-path</code></td>
-                <td><code>--port</code>, <code>--public</code>, <code>--admin-pass</code>, <code>--admin-path</code>, <code>--hostname</code>, <code>--web-path</code>, <code>--ws-path</code>, <code>-q</code></td>
+                <td><code>--port</code>, <code>--public</code>, <code>--admin-pass</code>, <code>--admin-path</code>, <code>--public-url</code>, <code>--web-path</code>, <code>--ws-path</code>, <code>-q</code></td>
                 <td><code>--server-relay</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>-q</code></td>
                 <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--name</code></td>
               </tr>
@@ -1765,9 +1765,9 @@
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                 <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
                 <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
-                  onclick="copySnippet('./rmte serve --public --hostname=&quot;rmte.example.com&quot; --pass=&quot;secret123&quot;', this)">Copy</button>
+                  onclick="copySnippet('./rmte serve --public --public-url=&quot;https://rmte.example.com&quot; --pass=&quot;secret123&quot;', this)">Copy</button>
               </div>
-              <code>./rmte serve --public --hostname="rmte.example.com" --pass="secret123"</code>
+              <code>./rmte serve --public --public-url="https://rmte.example.com" --pass="secret123"</code>
             </div>
             <p>Self-contained server hosting both the WebSocket relay and terminal host on port 8048. External host
               connections (<code>share</code>) are strictly rejected.</p>
@@ -1783,9 +1783,9 @@
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                 <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
                 <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
-                  onclick="copySnippet('./rmte serve --mode=relay --public --hostname=&quot;relay.example.com&quot;', this)">Copy</button>
+                  onclick="copySnippet('./rmte serve --mode=relay --public --public-url=&quot;https://relay.example.com&quot;', this)">Copy</button>
               </div>
-              <code>./rmte serve --mode=relay --public --hostname="relay.example.com"</code>
+              <code>./rmte serve --mode=relay --public --public-url="https://relay.example.com"</code>
             </div>
             <p>Dedicated central router running in multi-host mesh. Only opens port 8048 for HTTP Web UI and WebSocket
               routing, without spawning a local terminal shell.</p>
@@ -1801,9 +1801,9 @@
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                 <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
                 <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
-                  onclick="copySnippet('./rmte serve --mode=hybrid --public --hostname=&quot;relay.example.com&quot;', this)">Copy</button>
+                  onclick="copySnippet('./rmte serve --mode=hybrid --public --public-url=&quot;https://relay.example.com&quot;', this)">Copy</button>
               </div>
-              <code>./rmte serve --mode=hybrid --public --hostname="relay.example.com"</code>
+              <code>./rmte serve --mode=hybrid --public --public-url="https://relay.example.com"</code>
             </div>
             <p>Runs a local host session on the server while simultaneously serving as a public relay hub accepting
               external connections from <code>rmte share</code>.</p>
@@ -2024,9 +2024,9 @@
                   <td>WebSocket endpoint used for client and host connections.</td>
                 </tr>
                 <tr>
-                  <td><code>--hostname</code></td>
-                  <td><code>localhost</code> / <code>unknown</code></td>
-                  <td>Public domain or IP formatted into shareable links printed to stdout.</td>
+                  <td><code>--public-url</code>, <code>--url</code></td>
+                  <td><em>Disabled (empty)</em></td>
+                  <td>Full public base URL or domain advertised in links (e.g. <code>https://my.rmte.biz.id</code> or <code>http://host:8041</code>). Automatically sets TLS/WSS schemes and preserves custom ports.</td>
                 </tr>
                 <tr>
                   <td><code>--no-web</code></td>
@@ -2193,7 +2193,7 @@
       // Parameters (pre-filled with real random credentials)
       relayUrl: 'ws://relay.example.com:8048/ws-rmte',
       port: '8048',
-      hostname: '',
+      publicUrl: '',
       sessionId: generateRandomSessionId(),
       password: generateRandomPassword(),
       dir: '',
@@ -2227,6 +2227,7 @@
 
     const instantActionsConfig = [
       { id: 'run', label: '⚡ Run Direct (/tmp)', desc: 'Zero-trace ephemeral execution from temporary storage' },
+      { id: 'run-quiet', label: '🤫 Run Daemon (-q)', desc: 'Zero-trace execution detached in background with shareable link' },
       { id: 'download-run', label: '🚀 Download & Run', desc: 'Download single binary to current folder and launch immediately' },
       { id: 'install-run', label: '🛠️ Install & Run', desc: 'Install binary permanently into user PATH and launch session' }
     ];
@@ -2566,8 +2567,8 @@
               <input type="text" class="param-input" placeholder="8048" value="${escapeAttr(state.port)}" oninput="updateParam('port', this.value)">
             </div>
             <div class="param-field">
-              <label class="param-label">Public Domain / IP (--hostname)</label>
-              <input type="text" class="param-input" placeholder="e.g. rmte.example.com" value="${escapeAttr(state.hostname)}" oninput="updateParam('hostname', this.value)">
+              <label class="param-label">Public Base URL / Domain (--public-url)</label>
+              <input type="text" class="param-input" placeholder="e.g. https://my.rmte.biz.id or http://host:8041" value="${escapeAttr(state.publicUrl)}" oninput="updateParam('publicUrl', this.value)">
             </div>
             <div class="param-field">
               <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -2647,8 +2648,8 @@
               <input type="text" class="param-input" placeholder="8048" value="${escapeAttr(state.port)}" oninput="updateParam('port', this.value)">
             </div>
             <div class="param-field">
-              <label class="param-label">Relay Domain / Hostname (--hostname)</label>
-              <input type="text" class="param-input" placeholder="e.g. relay.example.com" value="${escapeAttr(state.hostname)}" oninput="updateParam('hostname', this.value)">
+              <label class="param-label">Public Base URL / Domain (--public-url)</label>
+              <input type="text" class="param-input" placeholder="e.g. https://relay.example.com" value="${escapeAttr(state.publicUrl)}" oninput="updateParam('publicUrl', this.value)">
             </div>
             <div class="param-field">
               <label class="param-label">Relay Admin Password (--admin-pass)</label>
@@ -2680,8 +2681,8 @@
               <input type="text" class="param-input" placeholder="Generated random if empty" value="${escapeAttr(state.password)}" oninput="updateParam('password', this.value)">
             </div>
             <div class="param-field">
-              <label class="param-label">Public Domain / IP (--hostname)</label>
-              <input type="text" class="param-input" placeholder="e.g. relay.example.com" value="${escapeAttr(state.hostname)}" oninput="updateParam('hostname', this.value)">
+              <label class="param-label">Public Base URL / Domain (--public-url)</label>
+              <input type="text" class="param-input" placeholder="e.g. https://relay.example.com" value="${escapeAttr(state.publicUrl)}" oninput="updateParam('publicUrl', this.value)">
             </div>
             <div class="param-field">
               <label class="param-label">Working Directory (--dir)</label>
@@ -2753,7 +2754,10 @@
     }
 
     function buildInstallerCommand() {
-      const act = state.instantAction === 'run' ? 'run' : (state.instantAction === 'download-run' ? 'download run' : 'install run');
+      let act = 'run';
+      if (state.instantAction === 'run-quiet') act = 'run -q';
+      else if (state.instantAction === 'download-run') act = 'download run';
+      else if (state.instantAction === 'install-run') act = 'install run';
       const isWindows = state.os === 'windows';
 
       if (isWindows) {
@@ -2815,7 +2819,7 @@
           let cmd = `${bin} serve`;
           if (state.publicBind) cmd += ' --public';
           if (state.port && state.port !== '8048') cmd += ` --port=${state.port}`;
-          if (state.hostname) cmd += ` --hostname="${state.hostname}"`;
+          if (state.publicUrl) cmd += ` --public-url="${state.publicUrl}"`;
           if (state.password) cmd += ` --pass="${state.password}"`;
           if (state.sessionId) cmd += ` --id="${state.sessionId}"`;
           if (state.dir) cmd += ` --dir="${state.dir}"`;
@@ -2840,7 +2844,7 @@
         } else if (act === 'relay-only') {
           let cmd = `${bin} serve --mode=relay --public`;
           if (state.port && state.port !== '8048') cmd += ` --port=${state.port}`;
-          if (state.hostname) cmd += ` --hostname="${state.hostname}"`;
+          if (state.publicUrl) cmd += ` --public-url="${state.publicUrl}"`;
           if (state.adminPass) {
             cmd += ` --admin-pass="${state.adminPass}"`;
             if (state.adminPath && state.adminPath !== '/admin') cmd += ` --admin-path="${state.adminPath}"`;
@@ -2850,7 +2854,7 @@
         } else if (act === 'hybrid') {
           let cmd = `${bin} serve --mode=hybrid --public`;
           if (state.port && state.port !== '8048') cmd += ` --port=${state.port}`;
-          if (state.hostname) cmd += ` --hostname="${state.hostname}"`;
+          if (state.publicUrl) cmd += ` --public-url="${state.publicUrl}"`;
           if (state.password) cmd += ` --pass="${state.password}"`;
           if (state.sessionId) cmd += ` --id="${state.sessionId}"`;
           if (state.dir) cmd += ` --dir="${state.dir}"`;
@@ -2916,6 +2920,8 @@
           html = '🪟 <strong>Windows PowerShell Native:</strong> <code>irm</code> (Invoke-RestMethod) runs directly inside native Windows PowerShell without requiring external dependencies.';
         } else if (state.instantAction === 'run') {
           html = '⚡ <strong>Ephemeral Zero-Trace:</strong> Downloads RMTE directly to temporary memory/storage (<code>/tmp</code> or <code>%TEMP%</code>) and launches an encrypted session instantly. No binary files remain on disk when terminated.';
+        } else if (state.instantAction === 'run-quiet') {
+          html = '🤫 <strong>Background Daemon (-q):</strong> Downloads RMTE to temporary storage and launches immediately in detached background daemon mode. Prints the ready-to-share session link and PID, then returns control to your shell!';
         } else if (state.instantAction === 'download-run') {
           html = '🚀 <strong>Download & Run:</strong> Downloads the single self-contained binary into the current working directory and immediately launches your session.';
         } else if (state.instantAction === 'install-run') {

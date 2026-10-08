@@ -1,4 +1,4 @@
-# RMTE — Remote Terminal Relay & Cloud IDE (v0.6.0)
+# RMTE — Remote Terminal Relay & Cloud IDE (v0.6.1)
 
 > "I love sshx, but my endless curiosity to build it from scratch got the best of me 🥲"
 
@@ -105,6 +105,9 @@ curl -sSf https://rmte.biz.id/install.sh | sh -s install
 
 # 4. Download and run in one shot
 curl -sSf https://rmte.biz.id/install.sh | sh -s download run
+
+# 5. Run immediately in background daemon (quiet)
+curl -sSf https://rmte.biz.id/install.sh | sh -s run -q
 ```
 
 **Windows (PowerShell):**
@@ -120,6 +123,9 @@ irm https://rmte.biz.id/install.ps1 | iex
 
 # 4. Download and run in one shot
 & ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) download run
+
+# 5. Run immediately in background daemon (quiet)
+& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) run -q
 ```
 
 ### Pre-built Binaries
@@ -152,7 +158,7 @@ RMTE is designed with zero frontend dependencies. All web assets in `rmte/ui/` (
 3. **Build Binary with Custom Version (`-ldflags`):**
    ```bash
    cd rmte/rmte
-   go build -ldflags "-s -w -X main.appVersion=0.6.0" -o rmte
+   go build -ldflags "-s -w -X main.appVersion=0.6.1" -o rmte
    ```
 
 </details>
@@ -202,10 +208,9 @@ Or with custom credentials:
 ```
 Output:
 ```
-RMTE v0.6.0 — Mode: standalone
+RMTE v0.6.1 — Mode: standalone
 ────────────────────────────────────────────────
 Bind:             127.0.0.1:8048
-Host Name:        localhost
 Rmte Port:        8048
 Open to Relay:    ❌ No
 Directory:        /workspace
@@ -225,7 +230,7 @@ Join CLI / TUI Version:
 ### Case 1: Single VPS (self-contained)
 One machine is both the relay and the host. External hosts are rejected.
 ```bash
-./rmte serve --public --hostname="rmte.example.com" --pass="supersecret123"
+./rmte serve --public --public-url="https://rmte.example.com" --pass="supersecret123"
 ```
 ```
 ┌────────────────────────────────────────────────────────┐
@@ -246,7 +251,7 @@ One machine is both the relay and the host. External hosts are rejected.
 Only the relay opens a port. Hosts connect **outbound**, so they need no open ports.
 ```bash
 # VPS_1 (relay only)
-./rmte serve --mode=relay --public --hostname="relay.example.com"
+./rmte serve --mode=relay --public --public-url="https://relay.example.com"
 
 # VPS_2, VPS_3, VPS_4 (each becomes a host with its own Session ID)
 ./rmte share --server-relay="ws://relay.example.com:8048/ws-rmte" --pass="supersecret123" --buffer=5
@@ -300,7 +305,7 @@ Then navigate to `http://your-relay:8048/admin` in your browser and enter the pa
 * **Live Overview:** Real-time statistics including active sessions, connected viewers, and cumulative TX / RX bandwidth.
 * **Session Management:** Inspect active host session IDs and view connected viewer counts.
 * **Instant Termination:** Force-close suspicious or hung sessions immediately with one click (`/admin/api/terminate`).
-* **IP Banning:** Permanently ban malicious remote IP addresses in real time (`/admin/api/ban-ip`).
+* **IP Banning:** Permanently ban malicious remote IP addresses in real time (`/admin/api/ban`).
 * **Custom Route:** Customize the path via `--admin-path` (e.g. `--admin-path="/control"`). It cannot collide with `/p` (Web Preview), `/favicon.ico`, or the Web UI.
 
 ---
@@ -342,7 +347,7 @@ Connect a host to a relay server (defaults to public relay):
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB). Ignored in `relay` |
 | `--web-path` | `/` | Path of the Web UI (e.g. `/web`) |
 | `--ws-path` | `/ws-rmte` | WebSocket path |
-| `--hostname` | `localhost` / `unknown` | Hostname/IP used **only** in printed links |
+| `--public-url`, `--url` | `""` | Public base URL or domain advertised in links (e.g. `https://my.rmte.biz.id` or `http://host:8041`) |
 | `--public` | `false` | Bind `0.0.0.0` instead of `127.0.0.1` |
 | `--no-web` | `false` | Don't serve the Web UI |
 | `--no-cli` | `false` | Reject CLI clients (soft restriction: clients self-declare) |

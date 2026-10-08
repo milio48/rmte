@@ -310,7 +310,7 @@ func runHost(opts HostOptions) {
 		if serverCfg != nil {
 			meta.Port = serverCfg.Port
 			meta.Public = serverCfg.Public
-			meta.Hostname = serverCfg.Hostname
+			meta.PublicURL = serverCfg.PublicURL
 			meta.WebPath = serverCfg.WebPath
 			meta.WSPath = serverCfg.WSPath
 			meta.AdminPath = serverCfg.AdminPath

@@ -52,7 +52,7 @@ type ServeConfig struct {
 	Buffer        int
 	WebPath       string
 	WSPath        string
-	Hostname      string
+	PublicURL     string
 	Public        bool
 	NoWeb         bool
 	NoCLI         bool
@@ -126,7 +126,8 @@ func cmdServe() {
 	flag.IntVar(&cfg.Buffer, "buffer", 1, "Max buffer size in MB (ignored in relay mode)")
 	flag.StringVar(&cfg.WebPath, "web-path", "/", "HTTP path for the Web UI")
 	flag.StringVar(&cfg.WSPath, "ws-path", defaultWSPath, "WebSocket path")
-	flag.StringVar(&cfg.Hostname, "hostname", "", "Public hostname/IP used only for printed links")
+	flag.StringVar(&cfg.PublicURL, "public-url", "", "Full public base URL or domain (e.g. https://my.rmte.biz.id or http://host:8041)")
+	flag.StringVar(&cfg.PublicURL, "url", "", "Alias for --public-url")
 	flag.StringVar(&cfg.Dir, "dir", "", "Initial working directory for File Explorer and terminal")
 	flag.StringVar(&cfg.ID, "id", "", "Custom Session ID (lowercase a-z, 0-9, max 10 chars; random if empty)")
 	flag.BoolVar(&cfg.Public, "public", false, "Bind to 0.0.0.0 (default 127.0.0.1)")
@@ -218,14 +219,6 @@ func cmdServe() {
 		cfgJSONPath := strings.TrimSuffix(cfg.WebPath, "/") + "/config.json"
 		if cfg.AdminPath == "/config.json" || (!cfg.NoWeb && cfg.AdminPath == cfgJSONPath) {
 			fatalf("Error: --admin-path cannot conflict with web configuration endpoint")
-		}
-	}
-
-	if cfg.Hostname == "" {
-		if cfg.Public {
-			cfg.Hostname = "unknown"
-		} else {
-			cfg.Hostname = "localhost"
 		}
 	}
 
@@ -354,9 +347,10 @@ func runServeAndShare(cfg *ServeConfig) {
 		time.Sleep(50 * time.Millisecond)
 	}
 
+	relayURL, _ := resolvePublicRelayURL(cfg.PublicURL, cfg.Port, cfg.WSPath)
 	runHost(HostOptions{
 		DialURL:       fmt.Sprintf("ws://127.0.0.1:%d%s", cfg.Port, cfg.WSPath),
-		PublicURL:     fmt.Sprintf("ws://%s:%d%s", cfg.Hostname, cfg.Port, cfg.WSPath),
+		PublicURL:     relayURL,
 		Pass:          cfg.Pass,
 		PassGenerated: cfg.PassGenerated,
 		Buffer:        cfg.Buffer,
@@ -421,7 +415,7 @@ Usage:
   rmte       [--pass="secret"] [--id="mysession"] [--dir="path"] [--buffer=1] [-q]
   rmte share [--server-relay="%s"] [--pass="secret"] [--id="mysession"] [--buffer=1] [--dir="path"] [-q]
   rmte serve [--mode=standalone|hybrid|relay] [--port=%d] [--pass="secret"] [--id="mysession"]
-             [--buffer=1] [--dir="path"] [--web-path="/"] [--ws-path="%s"] [--hostname="example.com"]
+             [--buffer=1] [--dir="path"] [--web-path="/"] [--ws-path="%s"] [--public-url="https://example.com"]
              [--public] [--no-web | --no-cli] [--web-preview] [-q | --quiet]
              [--admin-path="/admin"] [--admin-pass="secret"]
   rmte join   [--server-relay="%s"] --id="..." --pass="secret" [--name="name"]
