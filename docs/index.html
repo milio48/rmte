@@ -1540,13 +1540,13 @@
                   WASM</span></li>
               <li><span class="bullet-icon">🔄</span><span><strong>HTTP Reverse Proxy:</strong> /p/ mini-browser
                   proxy</span></li>
+              <li><span class="bullet-icon">🛡️</span><span><strong>Admin Dashboard:</strong> Live metrics, bandwidth TX/RX & IP bans (<code>--admin-pass</code>)</span></li>
               <li><span class="bullet-icon">🕶️</span><span><strong>Blind Pipe:</strong> Never holds keys or
                   plaintext</span></li>
             </ul>
             <div class="node-subcard">
-              <div class="node-subcard-title">🔐 Zero-Knowledge</div>
-              <p>Relay acts strictly as a dumb packet multiplexer. Data cannot be inspected or decrypted on the server.
-              </p>
+              <div class="node-subcard-title">🔐 Zero-Knowledge & Admin Control</div>
+              <p>Relay acts strictly as a dumb packet multiplexer without accessing plaintext. Self-hosted relays include a built-in <code>/admin</code> web dashboard for real-time bandwidth tracking, active viewer counts, and IP banning.</p>
             </div>
           </div>
 
@@ -1683,11 +1683,11 @@
               </tr>
               <tr>
                 <td><strong>Supported Flags</strong></td>
-                <td><code>--pass</code>, <code>--buffer</code>, <code>--dir</code>, <code>--id</code></td>
-                <td><code>--pass</code>, <code>--buffer</code>, <code>--dir</code>, <code>--id</code></td>
-                <td><em>Ignored (Relay only)</em></td>
-                <td><code>--pass</code>, <code>--buffer</code>, <code>--dir</code>, <code>--id</code></td>
-                <td><code>--id</code>, <code>--pass</code>, <code>--name</code></td>
+                <td><code>--port</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>-q</code>, <code>--admin-pass</code>, <code>--admin-path</code></td>
+                <td><code>--port</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--public</code>, <code>--web-preview</code>, <code>-q</code>, <code>--admin-pass</code>, <code>--admin-path</code></td>
+                <td><code>--port</code>, <code>--public</code>, <code>--admin-pass</code>, <code>--admin-path</code>, <code>--hostname</code>, <code>--web-path</code>, <code>--ws-path</code>, <code>-q</code></td>
+                <td><code>--server-relay</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>-q</code></td>
+                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--name</code></td>
               </tr>
             </tbody>
           </table>
@@ -1862,6 +1862,279 @@
             </div>
             <p>Cleanly terminates background daemons (<code>rmte stop</code>). Use <code>rmte update --restart</code> to
               upgrade binary in-place without disconnecting active web viewers.</p>
+          </div>
+
+          <!-- Item 10: Relay Hub + Admin Dashboard -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>🛡️</span> Relay Hub + Admin Dashboard</h4>
+              <span class="cli-tag tag-self">Management</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('./rmte serve --mode=relay --public --admin-pass=&quot;supersecret123&quot; --admin-path=&quot;/admin&quot; -q', this)">Copy</button>
+              </div>
+              <code>./rmte serve --mode=relay --public --admin-pass="supersecret123" --admin-path="/admin" -q</code>
+            </div>
+            <p>Launches a central relay hub with real-time web administration at <code>/admin</code>. Monitor active sessions, live bandwidth (TX/RX), terminate rogue connections, and ban malicious IPs.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Comprehensive CLI Flag Reference -->
+      <div class="cli-card" style="margin-top: 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text);">📖 Comprehensive CLI Flag Reference</h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">Detailed flag breakdown across all subcommands, default values, and operational behaviors.</p>
+          </div>
+          <span class="node-badge badge-client" style="font-size: 0.75rem; padding: 4px 10px;">Flag Matrix</span>
+        </div>
+
+        <div style="margin-top: 18px;">
+          <h4 style="font-size: 0.95rem; font-weight: 700; color: #58a6ff; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
+            <span>🚀</span> <code>rmte</code> & <code>rmte share</code> (Outbound Host Sharing)
+          </h4>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Connects outbound from your local terminal workspace to an RMTE relay. Defaults to public relay <code>wss://my.rmte.biz.id/ws-rmte</code>.</p>
+          <div class="table-container">
+            <table class="cheat-table">
+              <thead>
+                <tr>
+                  <th style="width: 28%;">Flag & Aliases</th>
+                  <th style="width: 24%;">Default Value</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>--server-relay</code>, <code>--server</code></td>
+                  <td><code>wss://my.rmte.biz.id/ws-rmte</code></td>
+                  <td>Relay WebSocket URL. Supports secure WebSocket (<code>wss://</code>) and local/custom relays (<code>ws://</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>--pass</code>, <code>--password</code></td>
+                  <td><em>Auto-generated (12 chars)</em></td>
+                  <td>End-to-End Encryption (AES-GCM-256) password. Printed to terminal on startup if generated.</td>
+                </tr>
+                <tr>
+                  <td><code>--id</code></td>
+                  <td><em>Auto-generated (8 chars)</em></td>
+                  <td>Persistent custom Session ID (lowercase alphanumeric <code>a-z</code>, <code>0-9</code>, max 10 chars). Re-usable across restarts.</td>
+                </tr>
+                <tr>
+                  <td><code>--dir</code></td>
+                  <td><em>Current Working Directory</em></td>
+                  <td>Initial root directory exposed to the Web File Explorer and terminal working session.</td>
+                </tr>
+                <tr>
+                  <td><code>--buffer</code></td>
+                  <td><code>1</code> (MB)</td>
+                  <td>Max in-memory buffer limit (MB) for terminal scrollback ring-buffer and file transfer limits.</td>
+                </tr>
+                <tr>
+                  <td><code>--web-preview</code>, <code>--preview</code></td>
+                  <td><code>true</code></td>
+                  <td>Embedded Web Browser Preview reverse proxy. Tunnel local web dev ports (e.g. <code>3000</code>, <code>8080</code>) through encrypted tab.</td>
+                </tr>
+                <tr>
+                  <td><code>-q</code>, <code>--quiet</code></td>
+                  <td><code>false</code></td>
+                  <td>Detach into a background daemon immediately after printing connection URLs and process PID.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="margin-top: 28px;">
+          <h4 style="font-size: 0.95rem; font-weight: 700; color: #bc8cff; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
+            <span>🖥️</span> <code>rmte serve</code> (Self-Hosted Relay & Admin Dashboard)
+          </h4>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Hosts an RMTE WebSocket router, Web UI, and optional administrative dashboard. Available in <code>standalone</code>, <code>hybrid</code>, or <code>relay</code> modes.</p>
+          <div class="table-container">
+            <table class="cheat-table">
+              <thead>
+                <tr>
+                  <th style="width: 28%;">Flag & Aliases</th>
+                  <th style="width: 24%;">Default Value</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>--mode</code></td>
+                  <td><code>standalone</code></td>
+                  <td>Operating mode: <code>standalone</code> (relay + local host only), <code>hybrid</code> (relay + host + accept external), or <code>relay</code> (dedicated router without local PTY).</td>
+                </tr>
+                <tr>
+                  <td><code>--port</code></td>
+                  <td><code>8048</code></td>
+                  <td>TCP port to listen on for both HTTP Web UI and WebSocket traffic.</td>
+                </tr>
+                <tr>
+                  <td><code>--public</code></td>
+                  <td><code>false</code> (<code>127.0.0.1</code>)</td>
+                  <td>Bind to <code>0.0.0.0</code> instead of loopback, making the relay accessible over public IP or local network.</td>
+                </tr>
+                <tr>
+                  <td><code>--admin-pass</code>, <code>--password-admin</code></td>
+                  <td><em>Disabled (empty)</em></td>
+                  <td>Password to activate the built-in Relay Admin Dashboard. Enables real-time traffic stats, live session tracking, termination, and IP banning.</td>
+                </tr>
+                <tr>
+                  <td><code>--admin-path</code>, <code>--path-admin</code></td>
+                  <td><code>/admin</code></td>
+                  <td>HTTP path for Relay Admin Dashboard. Protected against collisions with <code>/p</code> (Web Preview), <code>/favicon.ico</code>, or Web UI.</td>
+                </tr>
+                <tr>
+                  <td><code>--pass</code></td>
+                  <td><em>Auto-generated (12 chars)</em></td>
+                  <td>E2EE password for the local host session. <em>(Ignored in <code>relay</code> mode)</em>.</td>
+                </tr>
+                <tr>
+                  <td><code>--id</code></td>
+                  <td><em>Auto-generated (8 chars)</em></td>
+                  <td>Custom Session ID for the local host session. <em>(Ignored in <code>relay</code> mode)</em>.</td>
+                </tr>
+                <tr>
+                  <td><code>--dir</code></td>
+                  <td><em>Current Working Directory</em></td>
+                  <td>Root directory for File Explorer and terminal shell. <em>(Ignored in <code>relay</code> mode)</em>.</td>
+                </tr>
+                <tr>
+                  <td><code>--buffer</code></td>
+                  <td><code>1</code> (MB)</td>
+                  <td>Terminal ring buffer and file size limit. <em>(Ignored in <code>relay</code> mode)</em>.</td>
+                </tr>
+                <tr>
+                  <td><code>--web-preview</code>, <code>--preview</code></td>
+                  <td><code>false</code></td>
+                  <td>Enable Embedded Web Browser Preview reverse proxy for serve sessions.</td>
+                </tr>
+                <tr>
+                  <td><code>--web-path</code></td>
+                  <td><code>/</code></td>
+                  <td>HTTP subpath under which the Web IDE client is served (e.g. <code>/web/</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>--ws-path</code></td>
+                  <td><code>/ws-rmte</code></td>
+                  <td>WebSocket endpoint used for client and host connections.</td>
+                </tr>
+                <tr>
+                  <td><code>--hostname</code></td>
+                  <td><code>localhost</code> / <code>unknown</code></td>
+                  <td>Public domain or IP formatted into shareable links printed to stdout.</td>
+                </tr>
+                <tr>
+                  <td><code>--no-web</code></td>
+                  <td><code>false</code></td>
+                  <td>Disable serving the HTTP Web UI altogether (WebSocket and Admin API only).</td>
+                </tr>
+                <tr>
+                  <td><code>--no-cli</code></td>
+                  <td><code>false</code></td>
+                  <td>Soft restriction rejecting incoming connections originating from CLI / TUI clients.</td>
+                </tr>
+                <tr>
+                  <td><code>-q</code>, <code>--quiet</code></td>
+                  <td><code>false</code></td>
+                  <td>Run detached in background daemon mode and print process PID.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="margin-top: 28px;">
+          <h4 style="font-size: 0.95rem; font-weight: 700; color: #3fb950; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
+            <span>👥</span> <code>rmte join</code> (Interactive CLI / TUI Client)
+          </h4>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Connects from another terminal prompt into an active shared session.</p>
+          <div class="table-container">
+            <table class="cheat-table">
+              <thead>
+                <tr>
+                  <th style="width: 28%;">Flag & Aliases</th>
+                  <th style="width: 24%;">Default Value</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>--server-relay</code></td>
+                  <td><code>wss://my.rmte.biz.id/ws-rmte</code></td>
+                  <td>Relay server WebSocket URL (defaults to public relay; override for self-hosted relays).</td>
+                </tr>
+                <tr>
+                  <td><code>--id</code></td>
+                  <td><em>Required</em></td>
+                  <td>Target Session ID to connect to.</td>
+                </tr>
+                <tr>
+                  <td><code>--pass</code></td>
+                  <td><em>Required</em></td>
+                  <td>Shared E2EE password required to decrypt terminal streams.</td>
+                </tr>
+                <tr>
+                  <td><code>--name</code></td>
+                  <td><em>Interactive Prompt</em></td>
+                  <td>Display name of the viewer in the collaborative terminal presence and chat.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="margin-top: 28px;">
+          <h4 style="font-size: 0.95rem; font-weight: 700; color: #e3b341; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
+            <span>🛑</span> <code>rmte stop</code> & <code>rmte update</code> (Session Lifecycle & Upgrades)
+          </h4>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Terminate detached daemons or perform seamless in-place updates from GitHub releases.</p>
+          <div class="table-container">
+            <table class="cheat-table">
+              <thead>
+                <tr>
+                  <th style="width: 28%;">Command / Flag</th>
+                  <th style="width: 24%;">Usage / Target</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>rmte stop &lt;session_id&gt;</code></td>
+                  <td>Session ID (e.g. <code>a1b2c3d4</code>)</td>
+                  <td>Finds and terminates the background daemon associated with the session ID.</td>
+                </tr>
+                <tr>
+                  <td><code>rmte stop &lt;pid&gt;</code></td>
+                  <td>Operating System PID</td>
+                  <td>Sends graceful termination signal to the background daemon PID.</td>
+                </tr>
+                <tr>
+                  <td><code>rmte update --check</code></td>
+                  <td>Metadata check</td>
+                  <td>Queries GitHub releases for newer version without downloading binary.</td>
+                </tr>
+                <tr>
+                  <td><code>rmte update</code></td>
+                  <td>In-place upgrade</td>
+                  <td>Downloads latest matching OS/arch binary from GitHub and replaces the executable.</td>
+                </tr>
+                <tr>
+                  <td><code>rmte update --force</code></td>
+                  <td>Re-install binary</td>
+                  <td>Forces fresh download and binary replacement even if current version is up to date.</td>
+                </tr>
+                <tr>
+                  <td><code>rmte update --restart</code></td>
+                  <td>Seamless restart</td>
+                  <td>Updates binary and gracefully relaunches active background daemon without dropping web sessions.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -2307,6 +2580,10 @@
               <label class="param-label">Relay Admin Password (--admin-pass)</label>
               <input type="text" class="param-input" placeholder="Optional (enables admin dashboard)" value="${escapeAttr(state.adminPass)}" oninput="updateParam('adminPass', this.value)">
             </div>
+            <div class="param-field">
+              <label class="param-label">Admin Dashboard Path (--admin-path)</label>
+              <input type="text" class="param-input" placeholder="/admin" value="${escapeAttr(state.adminPath)}" oninput="updateParam('adminPath', this.value)">
+            </div>
             <div class="param-checkboxes">
               <label class="checkbox-label">
                 <input type="checkbox" ${state.publicBind ? 'checked' : ''} onchange="updateParam('publicBind', this.checked)">
@@ -2407,8 +2684,20 @@
               <input type="text" class="param-input" placeholder="e.g. relay.example.com" value="${escapeAttr(state.hostname)}" oninput="updateParam('hostname', this.value)">
             </div>
             <div class="param-field">
+              <label class="param-label">Working Directory (--dir)</label>
+              <input type="text" class="param-input" placeholder="Default: current folder" value="${escapeAttr(state.dir)}" oninput="updateParam('dir', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Max Buffer Limit (--buffer in MB)</label>
+              <input type="number" class="param-input" placeholder="1" value="${escapeAttr(state.buffer)}" oninput="updateParam('buffer', this.value)">
+            </div>
+            <div class="param-field">
               <label class="param-label">Relay Admin Password (--admin-pass)</label>
-              <input type="text" class="param-input" placeholder="Optional" value="${escapeAttr(state.adminPass)}" oninput="updateParam('adminPass', this.value)">
+              <input type="text" class="param-input" placeholder="Optional (enables admin dashboard)" value="${escapeAttr(state.adminPass)}" oninput="updateParam('adminPass', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Admin Dashboard Path (--admin-path)</label>
+              <input type="text" class="param-input" placeholder="/admin" value="${escapeAttr(state.adminPath)}" oninput="updateParam('adminPath', this.value)">
             </div>
             <div class="param-checkboxes">
               <label class="checkbox-label">
@@ -2532,7 +2821,10 @@
           if (state.dir) cmd += ` --dir="${state.dir}"`;
           if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
           if (state.webPreview) cmd += ' --web-preview';
-          if (state.adminPass) cmd += ` --admin-pass="${state.adminPass}"`;
+          if (state.adminPass) {
+            cmd += ` --admin-pass="${state.adminPass}"`;
+            if (state.adminPath && state.adminPath !== '/admin') cmd += ` --admin-path="${state.adminPath}"`;
+          }
           if (state.quiet) cmd += ' -q';
           return cmd;
         } else if (act === 'share-self') {
@@ -2561,8 +2853,13 @@
           if (state.hostname) cmd += ` --hostname="${state.hostname}"`;
           if (state.password) cmd += ` --pass="${state.password}"`;
           if (state.sessionId) cmd += ` --id="${state.sessionId}"`;
+          if (state.dir) cmd += ` --dir="${state.dir}"`;
+          if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
           if (state.webPreview) cmd += ' --web-preview';
-          if (state.adminPass) cmd += ` --admin-pass="${state.adminPass}"`;
+          if (state.adminPass) {
+            cmd += ` --admin-pass="${state.adminPass}"`;
+            if (state.adminPath && state.adminPath !== '/admin') cmd += ` --admin-path="${state.adminPath}"`;
+          }
           if (state.quiet) cmd += ' -q';
           return cmd;
         } else if (act === 'join-self') {

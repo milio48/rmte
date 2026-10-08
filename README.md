@@ -56,6 +56,11 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
   * Run `rmte serve` or `rmte share` as a detached background daemon. Prints the connection banner, shareable link, and PID to stdout, then immediately returns control to your shell.
   * Stop background sessions cleanly anytime using `rmte stop <session_id | pid>`.
 * **State Persistence & Auto-Reconnect:** Connection credentials live safely in `sessionStorage` for immediate recovery upon page refresh.
+* **Relay Admin Dashboard (`--admin-pass` & `--admin-path`):**
+  * Built-in administrative web dashboard for self-hosted relays (`standalone`, `hybrid`, `relay`).
+  * Live monitoring of active sessions, connected viewers, and cumulative TX / RX network bandwidth.
+  * Force-terminate sessions with one click and ban abusive IP addresses in real time.
+  * Configurable dashboard route (default: `/admin`) protected against URI collision.
 
 </details>
 
@@ -285,6 +290,19 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 2. Toggle the folder icon `📁` in the tab bar to access the workspace editor.
 3. Double-click the breadcrumb to input any absolute path directly.
 
+### 🛡️ Relay Admin Dashboard
+Self-hosting your own relay server (`standalone`, `hybrid`, or `relay`)? You can enable the real-time web administration dashboard by specifying `--admin-pass`:
+```bash
+# Start a relay server with Admin Dashboard enabled
+./rmte serve --mode=relay --public --admin-pass="supersecret123" --admin-path="/admin" -q
+```
+Then navigate to `http://your-relay:8048/admin` in your browser and enter the password:
+* **Live Overview:** Real-time statistics including active sessions, connected viewers, and cumulative TX / RX bandwidth.
+* **Session Management:** Inspect active host session IDs and view connected viewer counts.
+* **Instant Termination:** Force-close suspicious or hung sessions immediately with one click (`/admin/api/terminate`).
+* **IP Banning:** Permanently ban malicious remote IP addresses in real time (`/admin/api/ban-ip`).
+* **Custom Route:** Customize the path via `--admin-path` (e.g. `--admin-path="/control"`). It cannot collide with `/p` (Web Preview), `/favicon.ico`, or the Web UI.
+
 ---
 
 ## 📖 Flag Reference
@@ -336,7 +354,7 @@ Connect a host to a relay server (defaults to public relay):
 ### `rmte join`
 | Flag | Default | Description |
 | :--- | :--- | :--- |
-| `--server-relay` | `ws://localhost:8048/ws-rmte` | Relay WebSocket URL |
+| `--server-relay` | `wss://my.rmte.biz.id/ws-rmte` | Relay WebSocket URL (defaults to public relay) |
 | `--id` | *required* | Session ID |
 | `--pass` | *required* | E2EE password |
 | `--name` | *prompt* | Display name |
