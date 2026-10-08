@@ -1,4 +1,4 @@
-// RMTE v0.5 — Web Viewer with Editor Tabs + File Manager + Web Preview
+// RMTE v0.6 — Web Viewer with Editor Tabs + File Manager + Web Preview
 let ws, aesKey, rawAesKeyBytes = null, currentTab = 'term-0', myUsername = '';
 const myViewerId = 'v-web-' + Math.random().toString(16).slice(2,10);
 let terminals = {}, editorTabs = {};

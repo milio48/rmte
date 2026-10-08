@@ -1,14 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RMTE — Remote Terminal Relay & Cloud IDE</title>
   <link rel="icon" type="image/svg+xml" href="rmte.svg">
-  <meta name="description" content="Secure, real-time remote terminal sharing and lightweight Cloud IDE with AES-GCM E2EE encryption, embedded browser preview, and single binary distribution.">
+  <meta name="description"
+    content="Secure, real-time remote terminal sharing and lightweight Cloud IDE with AES-GCM E2EE encryption, embedded browser preview, and single binary distribution.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
   <style>
     :root {
       --bg: #0d1117;
@@ -223,105 +227,476 @@
       border-color: #8b949e;
     }
 
-    /* Terminal / Install Box */
-    .install-box {
-      max-width: 760px;
+    /* Command Builder */
+    .builder-container {
+      max-width: 860px;
       margin: 0 auto 70px;
-      background: var(--code-bg);
+      position: relative;
+      z-index: 2;
+    }
+
+    .builder-sections {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .section-switch-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+      text-align: left;
+    }
+
+    .section-switch-btn:hover {
+      background: var(--bg-card-hover);
+      border-color: #8b949e;
+      color: var(--text);
+    }
+
+    .section-switch-btn.active {
+      background: linear-gradient(145deg, rgba(88, 166, 255, 0.12), rgba(188, 140, 255, 0.08));
+      border-color: var(--accent);
+      color: var(--text);
+      box-shadow: 0 0 20px rgba(88, 166, 255, 0.15);
+    }
+
+    .sec-icon {
+      font-size: 1.6rem;
+      flex-shrink: 0;
+    }
+
+    .sec-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .sec-title {
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .sec-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .builder-card {
+      background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
 
-    .install-tabs {
-      display: flex;
-      background: #161b22;
+    .workflow-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 12px 24px;
+      background: #0b0e14;
       border-bottom: 1px solid var(--border);
-      padding: 0 8px;
     }
 
-    .tab-btn {
-      padding: 10px 16px;
-      background: transparent;
-      border: none;
-      border-bottom: 2px solid transparent;
-      color: var(--text-muted);
-      font-family: inherit;
-      font-weight: 600;
-      font-size: 0.85rem;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .tab-btn.active {
-      color: var(--text);
-      border-bottom-color: var(--accent);
-    }
-
-    .action-pills {
+    .workflow-tab-btn {
+      background: #161b22;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
       display: flex;
+      align-items: center;
+      justify-content: center;
       gap: 8px;
-      padding: 14px 20px 0;
-      flex-wrap: wrap;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      user-select: none;
     }
 
-    .pill-btn {
-      padding: 5px 12px;
-      border-radius: 999px;
+    .workflow-tab-btn:hover {
+      background: #21262d;
+      color: var(--text);
+      border-color: #8b949e;
+    }
+
+    .workflow-tab-btn.active {
+      background: rgba(88, 166, 255, 0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 0 12px rgba(88, 166, 255, 0.2);
+    }
+
+    .download-first-box {
+      background: rgba(88, 166, 255, 0.04);
+      border: 1px solid rgba(88, 166, 255, 0.22);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .df-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .df-title {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: 0.2px;
+    }
+
+    .df-subtitle {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+    }
+
+    .df-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 8px;
+    }
+
+    .df-card {
+      background: #0b0e14;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .df-card-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .df-card-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .df-card code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: #7ee787;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .df-copy-btn {
+      background: #21262d;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+
+    .df-copy-btn:hover {
+      background: #30363d;
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .builder-controls {
+      padding: 22px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      border-bottom: 1px solid var(--border);
+      background: #0f141c;
+    }
+
+    .builder-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .builder-row-label {
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+    }
+
+    .builder-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .option-btn {
+      padding: 7px 14px;
+      border-radius: 8px;
       background: #161b22;
       border: 1px solid var(--border);
       color: var(--text-muted);
-      font-size: 0.8rem;
+      font-size: 0.84rem;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.18s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      user-select: none;
     }
 
-    .pill-btn:hover {
-      border-color: var(--accent);
+    .option-btn:hover {
+      background: #21262d;
+      border-color: #8b949e;
       color: var(--text);
     }
 
-    .pill-btn.active {
+    .option-btn.active {
       background: rgba(88, 166, 255, 0.15);
       border-color: var(--accent);
       color: var(--accent);
       font-weight: 600;
+      box-shadow: 0 0 10px rgba(88, 166, 255, 0.15);
     }
 
-    .install-body {
-      padding: 20px 24px;
+    .builder-params {
+      background: #0b0e14;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-top: 4px;
+    }
+
+    .param-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .param-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .param-input {
+      background: #161b22;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.84rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .param-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+    }
+
+    .param-checkboxes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      grid-column: 1 / -1;
+      padding-top: 4px;
+    }
+
+    .checkbox-label {
       display: flex;
       align-items: center;
+      gap: 8px;
+      font-size: 0.83rem;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-label input {
+      accent-color: var(--accent);
+      cursor: pointer;
+      width: 15px;
+      height: 15px;
+    }
+
+    /* Terminal Output Box */
+    .terminal-box {
+      background: var(--code-bg);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .terminal-header {
+      padding: 10px 18px;
+      background: #12161f;
+      border-bottom: 1px solid var(--border);
+      display: flex;
       justify-content: space-between;
-      gap: 16px;
+      align-items: center;
+      gap: 12px;
     }
 
-    .code-content {
+    .terminal-dots {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-red {
+      background: #ff5f56;
+    }
+
+    .dot-yellow {
+      background: #ffbd2e;
+    }
+
+    .dot-green {
+      background: #27c93f;
+    }
+
+    .terminal-badge {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.92rem;
-      color: #7ee787;
-      word-break: break-all;
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
     }
 
-    .copy-btn {
+    .terminal-copy-btn {
       background: #21262d;
       border: 1px solid var(--border);
       color: var(--text);
-      padding: 8px 14px;
+      padding: 6px 14px;
       border-radius: 6px;
       font-size: 0.8rem;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
       white-space: nowrap;
     }
 
-    .copy-btn:hover {
+    .terminal-copy-btn:hover {
       background: #30363d;
       border-color: var(--accent);
       color: var(--accent);
+    }
+
+    .terminal-body {
+      padding: 22px 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      overflow-x: auto;
+    }
+
+    .terminal-prompt {
+      color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95rem;
+      font-weight: 700;
+      user-select: none;
+      line-height: 1.6;
+    }
+
+    .terminal-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95rem;
+      color: #7ee787;
+      word-break: break-all;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      flex: 1;
+    }
+
+    .builder-hint {
+      padding: 12px 24px;
+      background: rgba(88, 166, 255, 0.05);
+      border-top: 1px solid var(--border);
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .builder-hint code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent);
+    }
+
+    @media (max-width: 680px) {
+      .builder-sections {
+        grid-template-columns: 1fr;
+      }
+
+      .workflow-tabs {
+        grid-template-columns: 1fr;
+        padding: 12px 16px;
+      }
+
+      .builder-controls {
+        padding: 16px;
+      }
+
+      .terminal-body {
+        padding: 16px;
+      }
     }
 
     /* Features Grid */
@@ -350,53 +725,26 @@
       gap: 20px;
     }
 
-    .feature-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 24px;
-      transition: all 0.2s ease;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
+    /* Command Cheat Sheet & Reference Table */
+    .cheat-section {
+      max-width: 1100px;
+      margin: 0 auto 60px;
+      width: 100%;
     }
 
-    .feature-card:hover {
-      background: var(--bg-card-hover);
-      border-color: rgba(88, 166, 255, 0.4);
-      transform: translateY(-2px);
-    }
-
-    .feature-icon {
-      font-size: 1.8rem;
-      line-height: 1;
-    }
-
-    .feature-title {
-      font-size: 1.15rem;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .feature-desc {
-      font-size: 0.92rem;
-      color: var(--text-muted);
-      line-height: 1.55;
-    }
-
-    /* Quick Usage CLI Card */
     .cli-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 30px;
-      margin-bottom: 50px;
+      padding: 30px 24px;
+      margin-bottom: 28px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     }
 
     .cli-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 20px;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px;
       margin-top: 24px;
     }
 
@@ -405,29 +753,137 @@
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: all 0.2s ease;
+    }
+
+    .cli-item:hover {
+      border-color: rgba(88, 166, 255, 0.45);
+      transform: translateY(-2px);
+    }
+
+    .cli-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
     }
 
     .cli-item h4 {
       font-size: 0.95rem;
-      color: var(--accent);
-      margin-bottom: 8px;
+      color: var(--text);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cli-tag {
+      font-size: 0.68rem;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 2px 7px;
+      border-radius: 4px;
       font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .tag-public {
+      background: rgba(63, 185, 80, 0.15);
+      color: #3fb950;
+      border: 1px solid rgba(63, 185, 80, 0.3);
+    }
+
+    .tag-self {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+    }
+
+    .tag-client {
+      background: rgba(188, 140, 255, 0.15);
+      color: var(--accent-purple);
+      border: 1px solid rgba(188, 140, 255, 0.3);
+    }
+
+    .tag-util {
+      background: rgba(240, 136, 62, 0.15);
+      color: #f0883e;
+      border: 1px solid rgba(240, 136, 62, 0.3);
+    }
+
+    .cli-snippet {
+      position: relative;
     }
 
     .cli-item code {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       color: #e6edf3;
       display: block;
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
       padding: 8px 12px;
       border-radius: 6px;
-      margin-bottom: 8px;
+      line-height: 1.45;
+      overflow-x: auto;
     }
 
     .cli-item p {
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    /* Comparison Table Styling */
+    .table-container {
+      overflow-x: auto;
+      margin-top: 18px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .cheat-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+      text-align: left;
+      background: var(--code-bg);
+    }
+
+    .cheat-table th,
+    .cheat-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .cheat-table th {
+      background: #12161f;
+      color: var(--text);
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .cheat-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .cheat-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .cheat-table code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: var(--accent);
+      background: rgba(88, 166, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
     }
 
     /* Footer */
@@ -454,12 +910,385 @@
         flex-direction: column;
         align-items: flex-start;
       }
+
       .copy-btn {
         width: 100%;
       }
     }
+
+    /* Workflow & Architecture Diagram */
+    .workflow-section {
+      max-width: 1100px;
+      margin: 0 auto 60px;
+      width: 100%;
+      position: relative;
+    }
+
+    .workflow-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 30px 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .workflow-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    /* Diagram Grid Layout */
+    .diagram-mesh {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      align-items: center;
+      gap: 10px;
+      margin: 16px 0 30px;
+    }
+
+    /* Diagram Nodes */
+    .diagram-node {
+      background: #0b0e14;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+      transition: all 0.25s ease;
+      height: 100%;
+    }
+
+    .diagram-node:hover {
+      border-color: rgba(88, 166, 255, 0.45);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .diagram-node.node-host {
+      border-top: 3px solid #3fb950;
+    }
+
+    .diagram-node.node-relay {
+      border-top: 3px solid var(--accent);
+      background: linear-gradient(180deg, rgba(88, 166, 255, 0.05) 0%, #0b0e14 100%);
+    }
+
+    .diagram-node.node-client {
+      border-top: 3px solid var(--accent-purple);
+    }
+
+    .node-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .node-badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .badge-host {
+      background: rgba(63, 185, 80, 0.15);
+      color: #3fb950;
+      border: 1px solid rgba(63, 185, 80, 0.3);
+    }
+
+    .badge-relay {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+    }
+
+    .badge-client {
+      background: rgba(188, 140, 255, 0.15);
+      color: var(--accent-purple);
+      border: 1px solid rgba(188, 140, 255, 0.3);
+    }
+
+    .node-title-group h4 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .node-subtitle {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 2px;
+    }
+
+    .node-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .node-list li {
+      font-size: 0.82rem;
+      color: #c9d1d9;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.4;
+    }
+
+    .node-list li span.bullet-icon {
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      line-height: 1.4;
+    }
+
+    .node-subcard {
+      background: #161b22;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-top: 2px;
+    }
+
+    .node-subcard-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .node-subcard p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+
+    /* Connectors */
+    .diagram-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 110px;
+      padding: 0 4px;
+      text-align: center;
+      position: relative;
+    }
+
+    .connector-line {
+      width: 100%;
+      height: 2px;
+      position: relative;
+      margin: 12px 0;
+    }
+
+    .line-host-to-relay {
+      background: linear-gradient(90deg, #3fb950, var(--accent));
+    }
+
+    .line-client-to-relay {
+      background: linear-gradient(90deg, var(--accent), var(--accent-purple));
+    }
+
+    .connector-pulse {
+      position: absolute;
+      top: -3px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .pulse-forward {
+      animation: pulseForward 2.4s infinite linear;
+      color: #58a6ff;
+    }
+
+    .pulse-backward {
+      animation: pulseBackward 2.4s infinite linear;
+      color: #bc8cff;
+    }
+
+    @keyframes pulseForward {
+      0% {
+        left: 0%;
+        opacity: 0;
+      }
+
+      15% {
+        opacity: 1;
+      }
+
+      85% {
+        opacity: 1;
+      }
+
+      100% {
+        left: 95%;
+        opacity: 0;
+      }
+    }
+
+    @keyframes pulseBackward {
+      0% {
+        left: 95%;
+        opacity: 0;
+      }
+
+      15% {
+        opacity: 1;
+      }
+
+      85% {
+        opacity: 1;
+      }
+
+      100% {
+        left: 0%;
+        opacity: 0;
+      }
+    }
+
+    .connector-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: #161b22;
+      border: 1px solid var(--border);
+      color: #e6edf3;
+      white-space: nowrap;
+    }
+
+    .connector-sub {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Workflow Pillars */
+    .workflow-pillars {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+    }
+
+    .pillar-card {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .pillar-icon {
+      font-size: 1.4rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .pillar-content h5 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .pillar-content p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    @media (max-width: 960px) {
+      .diagram-mesh {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .diagram-connector {
+        min-width: unset;
+        width: 100%;
+        padding: 8px 0;
+      }
+
+      .connector-line {
+        width: 2px;
+        height: 30px;
+        margin: 6px auto;
+      }
+
+      .connector-pulse {
+        left: -3px !important;
+        top: 0;
+      }
+
+      @keyframes pulseForward {
+        0% {
+          top: 0%;
+          opacity: 0;
+        }
+
+        15% {
+          opacity: 1;
+        }
+
+        85% {
+          opacity: 1;
+        }
+
+        100% {
+          top: 95%;
+          opacity: 0;
+        }
+      }
+
+      @keyframes pulseBackward {
+        0% {
+          top: 95%;
+          opacity: 0;
+        }
+
+        15% {
+          opacity: 1;
+        }
+
+        85% {
+          opacity: 1;
+        }
+
+        100% {
+          top: 0%;
+          opacity: 0;
+        }
+      }
+    }
   </style>
 </head>
+
 <body>
   <div class="glow"></div>
 
@@ -467,7 +1296,7 @@
     <a href="#" class="brand">
       <img src="rmte.svg" alt="RMTE Logo" width="28" height="28">
       <span>RMTE</span>
-      <span class="brand-badge">v0.5.0</span>
+      <span class="brand-badge">v0.6.0</span>
     </a>
     <div class="nav-links">
       <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" class="nav-link">
@@ -482,129 +1311,561 @@
   <main>
     <section class="hero">
       <div class="hero-tag">
-        ✨ v0.5.0 Released • Web Preview & Windows ConPTY
+        ✨ v0.6.0 Released • Web Preview & Windows ConPTY
       </div>
       <h1>Remote Terminal Relay & Cloud IDE</h1>
       <p>
-        Zero-config, real-time, multi-user remote terminal sharing and lightweight Cloud IDE with AES-GCM 256-bit End-to-End Encryption (E2EE), resizable File Explorer, CodeMirror editor, and embedded browser preview in a single binary.
+        Zero-config, real-time, multi-user remote terminal sharing and lightweight Cloud IDE with AES-GCM 256-bit
+        End-to-End Encryption (E2EE), resizable File Explorer, CodeMirror editor, and embedded browser preview in a
+        single binary.
       </p>
       <div class="cta-group">
-        <a href="#install" class="btn-primary">
-          Quick Install
+        <a href="#builder" class="btn-primary">
+          ⚡ Command Builder
+        </a>
+        <a href="#workflow" class="btn-secondary">
+          🔄 Architecture Flow
         </a>
         <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" class="btn-secondary">
-          View on GitHub →
+          GitHub →
         </a>
       </div>
     </section>
 
-    <!-- Installation Box -->
-    <div class="install-box" id="install">
-      <div class="install-tabs">
-        <button class="tab-btn active" id="tab-linux" onclick="switchOs('linux')">Linux / macOS</button>
-        <button class="tab-btn" id="tab-windows" onclick="switchOs('windows')">Windows (PowerShell)</button>
+    <!-- Command Builder Container -->
+    <div class="builder-container" id="builder">
+      <!-- Section Switcher (Public vs Self-Hosted) -->
+      <div class="builder-sections">
+        <button class="section-switch-btn active" id="sec-public" onclick="switchSection('public')">
+          <span class="sec-icon">🌐</span>
+          <div class="sec-text">
+            <span class="sec-title">1. Public Relay (rmte.biz.id)</span>
+            <span class="sec-desc">Zero-config public relay infrastructure & official 1-line runner</span>
+          </div>
+        </button>
+        <button class="section-switch-btn" id="sec-selfhosted" onclick="switchSection('selfhosted')">
+          <span class="sec-icon">🏠</span>
+          <div class="sec-text">
+            <span class="sec-title">2. Self-Hosted Infrastructure</span>
+            <span class="sec-desc">Deploy private VPS relay hub, multi-host mesh, or standalone server</span>
+          </div>
+        </button>
       </div>
-      <div class="action-pills">
-        <button class="pill-btn active" id="pill-download" onclick="switchAction('download')">Download to Directory</button>
-        <button class="pill-btn" id="pill-run" onclick="switchAction('run')">Run Directly (tmp)</button>
-        <button class="pill-btn" id="pill-install" onclick="switchAction('install')">Install to PATH</button>
-        <button class="pill-btn" id="pill-download-run" onclick="switchAction('download-run')">Download & Run</button>
-      </div>
-      <div class="install-body">
-        <div class="code-content" id="command-text">
-          curl -sSf https://rmte.biz.id/install.sh | sh
+
+      <div class="builder-card">
+        <!-- Workflow Sub-Tabs (Shown in Public mode: Instant 1-Liner vs Normal CLI) -->
+        <div class="workflow-tabs" id="workflow-tabs">
+          <button class="workflow-tab-btn active" id="tab-instant" onclick="selectWorkflow('instant')">
+            <span>⚡</span> Instant 1-Liner (No Binary Needed)
+          </button>
+          <button class="workflow-tab-btn" id="tab-cli" onclick="selectWorkflow('cli')">
+            <span>💻</span> Normal CLI Usage (With Binary)
+          </button>
         </div>
-        <button class="copy-btn" id="copy-btn" onclick="copyCommand()">Copy Command</button>
+
+        <!-- Controls -->
+        <div class="builder-controls">
+          <!-- 1. Controls for Instant 1-Liner (No Binary) -->
+          <div id="controls-instant">
+            <!-- Row 1: Platform -->
+            <div class="builder-row">
+              <span class="builder-row-label">Target Platform / OS:</span>
+              <div class="builder-options" id="os-options">
+                <button class="option-btn active" data-os="linux" onclick="selectOs('linux')">
+                  <span>🐧</span> Linux / macOS / Git Bash
+                </button>
+                <button class="option-btn" data-os="windows" onclick="selectOs('windows')">
+                  <span>🪟</span> Windows (PowerShell)
+                </button>
+                <button class="option-btn" data-os="android" onclick="selectOs('android')">
+                  <span>🤖</span> Android (Termux / BusyBox)
+                </button>
+              </div>
+            </div>
+
+            <!-- Row 2: Downloader Client (curl / wget / irm) -->
+            <div class="builder-row" id="tool-row" style="margin-top: 14px;">
+              <span class="builder-row-label">Downloader Tool:</span>
+              <div class="builder-options" id="tool-options"></div>
+            </div>
+
+            <!-- Row 3: Installer Method / Flavor -->
+            <div class="builder-row" style="margin-top: 14px;">
+              <span class="builder-row-label">Execution Method:</span>
+              <div class="builder-options" id="installer-actions"></div>
+            </div>
+          </div>
+
+          <!-- 2. Controls for CLI / Server (With Binary) -->
+          <div id="controls-cli" style="display:none;">
+            <!-- Download First Helper Box -->
+            <div class="download-first-box" id="download-first-box">
+              <div class="df-header">
+                <span class="df-title">📦 Step 1: Download / Install RMTE Binary</span>
+                <span class="df-subtitle" id="df-subtitle">Execute this once on your machine or VPS before running CLI
+                  commands</span>
+              </div>
+              <div class="df-grid" id="df-grid"></div>
+            </div>
+
+            <!-- Step 2: Command Configuration -->
+            <div class="builder-row" style="margin-top: 10px;">
+              <span class="builder-row-label" id="step2-label">Step 2: Choose Role & Generate Command</span>
+            </div>
+
+            <!-- Row: Target OS & Location -->
+            <div class="builder-row">
+              <span class="builder-row-label">Target OS & Binary Location:</span>
+              <div class="builder-options" id="installed-env-options">
+                <button class="option-btn active" data-os="linux" onclick="selectInstalledOs('linux')">
+                  <span>🐧</span> Linux / macOS / Git Bash
+                </button>
+                <button class="option-btn" data-os="windows" onclick="selectInstalledOs('windows')">
+                  <span>🪟</span> Windows (PowerShell)
+                </button>
+                <button class="option-btn" data-os="android" onclick="selectInstalledOs('android')">
+                  <span>🤖</span> Android (Termux / Busybox)
+                </button>
+                <button class="option-btn" id="btn-in-path" onclick="toggleInPath()">
+                  <span id="in-path-icon">📂</span> <span id="in-path-label">Local Folder (./rmte)</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Row: CLI Command Mode (Ordered by Usage Priority) -->
+            <div class="builder-row" style="margin-top: 14px;">
+              <span class="builder-row-label" id="cli-mode-label">CLI Subcommand / Role:</span>
+              <div class="builder-options" id="cli-actions"></div>
+            </div>
+
+            <!-- Parameters & Flags Drawer -->
+            <div class="builder-params" id="cli-params" style="margin-top: 14px; display:none;"></div>
+          </div>
+        </div>
+
+        <!-- Terminal Output Box -->
+        <div class="terminal-box">
+          <div class="terminal-header">
+            <div class="terminal-dots">
+              <span class="dot dot-red"></span>
+              <span class="dot dot-yellow"></span>
+              <span class="dot dot-green"></span>
+            </div>
+            <span class="terminal-badge" id="terminal-badge">PUBLIC • INSTANT • LINUX • CURL • RUN DIRECT</span>
+            <button class="terminal-copy-btn" id="copy-btn" onclick="copyCommand()">
+              <span id="copy-icon">📋</span> <span id="copy-text">Copy Command</span>
+            </button>
+          </div>
+          <div class="terminal-body">
+            <span class="terminal-prompt">$</span>
+            <code class="terminal-code" id="command-text">curl -sSf https://rmte.biz.id/install.sh | sh -s run</code>
+          </div>
+        </div>
+
+        <!-- Dynamic Contextual Hint based on README.md -->
+        <div class="builder-hint" id="builder-hint"></div>
       </div>
     </div>
 
-    <!-- Features Grid -->
-    <section class="features-section">
-      <h2 class="section-title">Key Features</h2>
-      <p class="section-sub">Engineered for security, ease of use, and maximum performance.</p>
+    <!-- Architecture & Workflow Diagram Section -->
+    <section class="workflow-section" id="workflow">
+      <h2 class="section-title">Architecture & Workflow</h2>
+      <p class="section-sub">Outbound-only reverse proxy connecting hosts, relays, and clients with zero open inbound
+        ports and AES-GCM 256-bit E2EE.</p>
 
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon">🌐</div>
-          <div class="feature-title">Embedded Browser Preview</div>
-          <div class="feature-desc">
-            Test local web servers (Vite, Next.js, Go, Python) directly inside the Web IDE tab bar. Built-in relay-assisted reverse proxy over a single port with HMR WebSocket hijacking and zero DNS requirement.
+      <div class="workflow-card">
+        <div class="workflow-header-row">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.25rem;">🔄</span>
+            <div>
+              <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text);">How RMTE Connects</h3>
+              <p style="font-size: 0.78rem; color: var(--text-muted);">End-to-end encrypted packet flow through
+                zero-knowledge relay</p>
+            </div>
+          </div>
+          <span class="node-badge badge-relay" style="font-size: 0.75rem; padding: 5px 12px;">Zero Inbound Ports •
+            AES-GCM E2EE</span>
+        </div>
+
+        <div class="diagram-mesh">
+          <!-- 1. Left Node: Host Machine -->
+          <div class="diagram-node node-host">
+            <div class="node-header">
+              <span class="node-badge badge-host">Host Machine</span>
+              <span style="font-size: 1.1rem;">💻</span>
+            </div>
+            <div class="node-title-group">
+              <h4>Host Workspace</h4>
+              <div class="node-subtitle">rmte share / ./rmte</div>
+            </div>
+            <ul class="node-list">
+              <li><span class="bullet-icon">⚡</span><span><strong>Local PTY Shell:</strong> Bash, Zsh, or Windows
+                  ConPTY</span></li>
+              <li><span class="bullet-icon">📁</span><span><strong>File Explorer:</strong> Workspace filesystem
+                  driver</span></li>
+              <li><span class="bullet-icon">🌐</span><span><strong>Browser Preview:</strong> Local server reverse
+                  proxy</span></li>
+              <li><span class="bullet-icon">🔒</span><span><strong>E2EE Encryptor:</strong> AES-GCM 256-bit local
+                  key</span></li>
+            </ul>
+            <div class="node-subcard">
+              <div class="node-subcard-title">🛡️ Outbound Only</div>
+              <p>Requires 0 open inbound ports. Connects through strict firewalls, NAT, and cellular CGNAT.</p>
+            </div>
+          </div>
+
+          <!-- Connector: Host -> Relay -->
+          <div class="diagram-connector">
+            <span class="connector-badge">Outbound WSS</span>
+            <div class="connector-line line-host-to-relay">
+              <div class="connector-pulse pulse-forward"></div>
+            </div>
+            <span class="connector-sub">AES-GCM Encrypted</span>
+          </div>
+
+          <!-- 2. Middle Node: Relay Server -->
+          <div class="diagram-node node-relay">
+            <div class="node-header">
+              <span class="node-badge badge-relay">Zero-Knowledge Relay</span>
+              <span style="font-size: 1.1rem;">🌐</span>
+            </div>
+            <div class="node-title-group">
+              <h4>Relay Server</h4>
+              <div class="node-subtitle">rmte.biz.id or Self-Hosted VPS</div>
+            </div>
+            <ul class="node-list">
+              <li><span class="bullet-icon">🔀</span><span><strong>WebSocket Router:</strong> /ws-rmte dumb routing
+                  hub</span></li>
+              <li><span class="bullet-icon">📦</span><span><strong>Web IDE Host:</strong> Embedded HTML, CSS &
+                  WASM</span></li>
+              <li><span class="bullet-icon">🔄</span><span><strong>HTTP Reverse Proxy:</strong> /p/ mini-browser
+                  proxy</span></li>
+              <li><span class="bullet-icon">🕶️</span><span><strong>Blind Pipe:</strong> Never holds keys or
+                  plaintext</span></li>
+            </ul>
+            <div class="node-subcard">
+              <div class="node-subcard-title">🔐 Zero-Knowledge</div>
+              <p>Relay acts strictly as a dumb packet multiplexer. Data cannot be inspected or decrypted on the server.
+              </p>
+            </div>
+          </div>
+
+          <!-- Connector: Relay <- Clients -->
+          <div class="diagram-connector">
+            <span class="connector-badge">E2EE Stream</span>
+            <div class="connector-line line-client-to-relay">
+              <div class="connector-pulse pulse-backward"></div>
+            </div>
+            <span class="connector-sub">Decrypted in Client</span>
+          </div>
+
+          <!-- 3. Right Node: Viewers & Clients -->
+          <div class="diagram-node node-client">
+            <div class="node-header">
+              <span class="node-badge badge-client">Viewers & Clients</span>
+              <span style="font-size: 1.1rem;">👥</span>
+            </div>
+            <div class="node-title-group">
+              <h4>Web IDE & TUI Client</h4>
+              <div class="node-subtitle">Browser or Terminal Multiplexer</div>
+            </div>
+            <div class="node-subcard">
+              <div class="node-subcard-title">🌐 Web Browser (Web IDE)</div>
+              <p>Zero-install workspace via browser URL (<code>#id,pass</code>). WebCrypto API decrypts data directly
+                inside browser memory.</p>
+            </div>
+            <div class="node-subcard" style="margin-top: 6px;">
+              <div class="node-subcard-title">💻 Terminal Client (TUI)</div>
+              <p>Join directly from any command line via <code>rmte join</code>. Connects through interactive CLI
+                multiplexer with zero browser overhead.</p>
+            </div>
           </div>
         </div>
 
-        <div class="feature-card">
-          <div class="feature-icon">🔒</div>
-          <div class="feature-title">End-to-End Encryption</div>
-          <div class="feature-desc">
-            All terminal frames, file operations, and control messages are secured with AES-GCM 256-bit E2EE. The relay server is a zero-knowledge dumb pipe that never sees plaintext data or passwords.
+        <!-- 3 Architecture Pillars -->
+        <div class="workflow-pillars">
+          <div class="pillar-card">
+            <span class="pillar-icon">🔒</span>
+            <div class="pillar-content">
+              <h5>AES-GCM 256-bit End-to-End Encryption</h5>
+              <p>All terminal stream buffers, file operations, and editor keystrokes are encrypted with client-side
+                keys. Passwords never touch the relay server.</p>
+            </div>
           </div>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">🪟</div>
-          <div class="feature-title">Windows Native ConPTY</div>
-          <div class="feature-desc">
-            Full pseudoterminal support on Windows 10/11 using ConPTY: command history with arrow keys (↑ / ↓), caret navigation (← / →), tab completion, and native ANSI styling.
+          <div class="pillar-card">
+            <span class="pillar-icon">⚡</span>
+            <div class="pillar-content">
+              <h5>100% Outbound — Zero Port Forwarding</h5>
+              <p>The host machine initiates a standard outbound WebSocket connection. Works instantly behind corporate
+                firewalls, NAT routers, and hotspot tethering.</p>
+            </div>
           </div>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">📁</div>
-          <div class="feature-title">Split-Workspace Cloud IDE</div>
-          <div class="feature-desc">
-            Complete workspace equipped with a resizable absolute-path File Explorer, drag-and-drop upload/download, CodeMirror text editor, and multi-tab interactive terminal shells.
-          </div>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">⚡</div>
-          <div class="feature-title">Background Daemon Mode</div>
-          <div class="feature-desc">
-            Run sessions detached in the background with <code>-q</code> or <code>--quiet</code> for both <code>serve</code> and <code>share</code>. Prints connection info and PID, and cleanly terminates with <code>rmte stop</code>.
-          </div>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-icon">📦</div>
-          <div class="feature-title">Single Self-Contained Binary</div>
-          <div class="feature-desc">
-            Zero runtime dependencies. Web assets are embedded directly into the Go binary. No Node.js, npm, or external web server required.
+          <div class="pillar-card">
+            <span class="pillar-icon">👥</span>
+            <div class="pillar-content">
+              <h5>Seamless Multi-Client Collaboration</h5>
+              <p>Invite teammates to view or edit via browser URL or native terminal CLI. Includes real-time typing
+                synchronization and terminal resize negotiation.</p>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- CLI Quick Start -->
-    <div class="cli-card">
-      <h3 style="font-size: 1.3rem; margin-bottom: 8px;">Command Cheat Sheet</h3>
-      <p style="color: var(--text-muted); font-size: 0.95rem;">Quick reference for running RMTE commands:</p>
+    <!-- Command Cheat Sheet Section -->
+    <section class="cheat-section" id="cheatsheet">
+      <h2 class="section-title">Command Cheat Sheet</h2>
+      <p class="section-sub">Comprehensive reference guide for all RMTE commands, flags, and deployment topologies.</p>
 
-      <div class="cli-grid">
-        <div class="cli-item">
-          <h4>1. Standalone Session</h4>
-          <code>rmte serve --web-preview</code>
-          <p>Launches relay + host in one process on port 8048 with browser preview enabled.</p>
+      <!-- 1. Commands & Modes Comparison Table (from README.md) -->
+      <div class="cli-card">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text);">⚖️ Commands & Modes Comparison</h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">Architectural matrix across all
+              RMTE modes and subcommands.</p>
+          </div>
+          <span class="node-badge badge-relay" style="font-size: 0.75rem; padding: 4px 10px;">Architecture Matrix</span>
         </div>
 
-        <div class="cli-item">
-          <h4>2. Run in Background</h4>
-          <code>rmte serve --web-preview -q</code>
-          <p>Runs detached in background, prints shareable link + PID, then returns to prompt.</p>
-        </div>
-
-        <div class="cli-item">
-          <h4>3. Stop Background Session</h4>
-          <code>rmte stop &lt;session_id | pid&gt;</code>
-          <p>Cleanly terminates the background session and cleans up PID files.</p>
-        </div>
-
-        <div class="cli-item">
-          <h4>4. Share to External Relay</h4>
-          <code>rmte share --server-relay="..." -q</code>
-          <p>Connects outbound to a central relay without opening any inbound ports.</p>
+        <div class="table-container">
+          <table class="cheat-table">
+            <thead>
+              <tr>
+                <th>Feature / Role</th>
+                <th><code>serve --mode=standalone</code> <em>(default)</em></th>
+                <th><code>serve --mode=hybrid</code></th>
+                <th><code>serve --mode=relay</code></th>
+                <th><code>rmte share</code> / <code>./rmte</code></th>
+                <th><code>rmte join</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Role Summary</strong></td>
+                <td>Relay + Local Host</td>
+                <td>Relay + Local Host</td>
+                <td>Dedicated Relay Only</td>
+                <td>Outbound Host</td>
+                <td>Client (TUI)</td>
+              </tr>
+              <tr>
+                <td><strong>Opens Listening Port</strong></td>
+                <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span> (8048)</td>
+                <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span> (8048)</td>
+                <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span> (8048)</td>
+                <td><span style="color: #f85149; font-weight: 600;">❌ No</span> (Outbound)</td>
+                <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
+              </tr>
+              <tr>
+                <td><strong>Local PTY & Files (Host)</strong></td>
+                <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
+                <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
+                <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
+                <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
+                <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
+              </tr>
+              <tr>
+                <td><strong>Accepts External Hosts</strong></td>
+                <td><span style="color: #f85149; font-weight: 600;">❌ No</span> (Rejected)</td>
+                <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
+                <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
+                <td>—</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><strong>Prints Session ID & Links</strong></td>
+                <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
+                <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
+                <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
+                <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><strong>Supported Flags</strong></td>
+                <td><code>--pass</code>, <code>--buffer</code>, <code>--dir</code>, <code>--id</code></td>
+                <td><code>--pass</code>, <code>--buffer</code>, <code>--dir</code>, <code>--id</code></td>
+                <td><em>Ignored (Relay only)</em></td>
+                <td><code>--pass</code>, <code>--buffer</code>, <code>--dir</code>, <code>--id</code></td>
+                <td><code>--id</code>, <code>--pass</code>, <code>--name</code></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
-    </div>
+
+      <!-- 2. Common Command Workflows Grid -->
+      <div class="cli-card">
+        <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text);">🚀 Common Command Workflows</h3>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">Real-world command recipes from the
+          official RMTE documentation:</p>
+
+        <div class="cli-grid">
+          <!-- Item 1: Instant Share -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>🚀</span> Instant Public Share</h4>
+              <span class="cli-tag tag-public">Public Relay</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('./rmte -q', this)">Copy</button>
+              </div>
+              <code>./rmte -q</code>
+            </div>
+            <p>Instantly connects outbound to <code>my.rmte.biz.id</code> with Web Browser Preview enabled. Runs
+              detached in the background and prints connection URL with PID.</p>
+          </div>
+
+          <!-- Item 2: Public Share with Custom Credentials -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>🔑</span> Public Custom Session</h4>
+              <span class="cli-tag tag-public">Public Relay</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('./rmte --id=&quot;mysession&quot; --pass=&quot;supersecret&quot; -q', this)">Copy</button>
+              </div>
+              <code>./rmte --id="mysession" --pass="supersecret" -q</code>
+            </div>
+            <p>Shares terminal to public relay using your preferred Session ID and E2EE password. Web preview and file
+              management are active by default.</p>
+          </div>
+
+          <!-- Item 3: Quick Local Session -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>💻</span> Quick Local Session</h4>
+              <span class="cli-tag tag-self">Standalone</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('./rmte serve --web-preview', this)">Copy</button>
+              </div>
+              <code>./rmte serve --web-preview</code>
+            </div>
+            <p>Launches relay + host on <code>127.0.0.1:8048</code> with embedded Web Browser Preview enabled. Generates
+              a random password and prints a local browser link.</p>
+          </div>
+
+          <!-- Item 4: Case 1 Single VPS -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>🖥️</span> Single VPS Server (Case 1)</h4>
+              <span class="cli-tag tag-self">Self-Hosted</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('./rmte serve --public --hostname=&quot;rmte.example.com&quot; --pass=&quot;secret123&quot;', this)">Copy</button>
+              </div>
+              <code>./rmte serve --public --hostname="rmte.example.com" --pass="secret123"</code>
+            </div>
+            <p>Self-contained server hosting both the WebSocket relay and terminal host on port 8048. External host
+              connections (<code>share</code>) are strictly rejected.</p>
+          </div>
+
+          <!-- Item 5: Case 2 Dedicated Relay Hub -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>🌐</span> Dedicated Relay Hub (Case 2)</h4>
+              <span class="cli-tag tag-self">Relay Only</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('./rmte serve --mode=relay --public --hostname=&quot;relay.example.com&quot;', this)">Copy</button>
+              </div>
+              <code>./rmte serve --mode=relay --public --hostname="relay.example.com"</code>
+            </div>
+            <p>Dedicated central router running in multi-host mesh. Only opens port 8048 for HTTP Web UI and WebSocket
+              routing, without spawning a local terminal shell.</p>
+          </div>
+
+          <!-- Item 6: Hybrid Server -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>🔄</span> Hybrid Relay & Host</h4>
+              <span class="cli-tag tag-self">Hybrid</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('./rmte serve --mode=hybrid --public --hostname=&quot;relay.example.com&quot;', this)">Copy</button>
+              </div>
+              <code>./rmte serve --mode=hybrid --public --hostname="relay.example.com"</code>
+            </div>
+            <p>Runs a local host session on the server while simultaneously serving as a public relay hub accepting
+              external connections from <code>rmte share</code>.</p>
+          </div>
+
+          <!-- Item 7: Outbound Host Connection -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>📤</span> Outbound Host (Share)</h4>
+              <span class="cli-tag tag-self">Outbound</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('./rmte share --server-relay=&quot;ws://relay.example.com:8048/ws-rmte&quot; --pass=&quot;secret123&quot; -q', this)">Copy</button>
+              </div>
+              <code>./rmte share --server-relay="ws://relay.example.com:8048/ws-rmte" --pass="secret123" -q</code>
+            </div>
+            <p>Connects outbound to a private relay. Requires zero open inbound ports on the host machine, functioning
+              effortlessly behind strict NAT and firewalls.</p>
+          </div>
+
+          <!-- Item 8: Interactive TUI Join -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>👥</span> Client Join (TUI)</h4>
+              <span class="cli-tag tag-client">Client</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('./rmte join --id=&quot;mysession&quot; --pass=&quot;secret123&quot;', this)">Copy</button>
+              </div>
+              <code>./rmte join --id="mysession" --pass="secret123"</code>
+            </div>
+            <p>Connects from another terminal prompt into an interactive TUI menu: <code>[j]</code> Join Tab,
+              <code>[n]</code> New Tab, <code>[s]</code> Switch Tab, <code>[c]</code> Chat, and <code>[q]</code> Quit.
+            </p>
+          </div>
+
+          <!-- Item 9: Daemon Management & Update -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>🛑</span> Stop & In-Place Update</h4>
+              <span class="cli-tag tag-util">Lifecycle</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('rmte stop &lt;session_id | pid&gt; &amp;&amp; rmte update --restart', this)">Copy</button>
+              </div>
+              <code>rmte stop &lt;session_id | pid&gt; && rmte update --restart</code>
+            </div>
+            <p>Cleanly terminates background daemons (<code>rmte stop</code>). Use <code>rmte update --restart</code> to
+              upgrade binary in-place without disconnecting active web viewers.</p>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer>
@@ -616,51 +1877,825 @@
   </footer>
 
   <script>
-    const commands = {
-      linux: {
-        'download': 'curl -sSf https://rmte.biz.id/install.sh | sh',
-        'run': 'curl -sSf https://rmte.biz.id/install.sh | sh -s run',
-        'install': 'curl -sSf https://rmte.biz.id/install.sh | sh -s install',
-        'download-run': 'curl -sSf https://rmte.biz.id/install.sh | sh -s download run'
-      },
-      windows: {
-        'download': 'irm https://rmte.biz.id/install.ps1 | iex',
-        'run': '& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) run',
-        'install': '& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) install',
-        'download-run': '& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) download run'
+    function randomString(length, chars) {
+      let result = '';
+      const bytes = new Uint8Array(length);
+      crypto.getRandomValues(bytes);
+      for (let i = 0; i < length; i++) {
+        result += chars[bytes[i] % chars.length];
       }
+      return result;
+    }
+
+    function generateRandomSessionId() {
+      return randomString(8, 'abcdefghjkmnpqrstuvwxyz23456789');
+    }
+
+    function generateRandomPassword() {
+      return randomString(12, 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789');
+    }
+
+    function escapeAttr(str) {
+      if (str == null) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    const state = {
+      section: 'public',              // 'public' | 'selfhosted'
+      workflow: 'instant',            // 'instant' | 'cli'
+      // Instant Mode settings:
+      os: 'linux',                    // 'linux' | 'windows' | 'android'
+      tool: 'curl',                   // 'curl' | 'wget' | 'irm'
+      instantAction: 'run',           // 'run' | 'download-run' | 'install-run'
+      // CLI / Server Mode settings:
+      installedOs: 'linux',           // 'linux' | 'windows' | 'android'
+      inPath: false,                  // false = './rmte' / '.\rmte.exe', true = 'rmte'
+      cliAction: 'share',             // public: 'share' | 'join' | 'stop' | 'update'
+      // selfhosted: 'standalone' | 'share-self' | 'relay-only' | 'hybrid' | 'join-self' | 'stop' | 'update'
+      // Parameters (pre-filled with real random credentials)
+      relayUrl: 'ws://relay.example.com:8048/ws-rmte',
+      port: '8048',
+      hostname: '',
+      sessionId: generateRandomSessionId(),
+      password: generateRandomPassword(),
+      dir: '',
+      buffer: '1',
+      name: '',
+      adminPass: '',
+      adminPath: '/admin',
+      webPreview: true,
+      quiet: false,
+      publicBind: true,
+      updateCheck: false,
+      updateForce: false,
+      updateRestart: false
     };
-    let currentOs = 'linux';
-    let currentAction = 'download';
+
+    const toolsConfig = {
+      linux: [
+        { id: 'curl', label: 'curl', icon: '⚡' },
+        { id: 'wget', label: 'wget', icon: '🌐' }
+      ],
+      android: [
+        { id: 'curl', label: 'curl', icon: '⚡' },
+        { id: 'wget', label: 'wget', icon: '🌐' }
+      ],
+      windows: [
+        { id: 'irm', label: 'irm (PowerShell)', icon: '🟦' },
+        { id: 'curl', label: 'curl.exe', icon: '⚡' },
+        { id: 'wget', label: 'wget', icon: '🌐' }
+      ]
+    };
+
+    const instantActionsConfig = [
+      { id: 'run', label: '⚡ Run Direct (/tmp)', desc: 'Zero-trace ephemeral execution from temporary storage' },
+      { id: 'download-run', label: '🚀 Download & Run', desc: 'Download single binary to current folder and launch immediately' },
+      { id: 'install-run', label: '🛠️ Install & Run', desc: 'Install binary permanently into user PATH and launch session' }
+    ];
+
+    // Priority-ordered CLI actions based on real usage
+    const cliActionsConfig = {
+      public: [
+        { id: 'share', label: '🚀 Share Terminal (rmte)', desc: 'Share terminal & Web IDE to public relay with zero-config or custom flags' },
+        { id: 'join', label: '👥 Join Session (rmte join)', desc: 'Connect to a live terminal host from interactive TUI client' },
+        { id: 'stop', label: '🛑 Stop Daemon (rmte stop)', desc: 'Cleanly terminate a running detached session by ID or PID' },
+        { id: 'update', label: '🔄 In-Place Update (rmte update)', desc: 'Update rmte binary directly from official GitHub releases' }
+      ],
+      selfhosted: [
+        { id: 'standalone', label: '🖥️ Standalone Server', desc: 'Priority 1 (Case 1): Single VPS acting as both Relay and Host' },
+        { id: 'share-self', label: '📤 Outbound Host (Share)', desc: 'Priority 2: Connect host machine outbound to private relay' },
+        { id: 'relay-only', label: '🌐 Dedicated Relay Hub', desc: 'Priority 3 (Case 2): Central relay router without local terminal' },
+        { id: 'hybrid', label: '🔄 Hybrid Server', desc: 'Priority 4: Relay server running local host and accepting external hosts' },
+        { id: 'join-self', label: '👥 Client Join (TUI)', desc: 'Priority 5: Connect to a private session via interactive terminal client' },
+        { id: 'stop', label: '🛑 Stop Daemon (rmte stop)', desc: 'Priority 6: Cleanly terminate a running detached server or host' },
+        { id: 'update', label: '🔄 In-Place Update (rmte update)', desc: 'Priority 7: Update binary directly from GitHub releases' }
+      ]
+    };
+
+    function switchSection(sec) {
+      state.section = sec;
+      document.getElementById('sec-public').classList.toggle('active', sec === 'public');
+      document.getElementById('sec-selfhosted').classList.toggle('active', sec === 'selfhosted');
+
+      const workflowTabs = document.getElementById('workflow-tabs');
+      if (sec === 'public') {
+        workflowTabs.style.display = 'grid';
+        state.workflow = 'instant';
+        document.getElementById('tab-instant').classList.add('active');
+        document.getElementById('tab-cli').classList.remove('active');
+        document.getElementById('controls-instant').style.display = 'block';
+        document.getElementById('controls-cli').style.display = 'none';
+        state.cliAction = 'share';
+      } else {
+        workflowTabs.style.display = 'none';
+        state.workflow = 'cli';
+        document.getElementById('controls-instant').style.display = 'none';
+        document.getElementById('controls-cli').style.display = 'block';
+        state.cliAction = 'standalone';
+      }
+
+      renderDownloadFirst();
+      renderCliActions();
+      renderCliParams();
+      updateCommand();
+    }
+
+    function selectWorkflow(wf) {
+      state.workflow = wf;
+      document.getElementById('tab-instant').classList.toggle('active', wf === 'instant');
+      document.getElementById('tab-cli').classList.toggle('active', wf === 'cli');
+
+      document.getElementById('controls-instant').style.display = wf === 'instant' ? 'block' : 'none';
+      document.getElementById('controls-cli').style.display = wf === 'cli' ? 'block' : 'none';
+
+      if (wf === 'cli') {
+        renderDownloadFirst();
+        renderCliActions();
+        renderCliParams();
+      }
+      updateCommand();
+    }
+
+    function selectOs(os) {
+      state.os = os;
+      document.querySelectorAll('#os-options .option-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.os === os);
+      });
+
+      const available = toolsConfig[os].map(t => t.id);
+      if (!available.includes(state.tool)) {
+        state.tool = available[0];
+      }
+
+      renderTools();
+      updateCommand();
+    }
+
+    function selectInstalledOs(os) {
+      state.installedOs = os;
+      document.querySelectorAll('#installed-env-options .option-btn[data-os]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.os === os);
+      });
+      updateInPathButton();
+      updateCommand();
+    }
+
+    function toggleInPath() {
+      state.inPath = !state.inPath;
+      updateInPathButton();
+      updateCommand();
+    }
+
+    function updateInPathButton() {
+      const btn = document.getElementById('btn-in-path');
+      const icon = document.getElementById('in-path-icon');
+      const label = document.getElementById('in-path-label');
+      if (state.inPath) {
+        btn.classList.add('active');
+        icon.textContent = '🌐';
+        label.textContent = 'In PATH (rmte)';
+      } else {
+        btn.classList.remove('active');
+        icon.textContent = '📂';
+        const loc = state.installedOs === 'windows' ? '.\\rmte.exe' : './rmte';
+        label.textContent = `Local Folder (${loc})`;
+      }
+    }
+
+    function selectTool(tool) {
+      state.tool = tool;
+      renderTools();
+      updateCommand();
+    }
+
+    function selectInstantAction(act) {
+      state.instantAction = act;
+      renderInstantActions();
+      updateCommand();
+    }
+
+    function selectCliAction(act) {
+      state.cliAction = act;
+      renderCliActions();
+      renderCliParams();
+      updateCommand();
+    }
+
+    function updateParam(key, val) {
+      state[key] = val;
+      updateCommand();
+    }
+
+    function regenerateSessionId() {
+      state.sessionId = generateRandomSessionId();
+      renderCliParams();
+      updateCommand();
+    }
+
+    function regeneratePassword() {
+      state.password = generateRandomPassword();
+      renderCliParams();
+      updateCommand();
+    }
+
+    function renderTools() {
+      const container = document.getElementById('tool-options');
+      const list = toolsConfig[state.os] || toolsConfig.linux;
+      container.innerHTML = list.map(t => `
+        <button class="option-btn ${state.tool === t.id ? 'active' : ''}" onclick="selectTool('${t.id}')">
+          <span>${t.icon}</span> ${t.label}
+        </button>
+      `).join('');
+    }
+
+    function renderInstantActions() {
+      const container = document.getElementById('installer-actions');
+      container.innerHTML = instantActionsConfig.map(a => `
+        <button class="option-btn ${state.instantAction === a.id ? 'active' : ''}" onclick="selectInstantAction('${a.id}')" title="${a.desc}">
+          ${a.label}
+        </button>
+      `).join('');
+    }
+
+    function renderDownloadFirst() {
+      const grid = document.getElementById('df-grid');
+      const subtitle = document.getElementById('df-subtitle');
+
+      if (state.section === 'public') {
+        subtitle.textContent = 'Run this once on your local terminal to install the rmte binary:';
+        grid.innerHTML = `
+          <div class="df-card">
+            <div class="df-card-text">
+              <span class="df-card-label">Linux / macOS / Git Bash</span>
+              <code>curl -sSf https://rmte.biz.id/install.sh | sh -s install</code>
+            </div>
+            <button class="df-copy-btn" onclick="copySnippet('curl -sSf https://rmte.biz.id/install.sh | sh -s install', this)">Copy</button>
+          </div>
+          <div class="df-card">
+            <div class="df-card-text">
+              <span class="df-card-label">Windows (PowerShell)</span>
+              <code>& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) install</code>
+            </div>
+            <button class="df-copy-btn" onclick="copySnippet('& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) install', this)">Copy</button>
+          </div>
+        `;
+      } else {
+        subtitle.textContent = 'Deploy the binary onto your server/VPS before running server roles:';
+        grid.innerHTML = `
+          <div class="df-card">
+            <div class="df-card-text">
+              <span class="df-card-label">Linux VPS (curl)</span>
+              <code>curl -sSf https://rmte.biz.id/install.sh | sh -s install</code>
+            </div>
+            <button class="df-copy-btn" onclick="copySnippet('curl -sSf https://rmte.biz.id/install.sh | sh -s install', this)">Copy</button>
+          </div>
+          <div class="df-card">
+            <div class="df-card-text">
+              <span class="df-card-label">Linux VPS (wget)</span>
+              <code>wget -qO- https://rmte.biz.id/install.sh | sh -s install</code>
+            </div>
+            <button class="df-copy-btn" onclick="copySnippet('wget -qO- https://rmte.biz.id/install.sh | sh -s install', this)">Copy</button>
+          </div>
+          <div class="df-card">
+            <div class="df-card-text">
+              <span class="df-card-label">Windows Server (PowerShell)</span>
+              <code>& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) install</code>
+            </div>
+            <button class="df-copy-btn" onclick="copySnippet('& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) install', this)">Copy</button>
+          </div>
+          <div class="df-card">
+            <div class="df-card-text">
+              <span class="df-card-label">Build from Source (Go 1.21+)</span>
+              <code>git clone https://github.com/milio48/rmte.git && cd rmte/rmte && go build -ldflags &quot;-s -w&quot; -o rmte</code>
+            </div>
+            <button class="df-copy-btn" onclick="copySnippet('git clone https://github.com/milio48/rmte.git && cd rmte/rmte && go build -ldflags \\&quot;-s -w\\&quot; -o rmte', this)">Copy</button>
+          </div>
+        `;
+      }
+    }
+
+    function renderCliActions() {
+      const container = document.getElementById('cli-actions');
+      const list = cliActionsConfig[state.section];
+      container.innerHTML = list.map(a => `
+        <button class="option-btn ${state.cliAction === a.id ? 'active' : ''}" onclick="selectCliAction('${a.id}')" title="${a.desc}">
+          ${a.label}
+        </button>
+      `).join('');
+    }
+
+    function renderCliParams() {
+      const container = document.getElementById('cli-params');
+      const act = state.cliAction;
+      const isPublic = state.section === 'public';
+
+      container.style.display = 'grid';
+
+      if (act === 'update') {
+        container.innerHTML = `
+          <div class="param-checkboxes">
+            <label class="checkbox-label">
+              <input type="checkbox" ${state.updateCheck ? 'checked' : ''} onchange="updateParam('updateCheck', this.checked)">
+              Check for updates only (--check)
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" ${state.updateForce ? 'checked' : ''} onchange="updateParam('updateForce', this.checked)">
+              Force re-download latest binary (--force)
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" ${state.updateRestart ? 'checked' : ''} onchange="updateParam('updateRestart', this.checked)">
+              Seamlessly restart active background session (--restart)
+            </label>
+          </div>
+        `;
+        return;
+      }
+
+      if (isPublic) {
+        if (act === 'share') {
+          container.innerHTML = `
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Custom Session ID (--id)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regenerateSessionId()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="e.g. ${escapeAttr(state.sessionId)}" maxlength="10" value="${escapeAttr(state.sessionId)}" oninput="updateParam('sessionId', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">E2EE Password (--pass)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regeneratePassword()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="e.g. ${escapeAttr(state.password)}" value="${escapeAttr(state.password)}" oninput="updateParam('password', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Working Directory (--dir)</label>
+              <input type="text" class="param-input" placeholder="Default: current folder" value="${escapeAttr(state.dir)}" oninput="updateParam('dir', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Max Buffer Limit (--buffer in MB)</label>
+              <input type="number" class="param-input" placeholder="1" value="${escapeAttr(state.buffer)}" oninput="updateParam('buffer', this.value)">
+            </div>
+            <div class="param-checkboxes">
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.webPreview ? 'checked' : ''} onchange="updateParam('webPreview', this.checked)">
+                Enable Embedded Browser Preview (--web-preview)
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
+                Run detached in background daemon (-q)
+              </label>
+            </div>
+          `;
+          return;
+        } else if (act === 'join') {
+          container.innerHTML = `
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Host Session ID (--id)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regenerateSessionId()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Required session ID" value="${escapeAttr(state.sessionId)}" oninput="updateParam('sessionId', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Session Password (--pass)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regeneratePassword()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Required E2EE password" value="${escapeAttr(state.password)}" oninput="updateParam('password', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Viewer Display Name (--name)</label>
+              <input type="text" class="param-input" placeholder="Optional display name" value="${escapeAttr(state.name)}" oninput="updateParam('name', this.value)">
+            </div>
+          `;
+          return;
+        } else if (act === 'stop') {
+          container.innerHTML = `
+            <div class="param-field" style="grid-column: 1 / -1;">
+              <label class="param-label">Session ID or Process PID</label>
+              <input type="text" class="param-input" placeholder="e.g. ${escapeAttr(state.sessionId)} or 14822" value="${escapeAttr(state.sessionId)}" oninput="updateParam('sessionId', this.value)">
+            </div>
+          `;
+          return;
+        }
+      } else {
+        // Self-Hosted
+        if (act === 'standalone') {
+          container.innerHTML = `
+            <div class="param-field">
+              <label class="param-label">Listen Port (--port)</label>
+              <input type="text" class="param-input" placeholder="8048" value="${escapeAttr(state.port)}" oninput="updateParam('port', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Public Domain / IP (--hostname)</label>
+              <input type="text" class="param-input" placeholder="e.g. rmte.example.com" value="${escapeAttr(state.hostname)}" oninput="updateParam('hostname', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Session Password (--pass)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regeneratePassword()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Generated random if empty" value="${escapeAttr(state.password)}" oninput="updateParam('password', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Relay Admin Password (--admin-pass)</label>
+              <input type="text" class="param-input" placeholder="Optional (enables admin dashboard)" value="${escapeAttr(state.adminPass)}" oninput="updateParam('adminPass', this.value)">
+            </div>
+            <div class="param-checkboxes">
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.publicBind ? 'checked' : ''} onchange="updateParam('publicBind', this.checked)">
+                Bind to 0.0.0.0 for external access (--public)
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.webPreview ? 'checked' : ''} onchange="updateParam('webPreview', this.checked)">
+                Enable Embedded Browser Preview (--web-preview)
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
+                Run detached in background (-q)
+              </label>
+            </div>
+          `;
+          return;
+        } else if (act === 'share-self') {
+          container.innerHTML = `
+            <div class="param-field" style="grid-column: 1 / -1;">
+              <label class="param-label">Private Relay WebSocket URL (--server-relay)</label>
+              <input type="text" class="param-input" placeholder="ws://relay.example.com:8048/ws-rmte" value="${escapeAttr(state.relayUrl)}" oninput="updateParam('relayUrl', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Session Password (--pass)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regeneratePassword()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="e.g. supersecret123" value="${escapeAttr(state.password)}" oninput="updateParam('password', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Custom Session ID (--id)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regenerateSessionId()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="e.g. node2" maxlength="10" value="${escapeAttr(state.sessionId)}" oninput="updateParam('sessionId', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Working Directory (--dir)</label>
+              <input type="text" class="param-input" placeholder="Default: current folder" value="${escapeAttr(state.dir)}" oninput="updateParam('dir', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Max Buffer Limit (--buffer in MB)</label>
+              <input type="number" class="param-input" placeholder="1" value="${escapeAttr(state.buffer)}" oninput="updateParam('buffer', this.value)">
+            </div>
+            <div class="param-checkboxes">
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.webPreview ? 'checked' : ''} onchange="updateParam('webPreview', this.checked)">
+                Enable Embedded Browser Preview (--web-preview)
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
+                Run detached in background (-q)
+              </label>
+            </div>
+          `;
+          return;
+        } else if (act === 'relay-only') {
+          container.innerHTML = `
+            <div class="param-field">
+              <label class="param-label">Listen Port (--port)</label>
+              <input type="text" class="param-input" placeholder="8048" value="${escapeAttr(state.port)}" oninput="updateParam('port', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Relay Domain / Hostname (--hostname)</label>
+              <input type="text" class="param-input" placeholder="e.g. relay.example.com" value="${escapeAttr(state.hostname)}" oninput="updateParam('hostname', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Relay Admin Password (--admin-pass)</label>
+              <input type="text" class="param-input" placeholder="e.g. superadminpass" value="${escapeAttr(state.adminPass)}" oninput="updateParam('adminPass', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Admin Dashboard Path (--admin-path)</label>
+              <input type="text" class="param-input" placeholder="/admin" value="${escapeAttr(state.adminPath)}" oninput="updateParam('adminPath', this.value)">
+            </div>
+            <div class="param-checkboxes">
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
+                Run detached in background daemon (-q)
+              </label>
+            </div>
+          `;
+          return;
+        } else if (act === 'hybrid') {
+          container.innerHTML = `
+            <div class="param-field">
+              <label class="param-label">Listen Port (--port)</label>
+              <input type="text" class="param-input" placeholder="8048" value="${escapeAttr(state.port)}" oninput="updateParam('port', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Local Host Password (--pass)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regeneratePassword()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Generated random if empty" value="${escapeAttr(state.password)}" oninput="updateParam('password', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Public Domain / IP (--hostname)</label>
+              <input type="text" class="param-input" placeholder="e.g. relay.example.com" value="${escapeAttr(state.hostname)}" oninput="updateParam('hostname', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Relay Admin Password (--admin-pass)</label>
+              <input type="text" class="param-input" placeholder="Optional" value="${escapeAttr(state.adminPass)}" oninput="updateParam('adminPass', this.value)">
+            </div>
+            <div class="param-checkboxes">
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.webPreview ? 'checked' : ''} onchange="updateParam('webPreview', this.checked)">
+                Enable Embedded Browser Preview (--web-preview)
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
+                Run detached in background daemon (-q)
+              </label>
+            </div>
+          `;
+          return;
+        } else if (act === 'join-self') {
+          container.innerHTML = `
+            <div class="param-field" style="grid-column: 1 / -1;">
+              <label class="param-label">Private Relay WebSocket URL (--server-relay)</label>
+              <input type="text" class="param-input" placeholder="ws://relay.example.com:8048/ws-rmte" value="${escapeAttr(state.relayUrl)}" oninput="updateParam('relayUrl', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Host Session ID (--id)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regenerateSessionId()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Required" value="${escapeAttr(state.sessionId)}" oninput="updateParam('sessionId', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Session Password (--pass)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regeneratePassword()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Required" value="${escapeAttr(state.password)}" oninput="updateParam('password', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Viewer Display Name (--name)</label>
+              <input type="text" class="param-input" placeholder="Optional" value="${escapeAttr(state.name)}" oninput="updateParam('name', this.value)">
+            </div>
+          `;
+          return;
+        } else if (act === 'stop') {
+          container.innerHTML = `
+            <div class="param-field" style="grid-column: 1 / -1;">
+              <label class="param-label">Session ID or Process PID</label>
+              <input type="text" class="param-input" placeholder="e.g. ${escapeAttr(state.sessionId)} or 16842" value="${escapeAttr(state.sessionId)}" oninput="updateParam('sessionId', this.value)">
+            </div>
+          `;
+          return;
+        }
+      }
+
+      container.style.display = 'none';
+      container.innerHTML = '';
+    }
+
+    function buildInstallerCommand() {
+      const act = state.instantAction === 'run' ? 'run' : (state.instantAction === 'download-run' ? 'download run' : 'install run');
+      const isWindows = state.os === 'windows';
+
+      if (isWindows) {
+        if (state.tool === 'irm') {
+          return `& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) ${act}`;
+        } else if (state.tool === 'curl') {
+          return `curl.exe -sSf https://rmte.biz.id/install.ps1 -o install.ps1; powershell -ExecutionPolicy Bypass -File .\\install.ps1 ${act}`;
+        } else if (state.tool === 'wget') {
+          return `wget -q -O install.ps1 https://rmte.biz.id/install.ps1 && powershell -ExecutionPolicy Bypass -File .\\install.ps1 ${act}`;
+        }
+      }
+
+      // Linux / macOS / Android
+      if (state.tool === 'wget') {
+        return `wget -qO- https://rmte.biz.id/install.sh | sh -s ${act}`;
+      }
+      return `curl -sSf https://rmte.biz.id/install.sh | sh -s ${act}`;
+    }
+
+    function getCliPrefix() {
+      if (state.inPath) return 'rmte';
+      return state.installedOs === 'windows' ? '.\\rmte.exe' : './rmte';
+    }
+
+    function buildCliCommand() {
+      const isPublic = state.section === 'public';
+      const act = state.cliAction;
+      const bin = getCliPrefix();
+
+      if (act === 'update') {
+        let cmd = `${bin} update`;
+        if (state.updateCheck) cmd += ' --check';
+        if (state.updateForce) cmd += ' --force';
+        if (state.updateRestart) cmd += ' --restart';
+        return cmd;
+      }
+
+      if (isPublic) {
+        if (act === 'share') {
+          let cmd = bin;
+          if (state.sessionId) cmd += ` --id="${state.sessionId}"`;
+          if (state.password) cmd += ` --pass="${state.password}"`;
+          if (state.dir) cmd += ` --dir="${state.dir}"`;
+          if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
+          if (state.quiet) cmd += ' -q';
+          return cmd;
+        } else if (act === 'join') {
+          const sId = state.sessionId || 'a1b2c3d4';
+          const sPass = state.password || 'secret123';
+          let cmd = `${bin} join --id="${sId}" --pass="${sPass}"`;
+          if (state.name) cmd += ` --name="${state.name}"`;
+          return cmd;
+        } else if (act === 'stop') {
+          return `${bin} stop ${state.sessionId || '<session_id | pid>'}`;
+        }
+      } else {
+        // Self-Hosted
+        if (act === 'standalone') {
+          let cmd = `${bin} serve`;
+          if (state.publicBind) cmd += ' --public';
+          if (state.port && state.port !== '8048') cmd += ` --port=${state.port}`;
+          if (state.hostname) cmd += ` --hostname="${state.hostname}"`;
+          if (state.password) cmd += ` --pass="${state.password}"`;
+          if (state.sessionId) cmd += ` --id="${state.sessionId}"`;
+          if (state.dir) cmd += ` --dir="${state.dir}"`;
+          if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
+          if (state.webPreview) cmd += ' --web-preview';
+          if (state.adminPass) cmd += ` --admin-pass="${state.adminPass}"`;
+          if (state.quiet) cmd += ' -q';
+          return cmd;
+        } else if (act === 'share-self') {
+          const url = state.relayUrl || 'ws://relay.example.com:8048/ws-rmte';
+          let cmd = `${bin} share --server-relay="${url}"`;
+          if (state.sessionId) cmd += ` --id="${state.sessionId}"`;
+          if (state.password) cmd += ` --pass="${state.password}"`;
+          if (state.dir) cmd += ` --dir="${state.dir}"`;
+          if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
+          if (state.webPreview) cmd += ' --web-preview';
+          if (state.quiet) cmd += ' -q';
+          return cmd;
+        } else if (act === 'relay-only') {
+          let cmd = `${bin} serve --mode=relay --public`;
+          if (state.port && state.port !== '8048') cmd += ` --port=${state.port}`;
+          if (state.hostname) cmd += ` --hostname="${state.hostname}"`;
+          if (state.adminPass) {
+            cmd += ` --admin-pass="${state.adminPass}"`;
+            if (state.adminPath && state.adminPath !== '/admin') cmd += ` --admin-path="${state.adminPath}"`;
+          }
+          if (state.quiet) cmd += ' -q';
+          return cmd;
+        } else if (act === 'hybrid') {
+          let cmd = `${bin} serve --mode=hybrid --public`;
+          if (state.port && state.port !== '8048') cmd += ` --port=${state.port}`;
+          if (state.hostname) cmd += ` --hostname="${state.hostname}"`;
+          if (state.password) cmd += ` --pass="${state.password}"`;
+          if (state.sessionId) cmd += ` --id="${state.sessionId}"`;
+          if (state.webPreview) cmd += ' --web-preview';
+          if (state.adminPass) cmd += ` --admin-pass="${state.adminPass}"`;
+          if (state.quiet) cmd += ' -q';
+          return cmd;
+        } else if (act === 'join-self') {
+          const url = state.relayUrl || 'ws://relay.example.com:8048/ws-rmte';
+          const sId = state.sessionId || 'mysession';
+          const sPass = state.password || 'secret123';
+          let cmd = `${bin} join --server-relay="${url}" --id="${sId}" --pass="${sPass}"`;
+          if (state.name) cmd += ` --name="${state.name}"`;
+          return cmd;
+        } else if (act === 'stop') {
+          return `${bin} stop ${state.sessionId || '<session_id | pid>'}`;
+        }
+      }
+      return `${bin}`;
+    }
 
     function updateCommand() {
-      document.getElementById('command-text').textContent = commands[currentOs][currentAction];
+      let cmd = '';
+      if (state.section === 'public' && state.workflow === 'instant') {
+        cmd = buildInstallerCommand();
+      } else {
+        cmd = buildCliCommand();
+      }
+
+      document.getElementById('command-text').textContent = cmd;
+
+      // Update badge
+      let badgeParts = [];
+      badgeParts.push(state.section.toUpperCase());
+      if (state.section === 'public' && state.workflow === 'instant') {
+        badgeParts.push('INSTANT 1-LINER');
+        badgeParts.push(state.os.toUpperCase());
+        badgeParts.push(state.tool.toUpperCase());
+        badgeParts.push(state.instantAction.replace('-', ' ').toUpperCase());
+      } else {
+        badgeParts.push('CLI USAGE');
+        badgeParts.push(state.installedOs.toUpperCase());
+        badgeParts.push(state.inPath ? 'IN PATH' : 'LOCAL');
+        badgeParts.push(state.cliAction.replace('-', ' ').toUpperCase());
+      }
+      document.getElementById('terminal-badge').textContent = badgeParts.join(' • ');
+
+      updateHint();
     }
 
-    function switchOs(os) {
-      currentOs = os;
-      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-      document.getElementById('tab-' + os).classList.add('active');
+    function updateHint() {
+      const hintEl = document.getElementById('builder-hint');
+      let html = '';
+
+      if (state.section === 'public' && state.workflow === 'instant') {
+        if (state.os === 'android') {
+          html = '📱 <strong>Android (Termux / BusyBox):</strong> Automatically detects ARM64 / AArch64 architecture. If curl or wget is not installed yet in Termux, install it first via: <code>pkg install -y curl</code>.';
+        } else if (state.os === 'windows' && state.tool === 'irm') {
+          html = '🪟 <strong>Windows PowerShell Native:</strong> <code>irm</code> (Invoke-RestMethod) runs directly inside native Windows PowerShell without requiring external dependencies.';
+        } else if (state.instantAction === 'run') {
+          html = '⚡ <strong>Ephemeral Zero-Trace:</strong> Downloads RMTE directly to temporary memory/storage (<code>/tmp</code> or <code>%TEMP%</code>) and launches an encrypted session instantly. No binary files remain on disk when terminated.';
+        } else if (state.instantAction === 'download-run') {
+          html = '🚀 <strong>Download & Run:</strong> Downloads the single self-contained binary into the current working directory and immediately launches your session.';
+        } else if (state.instantAction === 'install-run') {
+          html = '🛠️ <strong>Install to PATH & Run:</strong> Installs the executable into <code>~/.local/bin</code> (or Windows User PATH) and launches the session in one command.';
+        }
+      } else {
+        const act = state.cliAction;
+        if (act === 'update') {
+          html = '🔄 <strong>In-Place Binary Upgrade:</strong> Replaces the current binary with the latest official GitHub release. If <code>--restart</code> is specified, background sessions seamlessly resume without disconnecting web viewers.';
+        } else if (state.section === 'public') {
+          if (act === 'share') {
+            html = '🚀 <strong>Share Terminal Workspace:</strong> Shares your local terminal shell and embedded Web IDE to public relay <code>my.rmte.biz.id</code>. You can customize the Session ID, Password, and flags below, or clear them for zero-config defaults.';
+          } else if (act === 'join') {
+            html = '👥 <strong>Interactive TUI Client:</strong> Connects to a host session on <code>my.rmte.biz.id</code> using the built-in RMTE client multiplexer. Automatically connects to the public relay by default without needing <code>--server-relay</code>.';
+          } else if (act === 'stop') {
+            html = '🛑 <strong>Terminate Background Daemon:</strong> Cleanly stops a running detached background process (<code>-q</code>) and purges session lockfiles.';
+          }
+        } else {
+          // Self-Hosted hints
+          if (act === 'standalone') {
+            html = '🖥️ <strong>Case 1 (Single VPS):</strong> One machine runs both the WebSocket relay and the host terminal workspace. External hosts are rejected, securing the instance for private use.';
+          } else if (act === 'share-self') {
+            html = '📤 <strong>Outbound Host Connection:</strong> Connects machine outbound to your private relay server via WebSocket. The host machine requires zero open ports, functioning behind strict NAT and firewalls.';
+          } else if (act === 'relay-only') {
+            html = '🌐 <strong>Case 2 (Multi-VPS Central Hub):</strong> Dedicated central relay server that handles WebSocket routing and HTTP Web UI (<code>--mode=relay</code>). Hosts connect to it via <code>rmte share</code>.';
+          } else if (act === 'hybrid') {
+            html = '🔄 <strong>Hybrid Relay & Host:</strong> Serves a local host workspace while simultaneously acting as a central relay accepting external <code>rmte share</code> connections.';
+          } else if (act === 'join-self') {
+            html = '👥 <strong>Private TUI Join:</strong> Connects from a terminal client to a session hosted on your private relay server.';
+          } else if (act === 'stop') {
+            html = '🛑 <strong>Terminate Background Daemon:</strong> Cleanly stops a running detached background process (<code>-q</code>) on your server.';
+          }
+        }
+      }
+
+      hintEl.innerHTML = html;
+    }
+
+    function renderAll() {
+      renderTools();
+      renderInstantActions();
+      renderDownloadFirst();
+      renderCliActions();
+      renderCliParams();
+      updateInPathButton();
       updateCommand();
     }
 
-    function switchAction(action) {
-      currentAction = action;
-      document.querySelectorAll('.pill-btn').forEach(btn => btn.classList.remove('active'));
-      document.getElementById('pill-' + action).classList.add('active');
-      updateCommand();
+    function copySnippet(text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        // Show temporary toast or visual feedback
+        const el = btn || (typeof event !== 'undefined' ? event?.target : null);
+        if (el) {
+          const original = el.textContent;
+          el.textContent = 'Copied!';
+          setTimeout(() => { el.textContent = original; }, 2000);
+        }
+      });
     }
 
     function copyCommand() {
-      const text = commands[currentOs][currentAction];
+      const text = document.getElementById('command-text').textContent;
       navigator.clipboard.writeText(text).then(() => {
-        const btn = document.getElementById('copy-btn');
-        btn.textContent = 'Copied!';
+        const copyIcon = document.getElementById('copy-icon');
+        const copyText = document.getElementById('copy-text');
+        copyIcon.textContent = '✅';
+        copyText.textContent = 'Copied!';
         setTimeout(() => {
-          btn.textContent = 'Copy Command';
+          copyIcon.textContent = '📋';
+          copyText.textContent = 'Copy Command';
         }, 2000);
       });
     }
+
+    // Initialize on load
+    renderAll();
   </script>
 </body>
+
 </html>

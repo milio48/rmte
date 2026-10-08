@@ -33,7 +33,6 @@ const (
 
 	defaultPort        = 8048
 	defaultWSPath      = "/ws-rmte"
-	defaultServer      = "ws://localhost:8048/ws-rmte"
 	defaultPublicRelay = "wss://my.rmte.biz.id/ws-rmte"
 )
 
@@ -213,6 +212,9 @@ func cmdServe() {
 		if cfg.AdminPath == "/p" || cfg.AdminPath == "/p/" {
 			fatalf("Error: --admin-path cannot be %q (reserved for Web Browser Preview)", cfg.AdminPath)
 		}
+		if cfg.AdminPath == "/favicon.ico" || cfg.AdminPath == "/favicon.ico/" {
+			fatalf("Error: --admin-path cannot conflict with /favicon.ico")
+		}
 		cfgJSONPath := strings.TrimSuffix(cfg.WebPath, "/") + "/config.json"
 		if cfg.AdminPath == "/config.json" || (!cfg.NoWeb && cfg.AdminPath == cfgJSONPath) {
 			fatalf("Error: --admin-path cannot conflict with web configuration endpoint")
@@ -325,7 +327,7 @@ func runShare(args []string) {
 }
 
 func cmdJoin() {
-	server := flag.String("server-relay", defaultServer, "Relay server WebSocket URL")
+	server := flag.String("server-relay", defaultPublicRelay, "Relay server WebSocket URL")
 	sessionID := flag.String("id", "", "Session ID to join")
 	pass := flag.String("pass", "", "Password for E2EE")
 	name := flag.String("name", "", "Display name of the viewer")
@@ -422,7 +424,7 @@ Usage:
              [--buffer=1] [--dir="path"] [--web-path="/"] [--ws-path="%s"] [--hostname="example.com"]
              [--public] [--no-web | --no-cli] [--web-preview] [-q | --quiet]
              [--admin-path="/admin"] [--admin-pass="secret"]
-  rmte join   --server-relay="ws://relay:%d%s" --id="..." --pass="secret" [--name="name"]
+  rmte join   [--server-relay="%s"] --id="..." --pass="secret" [--name="name"]
   rmte stop   <session_id | pid>
   rmte update [--check] [--force] [--restart]
   rmte help | version
@@ -435,7 +437,7 @@ Serve modes:
 Notes:
   * If --pass is empty, a random password is generated and printed.
   * If --id is specified, must be lowercase alphanumeric (a-z, 0-9) up to 10 chars.
-  * Web Browser Preview is enabled by default.
+  * Web Browser Preview is enabled by default for share (use --web-preview for serve).
   * Default bind for serve is 127.0.0.1; use --public to bind 0.0.0.0.
-`, appVersion, defaultPublicRelay, defaultPublicRelay, defaultPort, defaultWSPath, defaultPort, defaultWSPath)
+`, appVersion, defaultPublicRelay, defaultPublicRelay, defaultPort, defaultWSPath, defaultPublicRelay)
 }
