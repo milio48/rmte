@@ -2201,7 +2201,7 @@
       name: '',
       adminPass: '',
       adminPath: '/admin',
-      webPreview: true,
+      webPreview: false,
       quiet: false,
       publicBind: true,
       updateCheck: false,
@@ -2802,6 +2802,7 @@
           if (state.password) cmd += ` --pass="${state.password}"`;
           if (state.dir) cmd += ` --dir="${state.dir}"`;
           if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
+          if (state.webPreview) cmd += ' --web-preview';
           if (state.quiet) cmd += ' -q';
           return cmd;
         } else if (act === 'join') {
