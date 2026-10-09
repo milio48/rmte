@@ -649,7 +649,7 @@ function requestNewTab(){
 
 // Editor tabs
 function checkDirty(id){
-    const et = editorTabs[id]; if(!et) return;
+    const et = editorTabs[id]; if(!et || (!et.cm && !et.textarea)) return;
     const val = et.cm ? et.cm.getValue() : (et.textarea ? et.textarea.value : '');
     const isDirty = val !== et.original;
     const tabEl = document.getElementById('tab-' + CSS.escape(id));
@@ -811,9 +811,9 @@ function openImageTab(path, blobUrl, sizeBytes, rawBytes){
         editSvgBtn.className = 'editor-btn-secondary';
         editSvgBtn.innerText = '📝 Edit as Code';
         editSvgBtn.title = 'Edit SVG code in editor';
-        editSvgBtn.onclick = () => {
+        editSvgBtn.onclick = async () => {
             const txt = new TextDecoder().decode(rawBytes);
-            closeEditorTab(id);
+            await closeEditorTab(id);
             openEditorTab(path, txt);
         };
         actions.appendChild(editSvgBtn);
@@ -885,10 +885,12 @@ async function closeEditorTab(id){
         if(et.type === 'image' && et.blobUrl){
             try { URL.revokeObjectURL(et.blobUrl); } catch(e){}
         }
-        const val = et.cm ? et.cm.getValue() : (et.textarea ? et.textarea.value : '');
-        if(val !== et.original && !await uiConfirm('File has unsaved changes. Close anyway?', {title: 'Unsaved Changes', okText: 'Close', danger: true})) return;
-        if(et.cm){
-            try { et.cm.toTextArea && et.cm.toTextArea(); } catch(e){}
+        if(et.cm || et.textarea){
+            const val = et.cm ? et.cm.getValue() : et.textarea.value;
+            if(val !== et.original && !await uiConfirm('File has unsaved changes. Close anyway?', {title: 'Unsaved Changes', okText: 'Close', danger: true})) return;
+            if(et.cm){
+                try { et.cm.toTextArea && et.cm.toTextArea(); } catch(e){}
+            }
         }
     }
     const el = document.getElementById('tab-' + CSS.escape(id)); if(el) el.remove();
@@ -906,7 +908,7 @@ async function closeEditorTab(id){
 }
 
 function saveEditor(id,path){
-    const et=editorTabs[id];if(!et)return;
+    const et=editorTabs[id];if(!et || (!et.cm && !et.textarea))return;
     if(!beginFileOp())return;
     currentTransferId=newTransferId();
     const val=et.cm?et.cm.getValue():(et.textarea?et.textarea.value:'');
@@ -1287,9 +1289,11 @@ function updatePresence(tabs){
     Object.keys(tabs||{}).forEach(tid=>{const s=document.getElementById('tab-subtext-'+tid);if(s&&tabs[tid]&&tabs[tid].length)s.innerText=tabs[tid].join(', ');});
     const list=document.getElementById('users-list');list.innerHTML='';
     const peers = new Set();
+    const selfName = (myUsername || '').trim();
     Object.keys(tabs||{}).forEach(tid=>(tabs[tid]||[]).forEach(name=>{
-        const i=document.createElement('div');i.className='user-item';i.innerHTML=`<span class="dot"></span><span class="user-name">${esc(name)}</span><span class="user-tab-badge">Tab ${tid}</span>`;list.appendChild(i);
-        if(name && name !== myUsername) peers.add(name);
+        const trimmed = (name || '').trim();
+        const i=document.createElement('div');i.className='user-item';i.innerHTML=`<span class="dot"></span><span class="user-name">${esc(trimmed)}</span><span class="user-tab-badge">Tab ${tid}</span>`;list.appendChild(i);
+        if(trimmed && selfName && trimmed !== selfName) peers.add(trimmed);
     }));
     const collabBadge = document.getElementById('collab-badge-top');
     if(collabBadge){
@@ -1917,6 +1921,10 @@ function toggleTerminalMaximize() {
     const maxBtn = document.getElementById('term-maximize-btn');
     if (!panel || !mainArea) return;
 
+    if (!terminalPanelMaximized && previewMaximized) {
+        togglePreviewMaximize();
+    }
+
     terminalPanelMaximized = !terminalPanelMaximized;
     panel.classList.toggle('is-maximized', terminalPanelMaximized);
     mainArea.classList.toggle('terminal-maximized', terminalPanelMaximized);
@@ -2126,6 +2134,10 @@ function togglePreviewMaximize() {
     const mainArea = document.getElementById('main-area');
     const maxBtn = document.getElementById('preview-maximize-btn');
     if (!previewPanel || !mainArea) return;
+
+    if (!previewMaximized && terminalPanelMaximized) {
+        toggleTerminalMaximize();
+    }
 
     previewMaximized = !previewMaximized;
     previewPanel.classList.toggle('is-maximized', previewMaximized);
