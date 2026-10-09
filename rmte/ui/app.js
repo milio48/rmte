@@ -396,6 +396,7 @@ function activateTerminalTab(id){
         }, 20);
     }
     sendJson({type: 'control', action: 'set_focus', viewer_id: myViewerId, viewer_name: myUsername, tab_id: tid});
+    sendJson({type: 'control', action: 'req_sync', tab_id: tid});
 }
 
 function focusEditorPane(){
@@ -1446,6 +1447,13 @@ window.addEventListener('DOMContentLoaded',async()=>{
             }
         }
         if(e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')){
+            const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+            if(tag === 'input' || (tag === 'textarea' && !document.activeElement.closest('.CodeMirror'))){
+                return;
+            }
+            const hasModal = document.querySelector('.modal-overlay:not([style*="display:none"]):not([style*="display: none"])');
+            if(hasModal) return;
+
             e.preventDefault();
             if(e.key === 'ArrowUp'){
                 focusEditorPane();
