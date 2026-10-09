@@ -1136,6 +1136,8 @@ function closeAllDrawers(){
         if(fe) fe.style.display = fileManagerOpen ? 'flex' : 'none';
         const resizer = document.getElementById('fe-resizer');
         if(resizer) resizer.style.display = fileManagerOpen ? 'block' : 'none';
+        const b = document.getElementById('toggle-files-btn');
+        if(b) b.classList.toggle('active', fileManagerOpen);
     }
 }
 function requestDir(p){currentFilePath=p;sendJson({type:'control',action:'req_dir',path:p});}
@@ -2022,12 +2024,6 @@ function initWorkbenchResizer() {
         } else {
             mainArea.classList.remove('mobile-view-editor', 'mobile-view-terminal');
             closeAllDrawers();
-            const fe = document.getElementById('file-explorer');
-            const resizer = document.getElementById('fe-resizer');
-            if (fe) fe.style.display = fileManagerOpen ? 'flex' : 'none';
-            if (resizer) resizer.style.display = fileManagerOpen ? 'block' : 'none';
-            const b = document.getElementById('toggle-files-btn');
-            if (b) b.classList.toggle('active', fileManagerOpen);
         }
         updateEditorLineWrapping();
         refitActive();
