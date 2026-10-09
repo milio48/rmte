@@ -252,6 +252,9 @@ async function onJson(msg) {
         isConnected=true; reconnectAttempt=0;
         document.getElementById('setup').style.display='none';
         document.getElementById('terminal-container').style.display='flex';
+        if(window.innerWidth <= 768){
+            closeAllDrawers();
+        }
         document.getElementById('sb-session').innerText='Session: '+(document.getElementById('sessionId').value);
         document.getElementById('sb-user').innerText=myUsername;
         const serverVal=document.getElementById('server').value;
@@ -566,8 +569,8 @@ function initTerminal(tabId){
     t.onData(d => handleTerminalData(tabId, d));
     try {
         t.onBlur(() => {
-            if(stickyCtrl === 1) setStickyModifier('ctrl', 0);
-            if(stickyAlt === 1) setStickyModifier('alt', 0);
+            setStickyModifier('ctrl', 0);
+            setStickyModifier('alt', 0);
         });
     } catch(e){}
     if(t.parser && t.parser.registerCsiHandler){
@@ -691,7 +694,7 @@ function handleTerminalData(tabId, data){
         if(stickyCtrl === 1) setStickyModifier('ctrl', 0);
     }
     if(stickyAlt > 0){
-        if(data.length === 1){
+        if(data.length === 1 || data.startsWith('\x1b')){
             data = '\x1b' + data;
         }
         if(stickyAlt === 1) setStickyModifier('alt', 0);
@@ -1071,7 +1074,11 @@ function toggleFileManager(force){
     const isMobile = window.innerWidth <= 768;
     if(fe){
         fe.classList.toggle('drawer-open', isMobile && fileManagerOpen);
-        fe.style.display = fileManagerOpen ? 'flex' : 'none';
+        if(!isMobile){
+            fe.style.display = fileManagerOpen ? 'flex' : 'none';
+        } else {
+            fe.style.display = '';
+        }
     }
     const resizer=document.getElementById('fe-resizer');
     if(resizer)resizer.style.display=(!isMobile && fileManagerOpen)?'block':'none';
@@ -1087,9 +1094,9 @@ function updateDrawerBackdrop(){
     if(!backdrop) return;
     const isMobile = window.innerWidth <= 768;
     const fe = document.getElementById('file-explorer');
+    const sb = document.getElementById('users-sidebar');
     const feOpen = isMobile && fe && fe.classList.contains('drawer-open');
-    const ws = document.getElementById('workspace');
-    const sbOpen = isMobile && ws && !ws.classList.contains('sidebar-collapsed');
+    const sbOpen = isMobile && sb && sb.classList.contains('drawer-open');
     if(feOpen || sbOpen){
         backdrop.style.display = 'block';
     } else {
@@ -1098,6 +1105,8 @@ function updateDrawerBackdrop(){
 }
 
 function closeSidebarDrawer(){
+    const sb = document.getElementById('users-sidebar');
+    if(sb) sb.classList.remove('drawer-open');
     const ws = document.getElementById('workspace');
     if(ws) ws.classList.add('sidebar-collapsed');
     const collabBtn = document.getElementById('toggle-sidebar-btn');
@@ -1112,7 +1121,11 @@ function closeSidebarDrawer(){
 
 function closeAllDrawers(){
     if(window.innerWidth <= 768){
-        if(fileManagerOpen) toggleFileManager(false);
+        const fe = document.getElementById('file-explorer');
+        if(fe) fe.classList.remove('drawer-open');
+        fileManagerOpen = false;
+        const b = document.getElementById('toggle-files-btn');
+        if(b) b.classList.remove('active');
         closeSidebarDrawer();
     }
     updateDrawerBackdrop();
@@ -1577,22 +1590,42 @@ function switchSidebarTab(tabName){
 
 function toggleSidebar(preferredTab){
     const ws = document.getElementById('workspace');
-    const isCollapsed = ws.classList.contains('sidebar-collapsed');
+    const sb = document.getElementById('users-sidebar');
+    const isMobile = window.innerWidth <= 768;
     if(!preferredTab) preferredTab = 'collab';
 
-    if(isCollapsed){
-        ws.classList.remove('sidebar-collapsed');
-        switchSidebarTab(preferredTab);
-    } else if(currentSidebarTab === preferredTab){
-        ws.classList.add('sidebar-collapsed');
-        const collabBtn = document.getElementById('toggle-sidebar-btn');
-        const chatBtn = document.getElementById('toggle-chat-btn');
-        const actBtn = document.getElementById('toggle-activity-btn');
-        if(collabBtn) collabBtn.classList.remove('active');
-        if(chatBtn) chatBtn.classList.remove('active');
-        if(actBtn) actBtn.classList.remove('active');
+    if(isMobile){
+        const isOpen = sb && sb.classList.contains('drawer-open');
+        if(!isOpen){
+            if(sb) sb.classList.add('drawer-open');
+            switchSidebarTab(preferredTab);
+        } else if(currentSidebarTab === preferredTab){
+            if(sb) sb.classList.remove('drawer-open');
+            const collabBtn = document.getElementById('toggle-sidebar-btn');
+            const chatBtn = document.getElementById('toggle-chat-btn');
+            const actBtn = document.getElementById('toggle-activity-btn');
+            if(collabBtn) collabBtn.classList.remove('active');
+            if(chatBtn) chatBtn.classList.remove('active');
+            if(actBtn) actBtn.classList.remove('active');
+        } else {
+            switchSidebarTab(preferredTab);
+        }
     } else {
-        switchSidebarTab(preferredTab);
+        const isCollapsed = ws.classList.contains('sidebar-collapsed');
+        if(isCollapsed){
+            ws.classList.remove('sidebar-collapsed');
+            switchSidebarTab(preferredTab);
+        } else if(currentSidebarTab === preferredTab){
+            ws.classList.add('sidebar-collapsed');
+            const collabBtn = document.getElementById('toggle-sidebar-btn');
+            const chatBtn = document.getElementById('toggle-chat-btn');
+            const actBtn = document.getElementById('toggle-activity-btn');
+            if(collabBtn) collabBtn.classList.remove('active');
+            if(chatBtn) chatBtn.classList.remove('active');
+            if(actBtn) actBtn.classList.remove('active');
+        } else {
+            switchSidebarTab(preferredTab);
+        }
     }
     updateOverflowBadge();
     updateDrawerBackdrop();
@@ -1647,9 +1680,9 @@ function updateOverflowBadge(){
         actBadge.style.display = actCount > 0 ? 'inline-flex' : 'none';
     }
     if(ovBadge){
-        const totalHidden = collabCount + actCount;
-        if(totalHidden > 0){
-            ovBadge.innerText = totalHidden > 99 ? '99+' : totalHidden;
+        // Badge on ⋮ only indicates unread notifications
+        if(actCount > 0){
+            ovBadge.innerText = actCount > 99 ? '99+' : actCount;
             ovBadge.style.display = 'inline-flex';
         } else {
             ovBadge.style.display = 'none';
@@ -1958,6 +1991,7 @@ function initWorkbenchResizer() {
     // Responsive mobile listener
     if (window.innerWidth <= 768) {
         setMobileWorkbenchPane('terminal');
+        closeAllDrawers();
     }
     function updateEditorLineWrapping(){
         const isMobile = window.innerWidth <= 768;
@@ -1974,6 +2008,7 @@ function initWorkbenchResizer() {
         if (!mainArea) return;
         if (e.matches) {
             setMobileWorkbenchPane(mobileActivePane);
+            closeAllDrawers();
         } else {
             mainArea.classList.remove('mobile-view-editor', 'mobile-view-terminal');
             closeAllDrawers();
@@ -2425,13 +2460,30 @@ document.addEventListener('click', e => {
     }
 });
 
+function updateMobileViewportOffset(){
+    if (!window.visualViewport) return;
+    const isMobile = window.innerWidth <= 768;
+    const panel = document.getElementById('terminal-panel');
+    if (!panel) return;
+    if (isMobile) {
+        const vv = window.visualViewport;
+        const overlap = Math.max(0, Math.round(window.innerHeight - (vv.height + vv.offsetTop)));
+        panel.style.paddingBottom = overlap > 0 ? `${overlap}px` : '';
+    } else {
+        panel.style.paddingBottom = '';
+    }
+    refitActive();
+}
+
 if (window.visualViewport) {
     let vpTimer = null;
-    window.visualViewport.addEventListener('resize', () => {
+    const onVpChange = () => {
         if (window.innerWidth > 768) return;
         if (vpTimer) clearTimeout(vpTimer);
-        vpTimer = setTimeout(refitActive, 100);
-    });
+        vpTimer = setTimeout(updateMobileViewportOffset, 50);
+    };
+    window.visualViewport.addEventListener('resize', onVpChange);
+    window.visualViewport.addEventListener('scroll', onVpChange);
 }
 
 

@@ -2452,7 +2452,6 @@ kbd {
     color: var(--color-accent);
 }
 .mkey-btn.mkey-toggle {
-    margin-left: auto;
     color: var(--color-ink-muted);
 }
 
@@ -2467,6 +2466,7 @@ kbd {
     /* Touch target enlargement strictly scoped to mobile */
     #tabs-bar button {
         min-height: 38px;
+        min-width: 38px;
     }
     /* Single-pane mobile layout: editor or terminal full height (default terminal) */
     #main-area.mobile-view-terminal:not(.terminal-hidden) #workbench-top,
@@ -2491,7 +2491,7 @@ kbd {
         flex-grow: 1;
     }
 
-    /* Slide-Over Drawers on mobile */
+    /* Slide-Over Drawers on mobile with smooth bidirectional transitions */
     .drawer-close-btn {
         display: inline-flex !important;
     }
@@ -2509,11 +2509,15 @@ kbd {
         border-right: 1px solid var(--color-border) !important;
         box-shadow: 4px 0 24px rgba(0,0,0,0.4) !important;
         transform: translateX(-105%) !important;
-        transition: transform var(--dur-med) var(--ease-out) !important;
+        transition: transform var(--dur-med) var(--ease-out), visibility var(--dur-med) !important;
+        display: flex !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
     }
     #file-explorer.drawer-open {
         transform: translateX(0) !important;
-        display: flex !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
     }
 
     #users-sidebar {
@@ -2528,15 +2532,16 @@ kbd {
         border-left: 1px solid var(--color-border) !important;
         box-shadow: -4px 0 24px rgba(0,0,0,0.4) !important;
         transform: translateX(105%) !important;
-        transition: transform var(--dur-med) var(--ease-out) !important;
-    }
-    #workspace:not(.sidebar-collapsed) #users-sidebar {
-        transform: translateX(0) !important;
+        transition: transform var(--dur-med) var(--ease-out), visibility var(--dur-med) !important;
         display: flex !important;
-        padding: var(--space-sm) !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
     }
-    #workspace.sidebar-collapsed #users-sidebar {
-        transform: translateX(105%) !important;
+    #users-sidebar.drawer-open {
+        transform: translateX(0) !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+        padding: var(--space-sm) !important;
     }
 
     /* Virtual Key accessory bar visible on mobile */
