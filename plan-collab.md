@@ -37,10 +37,10 @@ Transform the RMTE web workspace from a single-tab switcher into a **VS Code-lik
 - **Accurate Bandwidth & WS Protocol Rules (DeepSeek Fix #1):**
   - **Layout editor, resizer drag, and panel collapse:** **Strictly 0 WS messages**.
   - **Terminal panel resize:** During drag = **0 WS messages**; on `pointerup` (drag end) = **exactly 1** `{action:'resize', tab_id, cols, rows}` message dispatched **only if** cols/rows actually changed.
-  - **Collapsed / Hidden terminal:** **Strictly 0 WS messages** (no resize events dispatched while hidden).
+  - **Collapsed / Hidden terminal:** **Strictly 0 WS messages** while collapsed or hidden. When subsequently unhidden or expanded, at most 1 `resize` message is dispatched to restore PTY geometry if dimensions changed.
 
 ### 2.2 DOM & Layout Hierarchy & Preview Positioning (DeepSeek Fix #5)
-Keep `#preview-panel` cleanly integrated inside `#main-area` so existing preview logic, toolbar, iframe sandbox, and mobile toggle (390px) remain intact:
+Keep `#preview-panel` cleanly integrated inside `#workbench-top` so existing preview logic, toolbar, iframe sandbox, and mobile toggle (390px) remain intact:
 ```
 #workspace
 ├── #file-explorer (Left sidebar - existing)
@@ -48,27 +48,30 @@ Keep `#preview-panel` cleanly integrated inside `#main-area` so existing preview
 ├── #main-area (Flex column container)
 │   ├── #workbench-top (Upper area: Editor + Optional Side Preview)
 │   │   ├── #editor-workbench (Upper Pane - Flex 1)
-│   │   │   ├── #editor-tabs-bar (Tabs for open files only: main.go, app.js, etc.)
-│   │   │   └── #editor-container-wrap (CodeMirror instances & file empty state)
-│   │   └── #preview-panel (Web preview iframe - docks alongside editor or full top when opened)
+│   │   │   ├── #editor-tabs-bar (Tabs for open files + mobile pane switcher)
+│   │   │   ├── #editor-empty-state (Placeholder when no file is open)
+│   │   │   └── #editor-container-wrap (CodeMirror instances)
+│   │   └── #preview-panel (Web preview iframe - docks alongside editor inside #workbench-top)
+│   │       ├── #preview-toolbar (Navigation & port controls)
+│   │       └── #preview-viewport-wrap (Iframe + drag shield)
 │   │
-│   ├── #workbench-resizer (Horizontal split drag handle: role="separator", aria-orientation="horizontal")
+│   ├── #workbench-resizer (Horizontal split drag handle: role="separator", aria-orientation="horizontal", tabindex="0")
 │   │
 │   └── #terminal-panel (Bottom Pane - Collapsible / Resizable)
-│       ├── #terminal-panel-header (Tabs: Tab 0, Tab 1, [+] Terminal, Actions: [_] Collapse, [□] Maximize, [✕] Hide)
+│       ├── #terminal-panel-header (Tabs: Tab 0, Tab 1, [+] Terminal, Actions: [_] Collapse, [□] Maximize, [✕] Hide, mobile switcher)
 │       └── #terminal-wrapper (xterm.js instances)
 │
 └── #users-sidebar (Right sidebar: Users, Chat, Activity - existing)
 ```
 
 ### 2.3 Resizer, Guards & Responsiveness Constraints (DeepSeek Fix #2, #8, #13, #14)
-- **Zero-Size Guard:** Never call `fitAddon.fit()` or `cm.refresh()` on hidden (`display:none`) or 0px containers. Guard with `if (!isPanelVisible || rect.width <= 0 || rect.height <= 0) return;`.
+- **Zero-Size Guard:** Never call `fitAddon.fit()` or `cm.refresh()` on hidden (`display:none` or `is-collapsed` / `is-hidden`) or 0px containers. Guard with `if (!isPanelVisible || rect.width <= 0 || rect.height <= 0) return;`.
 - **Editor Refresh:** Call `cm.refresh()` on active CodeMirror instance upon workbench resize or split change.
-- **Drag Technique:** Pointer Events (`setPointerCapture`) + `requestAnimationFrame` throttle. Overlay shield over iframe during drag to prevent mouse capture.
-- **Min Height Editor:** `150px` (desktop).
-- **Min Height Terminal Panel:** `100px` (desktop).
+- **Drag Technique:** Pointer Events (`setPointerCapture`) + `requestAnimationFrame` throttle. Overlay shield (`#preview-drag-shield`) over iframe during drag to prevent mouse capture.
+- **Min Height Editor:** `120px` preserved minimum height during split drag (`app.css` & `app.js`).
+- **Min Height Terminal Panel:** `80px` minimum drag height (`app.js`), with `32px` min-height when collapsed (`app.css`).
 - **Default Height:** `35%` of `#main-area` (persisted in `localStorage` only on `pointerup`).
-- **Mobile Viewport (< 768px):** Automatically fallback to **Single-Pane Mode** (toggle between Editor view and Terminal view) instead of cramped split panes.
+- **Mobile Viewport (< 768px):** Automatically fallback to **Single-Pane Mode** (toggle between Editor view and Terminal view via `setMobileWorkbenchPane`) instead of cramped split panes.
 
 ---
 
