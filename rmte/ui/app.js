@@ -1451,7 +1451,7 @@ window.addEventListener('DOMContentLoaded',async()=>{
             if(tag === 'input' || (tag === 'textarea' && !document.activeElement.closest('.CodeMirror'))){
                 return;
             }
-            const hasModal = document.querySelector('.modal-overlay:not([style*="display:none"]):not([style*="display: none"])');
+            const hasModal = Array.from(document.querySelectorAll('.modal-overlay')).some(m => getComputedStyle(m).display !== 'none');
             if(hasModal) return;
 
             e.preventDefault();
