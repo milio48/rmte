@@ -240,4 +240,7 @@ With a structured context cluster docked to the right of `#status-bar`:
   - Implemented syntax mode picker popover with single `JavaScript / TypeScript` label and click-outside dismiss.
   - Implemented terminal geometry (`Cols × Rows`) and media dimension/size info.
   - Added responsive rules for `<= 640px` collapsing secondary items (`#sb-session`, `#sb-user`, `#sb-cursor-pos`) to guarantee no overflow.
-  - Syntax check (`node --check`) and test suite (`go test -count=1 ./...`, `go vet ./...`) 100% passing. Ready for verification review.
+  - Syntax check (`node --check`) and test suite (`go test -count=1 ./...`, `go vet ./...`) 100% passing.
+- **Round 2 Polish Review (DeepSeek)**: Fixed CSS tokens (`--color-ink-muted`, `--color-border`), defined `@keyframes popup-scale`, added JSON syntax badge & picker option (commit `efbdae9`).
+- **Round 3 Edge Case Hardening**: Enforced deterministic 3-state wrap cycle (`Auto → On → Off → Auto`) across mobile & desktop, and prioritized explicit `syntaxOverride` over JSON path-based detection (commit `727e730`).
+- **Final Verification & Sign-off**: All functional and cosmetic review checkpoints verified and approved. Zero regressions on backend/TUI. Implementation 100% complete and ready for merge into `main`.
