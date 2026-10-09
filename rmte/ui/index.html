@@ -288,7 +288,36 @@
             <span id="sb-connection">● Connected</span>
             <span id="sb-session"></span>
             <span id="sb-user"></span>
-            <span id="sb-copy-link" onclick="toggleShareModal(true)" title="Click to share session" style="cursor:pointer;margin-left:auto;">🔗 Share Link</span>
+            <div id="sb-context-cluster">
+                <!-- Editor Context -->
+                <div id="sb-editor-cluster" class="sb-cluster" style="display:none;">
+                    <span id="sb-cursor-pos" class="sb-item" title="Current Cursor Line and Column">Ln 1, Col 1</span>
+                    <button id="sb-indent-btn" class="sb-item sb-interactive" onclick="cycleEditorIndent()" title="Click to change indentation">Tabs: 4</button>
+                    <button id="sb-wrap-btn" class="sb-item sb-interactive" onclick="toggleActiveEditorWrap()" title="Click to toggle word wrapping">Wrap: Off</button>
+                    <button id="sb-syntax-btn" class="sb-item sb-interactive" onclick="toggleSyntaxPicker(event)" title="Click to change language mode">Plain Text</button>
+                </div>
+
+                <!-- Terminal Context -->
+                <div id="sb-terminal-cluster" class="sb-cluster" style="display:none;">
+                    <span id="sb-term-geometry" class="sb-item" title="Terminal Dimensions">80 × 24</span>
+                </div>
+
+                <!-- Media Context -->
+                <div id="sb-media-cluster" class="sb-cluster" style="display:none;">
+                    <span id="sb-media-info" class="sb-item" title="Media Information"></span>
+                </div>
+
+                <!-- Preview Context -->
+                <div id="sb-preview-cluster" class="sb-cluster" style="display:none;">
+                    <span id="sb-preview-info" class="sb-item" title="Web Preview Status">Web: 8080</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating Syntax Mode Picker Popover -->
+        <div id="syntax-picker-popover" class="syntax-dropdown" style="display:none;">
+            <div class="syntax-dropdown-header">Select Language Mode</div>
+            <div id="syntax-picker-list" class="syntax-dropdown-list"></div>
         </div>
     </div>
 

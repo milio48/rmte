@@ -1,6 +1,6 @@
 // RMTE v0.6 — Web Viewer with Editor Workbench + Split Terminal Dock + Preview
 let ws, aesKey, rawAesKeyBytes = null, myUsername = '';
-let activeEditorTab = null, activeTerminalTab = 'term-0';
+let activeEditorTab = null, activeTerminalTab = 'term-0', activeContext = 'terminal';
 let terminalPanelCollapsed = false, terminalPanelMaximized = false, terminalPanelHidden = false;
 let mobileActivePane = 'terminal';
 const myViewerId = 'v-web-' + Math.random().toString(16).slice(2,10);
@@ -84,6 +84,235 @@ function getCodeMirrorMode(path) {
     };
     return map[ext] || null;
 }
+
+// ═══════════════════════════════════════
+// STATUS BAR CONTEXT & CONTROLS
+// ═══════════════════════════════════════
+const SYNTAX_MODES = [
+    { id: 'javascript', name: 'JavaScript / TypeScript' },
+    { id: 'htmlmixed',  name: 'HTML' },
+    { id: 'xml',        name: 'XML / SVG' },
+    { id: 'css',        name: 'CSS' },
+    { id: 'go',         name: 'Go' },
+    { id: 'python',     name: 'Python' },
+    { id: 'shell',      name: 'Shell / Bash' },
+    { id: 'yaml',       name: 'YAML' },
+    { id: 'markdown',   name: 'Markdown' },
+    { id: 'null',       name: 'Plain Text' }
+];
+
+function setActiveContext(ctx) {
+    activeContext = ctx;
+    const edCl = document.getElementById('sb-editor-cluster');
+    const termCl = document.getElementById('sb-terminal-cluster');
+    const medCl = document.getElementById('sb-media-cluster');
+    const prevCl = document.getElementById('sb-preview-cluster');
+
+    if (edCl) edCl.style.display = ctx === 'editor' ? 'flex' : 'none';
+    if (termCl) termCl.style.display = ctx === 'terminal' ? 'flex' : 'none';
+    if (medCl) medCl.style.display = ctx === 'media' ? 'flex' : 'none';
+    if (prevCl) prevCl.style.display = ctx === 'preview' ? 'flex' : 'none';
+
+    if (ctx === 'editor') {
+        updateStatusBarEditorCluster();
+    } else if (ctx === 'terminal') {
+        if (activeTerminalTab && activeTerminalTab.startsWith('term-')) {
+            const tid = parseInt(activeTerminalTab.slice(5));
+            if (terminals[tid] && terminals[tid].term) {
+                updateTerminalGeometryStatus(terminals[tid].term.cols, terminals[tid].term.rows);
+            }
+        }
+    } else if (ctx === 'media') {
+        if (activeEditorTab && editorTabs[activeEditorTab]) {
+            updateMediaStatus(editorTabs[activeEditorTab]);
+        }
+    } else if (ctx === 'preview') {
+        updatePreviewStatus();
+    }
+}
+
+function updateStatusBarEditorCluster() {
+    updateCursorStatus();
+    updateStatusBarIndent();
+    updateStatusBarWrap();
+    updateStatusBarSyntax();
+}
+
+function updateCursorStatus() {
+    const el = document.getElementById('sb-cursor-pos');
+    if (!el) return;
+    if (!activeEditorTab || !editorTabs[activeEditorTab]) {
+        el.innerText = 'Ln 1, Col 1';
+        return;
+    }
+    const et = editorTabs[activeEditorTab];
+    if (et.cm) {
+        const pos = et.cm.getCursor();
+        el.innerText = `Ln ${pos.line + 1}, Col ${pos.ch + 1}`;
+    } else if (et.textarea) {
+        const val = et.textarea.value.substring(0, et.textarea.selectionStart || 0);
+        const lines = val.split('\n');
+        const line = lines.length;
+        const col = lines[lines.length - 1].length + 1;
+        el.innerText = `Ln ${line}, Col ${col}`;
+    }
+}
+
+function getIndentLabel(cm) {
+    if (!cm) return 'Tabs: 4';
+    const isTabs = cm.getOption('indentWithTabs');
+    const unit = cm.getOption('indentUnit') || 4;
+    return isTabs ? `Tabs: ${unit}` : `Spaces: ${unit}`;
+}
+
+function updateStatusBarIndent() {
+    const btn = document.getElementById('sb-indent-btn');
+    if (!btn) return;
+    if (!activeEditorTab || !editorTabs[activeEditorTab] || !editorTabs[activeEditorTab].cm) {
+        btn.innerText = 'Tabs: 4';
+        return;
+    }
+    btn.innerText = getIndentLabel(editorTabs[activeEditorTab].cm);
+}
+
+function cycleEditorIndent() {
+    if (!activeEditorTab || !editorTabs[activeEditorTab]) return;
+    const et = editorTabs[activeEditorTab];
+    if (!et.cm) return;
+    const isTabs = et.cm.getOption('indentWithTabs');
+    const unit = et.cm.getOption('indentUnit') || 4;
+
+    // Cycle: Tabs: 4 -> Spaces: 2 -> Spaces: 4 -> Tabs: 4
+    if (isTabs) {
+        et.cm.setOption('indentWithTabs', false);
+        et.cm.setOption('indentUnit', 2);
+        et.cm.setOption('tabSize', 2);
+    } else if (unit === 2) {
+        et.cm.setOption('indentWithTabs', false);
+        et.cm.setOption('indentUnit', 4);
+        et.cm.setOption('tabSize', 4);
+    } else {
+        et.cm.setOption('indentWithTabs', true);
+        et.cm.setOption('indentUnit', 4);
+        et.cm.setOption('tabSize', 4);
+    }
+    updateStatusBarIndent();
+}
+
+function isTabWrapping(tabId) {
+    const et = editorTabs[tabId];
+    if (!et || !et.cm) return false;
+    if (et.wrapOverride !== null && et.wrapOverride !== undefined) {
+        return et.wrapOverride;
+    }
+    return window.innerWidth <= 768;
+}
+
+function updateStatusBarWrap() {
+    const btn = document.getElementById('sb-wrap-btn');
+    if (!btn) return;
+    if (!activeEditorTab || !editorTabs[activeEditorTab] || !editorTabs[activeEditorTab].cm) {
+        btn.innerText = 'Wrap: Off';
+        btn.classList.remove('active');
+        return;
+    }
+    const wrapping = isTabWrapping(activeEditorTab);
+    btn.innerText = wrapping ? 'Wrap: On' : 'Wrap: Off';
+    btn.classList.toggle('active', wrapping);
+}
+
+function toggleActiveEditorWrap() {
+    if (!activeEditorTab || !editorTabs[activeEditorTab]) return;
+    const et = editorTabs[activeEditorTab];
+    if (!et.cm) return;
+    const currentlyWrapping = isTabWrapping(activeEditorTab);
+    const nextWrap = !currentlyWrapping;
+    et.wrapOverride = nextWrap;
+    et.cm.setOption('lineWrapping', nextWrap);
+    try { et.cm.refresh(); } catch(e){}
+    updateStatusBarWrap();
+}
+
+function getSyntaxDisplayName(mode) {
+    if (!mode || mode === 'null') return 'Plain Text';
+    const item = SYNTAX_MODES.find(m => m.id === mode);
+    return item ? item.name : mode;
+}
+
+function updateStatusBarSyntax() {
+    const btn = document.getElementById('sb-syntax-btn');
+    if (!btn) return;
+    if (!activeEditorTab || !editorTabs[activeEditorTab] || !editorTabs[activeEditorTab].cm) {
+        btn.innerText = 'Plain Text';
+        return;
+    }
+    const currentMode = editorTabs[activeEditorTab].cm.getOption('mode');
+    btn.innerText = getSyntaxDisplayName(currentMode);
+}
+
+function toggleSyntaxPicker(e) {
+    if (e) e.stopPropagation();
+    const pop = document.getElementById('syntax-picker-popover');
+    if (!pop) return;
+    if (pop.style.display !== 'none') {
+        pop.style.display = 'none';
+        return;
+    }
+    if (!activeEditorTab || !editorTabs[activeEditorTab] || !editorTabs[activeEditorTab].cm) return;
+
+    const currentMode = editorTabs[activeEditorTab].cm.getOption('mode') || 'null';
+    const list = document.getElementById('syntax-picker-list');
+    list.innerHTML = '';
+    SYNTAX_MODES.forEach(m => {
+        const itemBtn = document.createElement('button');
+        const isActive = (currentMode === m.id) || (!currentMode && m.id === 'null');
+        itemBtn.className = 'syntax-menu-item' + (isActive ? ' active' : '');
+        itemBtn.innerHTML = `<span>${m.name}</span>` + (isActive ? '<span class="syntax-check">✓</span>' : '');
+        itemBtn.onclick = (evt) => {
+            evt.stopPropagation();
+            setEditorSyntaxMode(m.id);
+            pop.style.display = 'none';
+        };
+        list.appendChild(itemBtn);
+    });
+
+    pop.style.display = 'flex';
+}
+
+function setEditorSyntaxMode(modeId) {
+    if (!activeEditorTab || !editorTabs[activeEditorTab]) return;
+    const et = editorTabs[activeEditorTab];
+    if (!et.cm) return;
+    const mode = (modeId === 'null' || !modeId) ? null : modeId;
+    et.cm.setOption('mode', mode);
+    updateStatusBarSyntax();
+}
+
+function updateTerminalGeometryStatus(cols, rows) {
+    const el = document.getElementById('sb-term-geometry');
+    if (!el) return;
+    if (cols && rows) {
+        el.innerText = `${cols} × ${rows}`;
+    }
+}
+
+function updateMediaStatus(et) {
+    const el = document.getElementById('sb-media-info');
+    if (!el) return;
+    if (!et) { el.innerText = ''; return; }
+    if (et.naturalWidth && et.naturalHeight) {
+        el.innerText = `${et.naturalWidth} × ${et.naturalHeight} • ${fmtSize(et.sizeBytes || 0)}`;
+    } else {
+        el.innerText = fmtSize(et.sizeBytes || 0);
+    }
+}
+
+function updatePreviewStatus() {
+    const el = document.getElementById('sb-preview-info');
+    if (!el) return;
+    el.innerText = `Web: ${previewPort || 8080}`;
+}
+
 
 const _log = {
     out(t,d){console.log(`%c[OUT] %c${t}`,'color:#58a6ff;font-weight:bold','color:#8b949e',d)},
@@ -418,6 +647,12 @@ function activateEditorTab(id){
         setMobileWorkbenchPane('editor');
     }
 
+    if(editorTabs[id] && editorTabs[id].type === 'image'){
+        setActiveContext('media');
+    } else {
+        setActiveContext('editor');
+    }
+
     if(editorTabs[id] && editorTabs[id].cm){
         setTimeout(() => {
             try { editorTabs[id].cm.refresh(); } catch(e){}
@@ -440,12 +675,15 @@ function activateTerminalTab(id){
         setMobileWorkbenchPane('terminal');
     }
 
+    setActiveContext('terminal');
+
     const tid = parseInt(id.slice(5));
     if(terminals[tid]){
         setTimeout(() => {
             refitTerminal(tid);
             try { terminals[tid].term.focus(); } catch(e){}
         }, 20);
+        updateTerminalGeometryStatus(terminals[tid].term.cols, terminals[tid].term.rows);
     }
     sendJson({type: 'control', action: 'set_focus', viewer_id: myViewerId, viewer_name: myUsername, tab_id: tid});
     sendJson({type: 'control', action: 'req_sync', tab_id: tid});
@@ -457,6 +695,8 @@ function focusEditorPane(){
     }
     if(activeEditorTab && editorTabs[activeEditorTab]){
         const et = editorTabs[activeEditorTab];
+        if(et.type === 'image') setActiveContext('media');
+        else setActiveContext('editor');
         if(et.cm){
             try { et.cm.focus(); } catch(e){}
         } else if(et.textarea){
@@ -475,10 +715,12 @@ function focusTerminalPane(){
     if(window.innerWidth <= 768){
         setMobileWorkbenchPane('terminal');
     }
+    setActiveContext('terminal');
     if(activeTerminalTab){
         const tid = parseInt(activeTerminalTab.slice(5));
         if(terminals[tid] && terminals[tid].term){
             try { terminals[tid].term.focus(); } catch(e){}
+            updateTerminalGeometryStatus(terminals[tid].term.cols, terminals[tid].term.rows);
         }
     }
 }
@@ -506,6 +748,9 @@ function refitTerminal(tid){
         t.fitAddon.fit();
         if(t.term.cols !== prevCols || t.term.rows !== prevRows){
             sendJson({type: 'control', action: 'resize', tab_id: tid, cols: t.term.cols, rows: t.term.rows});
+        }
+        if(activeTerminalTab === 'term-' + tid){
+            updateTerminalGeometryStatus(t.term.cols, t.term.rows);
         }
     } catch(e){}
 }
@@ -568,6 +813,9 @@ function initTerminal(tabId){
     }
     t.onData(d => handleTerminalData(tabId, d));
     try {
+        t.onFocus(() => {
+            setActiveContext('terminal');
+        });
         t.onBlur(() => {
             setStickyModifier('ctrl', 0);
             setStickyModifier('alt', 0);
@@ -768,7 +1016,16 @@ function removeTermTab(tabId){
     if(activeTerminalTab === id){
         const k = Object.keys(terminals);
         if(k.length) activateTerminalTab('term-' + k[0]);
-        else activeTerminalTab = null;
+        else {
+            activeTerminalTab = null;
+            if(activeEditorTab && editorTabs[activeEditorTab]){
+                setActiveContext(editorTabs[activeEditorTab].type === 'image' ? 'media' : 'editor');
+            } else if(webPreviewOpen){
+                setActiveContext('preview');
+            } else {
+                setActiveContext(null);
+            }
+        }
     }
 }
 function requestNewTab(){
@@ -849,7 +1106,14 @@ function openEditorTab(path, text){
                     lineWrapping: window.innerWidth <= 768
                 });
                 cmInstance.on('change', () => checkDirty(id));
-                editorTabs[id] = {path, cm: cmInstance, textarea: null, original: text};
+                const cursorListener = () => {
+                    if (activeEditorTab === id) updateCursorStatus();
+                };
+                cmInstance.on('cursorActivity', cursorListener);
+                cmInstance.on('focus', () => {
+                    setActiveContext('editor');
+                });
+                editorTabs[id] = {path, cm: cmInstance, textarea: null, original: text, wrapOverride: null, cursorListener};
             } catch(cmErr){
                 console.warn('CodeMirror failed to initialize, falling back to textarea:', cmErr);
                 cmInstance = null;
@@ -869,8 +1133,17 @@ function openEditorTab(path, text){
                 }
             });
             taInstance.addEventListener('input', () => checkDirty(id));
+            taInstance.addEventListener('click', () => {
+                if (activeEditorTab === id) updateCursorStatus();
+            });
+            taInstance.addEventListener('keyup', () => {
+                if (activeEditorTab === id) updateCursorStatus();
+            });
+            taInstance.addEventListener('focus', () => {
+                setActiveContext('editor');
+            });
             cont.appendChild(taInstance);
-            editorTabs[id] = {path, cm: null, textarea: taInstance, original: text};
+            editorTabs[id] = {path, cm: null, textarea: taInstance, original: text, wrapOverride: null, cursorListener: null};
         }
     } else {
         const bp = document.createElement('div');
@@ -984,10 +1257,20 @@ function openImageTab(path, blobUrl, sizeBytes, rawBytes){
         if(dimEl && img.naturalWidth) {
             dimEl.innerText = `${img.naturalWidth} × ${img.naturalHeight} px`;
         }
+        if(editorTabs[id]){
+            editorTabs[id].naturalWidth = img.naturalWidth;
+            editorTabs[id].naturalHeight = img.naturalHeight;
+            if(activeEditorTab === id && activeContext === 'media'){
+                updateMediaStatus(editorTabs[id]);
+            }
+        }
     };
     img.onerror = () => {
         const dimEl = document.getElementById('img-dim-' + CSS.escape(id));
         if(dimEl) dimEl.innerText = 'Image load failed';
+        if(editorTabs[id] && activeEditorTab === id && activeContext === 'media'){
+            updateMediaStatus(editorTabs[id]);
+        }
     };
     viewport.appendChild(img);
     cont.appendChild(viewport);
@@ -1012,7 +1295,7 @@ function openImageTab(path, blobUrl, sizeBytes, rawBytes){
     const parentEditorTabs = document.getElementById('editor-tabs');
     if(parentEditorTabs) parentEditorTabs.appendChild(c);
 
-    editorTabs[id] = { path, type: 'image', blobUrl, sizeBytes, rawBytes, cm: null, textarea: null, original: null };
+    editorTabs[id] = { path, type: 'image', blobUrl, sizeBytes, rawBytes, cm: null, textarea: null, original: null, naturalWidth: 0, naturalHeight: 0 };
     activateEditorTab(id);
 }
 
@@ -1026,6 +1309,9 @@ async function closeEditorTab(id){
             const val = et.cm ? et.cm.getValue() : et.textarea.value;
             if(val !== et.original && !await uiConfirm('File has unsaved changes. Close anyway?', {title: 'Unsaved Changes', okText: 'Close', danger: true})) return;
             if(et.cm){
+                if(et.cursorListener){
+                    try { et.cm.off('cursorActivity', et.cursorListener); } catch(e){}
+                }
                 try { et.cm.toTextArea && et.cm.toTextArea(); } catch(e){}
             }
         }
@@ -1040,6 +1326,13 @@ async function closeEditorTab(id){
         } else {
             activeEditorTab = null;
             updateEditorEmptyState();
+            if(activeTerminalTab){
+                setActiveContext('terminal');
+            } else if(webPreviewOpen){
+                setActiveContext('preview');
+            } else {
+                setActiveContext(null);
+            }
         }
     }
 }
@@ -1967,11 +2260,50 @@ window.addEventListener('DOMContentLoaded',async()=>{
             if(hm && hm.style.display !== 'none') toggleHelpModal();
             const sm = document.getElementById('share-modal');
             if(sm && sm.style.display !== 'none') toggleShareModal(false);
+            const sp = document.getElementById('syntax-picker-popover');
+            if(sp && sp.style.display !== 'none') sp.style.display = 'none';
         }
     });
 
+    // Dismiss syntax picker on outside click
+    document.addEventListener('click', e => {
+        const pop = document.getElementById('syntax-picker-popover');
+        if (pop && pop.style.display !== 'none') {
+            if (!pop.contains(e.target) && e.target.id !== 'sb-syntax-btn') {
+                pop.style.display = 'none';
+            }
+        }
+    });
+
+    // Pane click focus context tracking
+    const ecWrap = document.getElementById('editor-container-wrap');
+    if (ecWrap) {
+        ecWrap.addEventListener('click', () => {
+            if (activeEditorTab && editorTabs[activeEditorTab]) {
+                setActiveContext(editorTabs[activeEditorTab].type === 'image' ? 'media' : 'editor');
+            }
+        });
+    }
+    const twWrap = document.getElementById('terminal-wrapper');
+    if (twWrap) {
+        twWrap.addEventListener('click', () => {
+            if (activeTerminalTab) {
+                setActiveContext('terminal');
+            }
+        });
+    }
+    const ptBar = document.getElementById('preview-toolbar');
+    if (ptBar) {
+        ptBar.addEventListener('click', () => {
+            if (webPreviewOpen) {
+                setActiveContext('preview');
+            }
+        });
+    }
+
     initFileExplorerResizer();
     initWorkbenchResizer();
+    setActiveContext('terminal');
 });
 
 function initWorkbenchResizer() {
@@ -2009,10 +2341,12 @@ function initWorkbenchResizer() {
         const isMobile = window.innerWidth <= 768;
         Object.values(editorTabs).forEach(et => {
             if(et && et.cm){
-                et.cm.setOption('lineWrapping', isMobile);
+                const shouldWrap = (et.wrapOverride !== null && et.wrapOverride !== undefined) ? et.wrapOverride : isMobile;
+                et.cm.setOption('lineWrapping', shouldWrap);
                 try { et.cm.refresh(); } catch(e){}
             }
         });
+        updateStatusBarWrap();
     }
 
     const mobileQuery = window.matchMedia('(max-width: 768px)');
@@ -2339,6 +2673,8 @@ function toggleWebPreview(force) {
     }
 
     if (webPreviewOpen) {
+        setActiveContext('preview');
+        updatePreviewStatus();
         const portInput = document.getElementById('preview-port-input');
         if (portInput && !portInput.value) {
             portInput.value = previewPort || 8080;
@@ -2346,6 +2682,16 @@ function toggleWebPreview(force) {
         const frame = document.getElementById('preview-frame');
         if (frame && (!frame.src || frame.src === 'about:blank')) {
             previewNavigate();
+        }
+    } else {
+        if (activeContext === 'preview') {
+            if (activeEditorTab && editorTabs[activeEditorTab]) {
+                setActiveContext(editorTabs[activeEditorTab].type === 'image' ? 'media' : 'editor');
+            } else if (activeTerminalTab) {
+                setActiveContext('terminal');
+            } else {
+                setActiveContext(null);
+            }
         }
     }
     setTimeout(refitActive, 50);
@@ -2374,6 +2720,7 @@ async function previewNavigate() {
     if (port > 65535) port = 65535;
     portInput.value = port;
     previewPort = port;
+    updatePreviewStatus();
 
     let subPath = (pathInput ? pathInput.value.trim() : '');
     if (subPath && !subPath.startsWith('/')) {
