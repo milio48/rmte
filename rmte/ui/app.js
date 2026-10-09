@@ -90,6 +90,7 @@ function getCodeMirrorMode(path) {
 // ═══════════════════════════════════════
 const SYNTAX_MODES = [
     { id: 'javascript', name: 'JavaScript / TypeScript' },
+    { id: 'json', cmMode: 'javascript', name: 'JSON' },
     { id: 'htmlmixed',  name: 'HTML' },
     { id: 'xml',        name: 'XML / SVG' },
     { id: 'css',        name: 'CSS' },
@@ -214,10 +215,18 @@ function updateStatusBarWrap() {
     if (!activeEditorTab || !editorTabs[activeEditorTab] || !editorTabs[activeEditorTab].cm) {
         btn.innerText = 'Wrap: Off';
         btn.classList.remove('active');
+        btn.title = 'Word wrapping';
         return;
     }
+    const et = editorTabs[activeEditorTab];
     const wrapping = isTabWrapping(activeEditorTab);
-    btn.innerText = wrapping ? 'Wrap: On' : 'Wrap: Off';
+    if (et.wrapOverride === null || et.wrapOverride === undefined) {
+        btn.innerText = 'Wrap: Auto';
+        btn.title = `Word wrapping: Auto (${wrapping ? 'On' : 'Off'} by viewport). Click to toggle.`;
+    } else {
+        btn.innerText = et.wrapOverride ? 'Wrap: On' : 'Wrap: Off';
+        btn.title = `Word wrapping: Forced ${et.wrapOverride ? 'On' : 'Off'}. Click to toggle.`;
+    }
     btn.classList.toggle('active', wrapping);
 }
 
@@ -225,18 +234,34 @@ function toggleActiveEditorWrap() {
     if (!activeEditorTab || !editorTabs[activeEditorTab]) return;
     const et = editorTabs[activeEditorTab];
     if (!et.cm) return;
-    const currentlyWrapping = isTabWrapping(activeEditorTab);
-    const nextWrap = !currentlyWrapping;
-    et.wrapOverride = nextWrap;
-    et.cm.setOption('lineWrapping', nextWrap);
+
+    // 3-state cycle: Auto (null) -> Forced On (true) -> Forced Off (false) -> Auto (null)
+    if (et.wrapOverride === null || et.wrapOverride === undefined) {
+        const curWrap = isTabWrapping(activeEditorTab);
+        et.wrapOverride = !curWrap;
+    } else if (et.wrapOverride === true) {
+        et.wrapOverride = false;
+    } else {
+        et.wrapOverride = null; // Return to Auto
+    }
+
+    const effectiveWrap = isTabWrapping(activeEditorTab);
+    et.cm.setOption('lineWrapping', effectiveWrap);
     try { et.cm.refresh(); } catch(e){}
     updateStatusBarWrap();
 }
 
-function getSyntaxDisplayName(mode) {
+function getSyntaxDisplayName(mode, path, customSyntax) {
+    if (customSyntax) return customSyntax;
+    if (typeof mode === 'object' && mode !== null) {
+        mode = mode.name || mode.id || mode;
+    }
     if (!mode || mode === 'null') return 'Plain Text';
+    if (path && (path.endsWith('.json') || getFileExt(path) === 'json')) {
+        return 'JSON';
+    }
     const item = SYNTAX_MODES.find(m => m.id === mode);
-    return item ? item.name : mode;
+    return item ? item.name : String(mode);
 }
 
 function updateStatusBarSyntax() {
@@ -246,8 +271,9 @@ function updateStatusBarSyntax() {
         btn.innerText = 'Plain Text';
         return;
     }
-    const currentMode = editorTabs[activeEditorTab].cm.getOption('mode');
-    btn.innerText = getSyntaxDisplayName(currentMode);
+    const et = editorTabs[activeEditorTab];
+    const currentMode = et.cm.getOption('mode');
+    btn.innerText = getSyntaxDisplayName(currentMode, et.path, et.customSyntax);
 }
 
 function toggleSyntaxPicker(e) {
@@ -260,12 +286,17 @@ function toggleSyntaxPicker(e) {
     }
     if (!activeEditorTab || !editorTabs[activeEditorTab] || !editorTabs[activeEditorTab].cm) return;
 
-    const currentMode = editorTabs[activeEditorTab].cm.getOption('mode') || 'null';
+    const et = editorTabs[activeEditorTab];
+    let currentMode = et.cm.getOption('mode');
+    if (typeof currentMode === 'object' && currentMode !== null) {
+        currentMode = currentMode.name || currentMode.id;
+    }
+    const activeLabel = getSyntaxDisplayName(currentMode, et.path, et.customSyntax);
     const list = document.getElementById('syntax-picker-list');
     list.innerHTML = '';
     SYNTAX_MODES.forEach(m => {
         const itemBtn = document.createElement('button');
-        const isActive = (currentMode === m.id) || (!currentMode && m.id === 'null');
+        const isActive = (m.name === activeLabel);
         itemBtn.className = 'syntax-menu-item' + (isActive ? ' active' : '');
         itemBtn.innerHTML = `<span>${m.name}</span>` + (isActive ? '<span class="syntax-check">✓</span>' : '');
         itemBtn.onclick = (evt) => {
@@ -283,8 +314,14 @@ function setEditorSyntaxMode(modeId) {
     if (!activeEditorTab || !editorTabs[activeEditorTab]) return;
     const et = editorTabs[activeEditorTab];
     if (!et.cm) return;
-    const mode = (modeId === 'null' || !modeId) ? null : modeId;
-    et.cm.setOption('mode', mode);
+    if (modeId === 'json') {
+        et.customSyntax = 'JSON';
+        et.cm.setOption('mode', 'javascript');
+    } else {
+        et.customSyntax = null;
+        const mode = (modeId === 'null' || !modeId) ? null : modeId;
+        et.cm.setOption('mode', mode);
+    }
     updateStatusBarSyntax();
 }
 
