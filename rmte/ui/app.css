@@ -2556,6 +2556,30 @@ kbd {
     #editor-tabs-bar, #terminal-tabs, #tabs {
         -webkit-overflow-scrolling: touch;
     }
+
+    /* Web Preview in Mobile: Full-width and full-height; hide editor workbench when preview is active */
+    #main-area.preview-active #editor-workbench,
+    #workbench-top.preview-active #editor-workbench {
+        display: none !important;
+    }
+    #main-area.preview-active #preview-panel,
+    #workbench-top.preview-active #preview-panel {
+        display: flex !important;
+        flex: 1 1 100% !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        height: 100% !important;
+    }
+
+    #preview-viewport-wrap.mobile-view {
+        padding: 0 !important;
+    }
+    #preview-viewport-wrap #preview-frame,
+    #preview-viewport-wrap.mobile-view #preview-frame {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100% !important;
+    }
 }
 
 @media (max-width: 640px) {
@@ -2570,6 +2594,60 @@ kbd {
     }
     #topbar-overflow-btn {
         display: inline-flex !important;
+    }
+
+    /* Mobile-optimized Web Preview Toolbar */
+    #preview-toolbar {
+        height: 38px;
+        padding: 0 4px;
+        gap: 4px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+    }
+    #preview-toolbar::-webkit-scrollbar { display: none; }
+    .preview-nav-group,
+    .preview-actions-group {
+        gap: 2px;
+        flex-shrink: 0;
+    }
+    .preview-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 11px;
+        padding: 0;
+    }
+    .preview-address-bar {
+        height: 28px;
+        padding: 0 4px;
+        font-size: 11px;
+        min-width: 0;
+        gap: 2px;
+        flex: 1 1 auto;
+    }
+    .preview-address-prefix {
+        display: none !important;
+    }
+    #preview-mobile-btn {
+        display: none !important;
+    }
+    .preview-address-icon {
+        margin-right: 2px;
+        font-size: 11px;
+    }
+    #preview-port-input {
+        width: 40px;
+        font-size: 11px;
+    }
+    #preview-path-input {
+        min-width: 20px;
+        font-size: 11px;
+        padding: 0 2px;
+    }
+    #preview-go-btn {
+        padding: 1px 5px;
+        font-size: 11px;
+        height: 22px;
     }
 }
 

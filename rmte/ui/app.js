@@ -2300,11 +2300,18 @@ function toggleWebPreview(force) {
     if (typeof force === 'boolean') {
         webPreviewOpen = force;
     } else {
+        if (window.innerWidth <= 768 && webPreviewOpen && mobileActivePane === 'terminal') {
+            // Already open in background, user tapped 🌐 to view it
+            setMobileWorkbenchPane('editor');
+            setTimeout(refitActive, 50);
+            return;
+        }
         webPreviewOpen = !webPreviewOpen;
     }
     const panel = document.getElementById('preview-panel');
     const btn = document.getElementById('toggle-preview-btn');
     const mainArea = document.getElementById('main-area');
+    const wbTop = document.getElementById('workbench-top');
     const maxBtn = document.getElementById('preview-maximize-btn');
 
     if (!webPreviewOpen && previewMaximized) {
@@ -2319,6 +2326,17 @@ function toggleWebPreview(force) {
 
     if (panel) panel.style.display = webPreviewOpen ? 'flex' : 'none';
     if (btn) btn.classList.toggle('active', webPreviewOpen);
+    if (mainArea) mainArea.classList.toggle('preview-active', webPreviewOpen);
+    if (wbTop) wbTop.classList.toggle('preview-active', webPreviewOpen);
+
+    // On mobile, opening preview switches view to workbench-top (preview pane)
+    if (window.innerWidth <= 768) {
+        if (webPreviewOpen) {
+            setMobileWorkbenchPane('editor');
+        } else if (Object.keys(editorTabs).length === 0) {
+            setMobileWorkbenchPane('terminal');
+        }
+    }
 
     if (webPreviewOpen) {
         const portInput = document.getElementById('preview-port-input');
