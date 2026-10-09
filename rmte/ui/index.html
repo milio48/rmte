@@ -135,6 +135,7 @@
                     <div id="editor-workbench">
                         <div id="editor-tabs-bar">
                             <div id="editor-tabs"></div>
+                            <button id="mobile-switch-term-btn" class="mobile-pane-switcher" onclick="setMobileWorkbenchPane('terminal')" title="Switch to Terminal">💻 Terminal</button>
                         </div>
                         <div id="editor-empty-state">
                             <div class="editor-empty-icon">📝</div>
@@ -184,11 +185,12 @@
                             <span class="term-panel-icon">💻</span>
                             <div id="terminal-tabs"></div>
                             <button id="new-tab-btn" onclick="requestNewTab()" title="Open New Terminal Tab (+)" aria-label="New terminal"><span class="new-tab-plus">+</span><span class="new-tab-label">Terminal</span></button>
+                            <button id="mobile-switch-editor-btn" class="mobile-pane-switcher" onclick="setMobileWorkbenchPane('editor')" title="Switch to Editor">📝 Editor</button>
                         </div>
                         <div class="term-panel-actions">
                             <button class="term-action-btn" id="term-collapse-btn" onclick="toggleTerminalPanel()" title="Toggle Terminal Panel (Ctrl+`)">_</button>
                             <button class="term-action-btn" id="term-maximize-btn" onclick="toggleTerminalMaximize()" title="Maximize / Restore Terminal">□</button>
-                            <button class="term-action-btn" id="term-close-btn" onclick="toggleTerminalPanel(false)" title="Hide Terminal Panel">✕</button>
+                            <button class="term-action-btn" id="term-close-btn" onclick="hideTerminalPanel(true)" title="Hide Terminal Panel">✕</button>
                         </div>
                     </div>
                     <div id="terminal-wrapper"></div>

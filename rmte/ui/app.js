@@ -1,7 +1,8 @@
 // RMTE v0.6 — Web Viewer with Editor Workbench + Split Terminal Dock + Preview
-let ws, aesKey, rawAesKeyBytes = null, currentTab = 'term-0', myUsername = '';
+let ws, aesKey, rawAesKeyBytes = null, myUsername = '';
 let activeEditorTab = null, activeTerminalTab = 'term-0';
-let terminalPanelCollapsed = false, terminalPanelMaximized = false;
+let terminalPanelCollapsed = false, terminalPanelMaximized = false, terminalPanelHidden = false;
+let mobileActivePane = 'terminal';
 const myViewerId = 'v-web-' + Math.random().toString(16).slice(2,10);
 let terminals = {}, editorTabs = {};
 let fileManagerOpen = false, currentFilePath = './';
@@ -350,7 +351,6 @@ function switchToTab(id){
 
 function activateEditorTab(id){
     activeEditorTab = id;
-    currentTab = id;
     document.querySelectorAll('#editor-tabs .tab-btn-container').forEach(b => b.classList.remove('active'));
     const el = document.getElementById('tab-' + CSS.escape(id));
     if(el) el.classList.add('active');
@@ -362,6 +362,10 @@ function activateEditorTab(id){
 
     updateEditorEmptyState();
 
+    if(window.innerWidth <= 768){
+        setMobileWorkbenchPane('editor');
+    }
+
     if(editorTabs[id] && editorTabs[id].cm){
         setTimeout(() => {
             try { editorTabs[id].cm.refresh(); } catch(e){}
@@ -371,7 +375,6 @@ function activateEditorTab(id){
 
 function activateTerminalTab(id){
     activeTerminalTab = id;
-    if(!activeEditorTab) currentTab = id;
     document.querySelectorAll('#terminal-tabs .tab-btn-container').forEach(b => b.classList.remove('active'));
     const el = document.getElementById('tab-' + CSS.escape(id));
     if(el) el.classList.add('active');
@@ -380,6 +383,10 @@ function activateTerminalTab(id){
     document.querySelectorAll('#terminal-wrapper > div').forEach(d => d.style.display = 'none');
     const cont = document.getElementById('content-' + CSS.escape(id));
     if(cont) cont.style.display = 'block';
+
+    if(window.innerWidth <= 768){
+        setMobileWorkbenchPane('terminal');
+    }
 
     const tid = parseInt(id.slice(5));
     if(terminals[tid]){
@@ -436,21 +443,26 @@ function initTerminal(tabId){
         fontSize: 14
     });
     t.attachCustomKeyEventHandler(e => {
-        if(e.type === 'keydown' && (e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
-            if(t.hasSelection()){
-                const sel = t.getSelection();
-                if(navigator.clipboard && navigator.clipboard.writeText){
-                    navigator.clipboard.writeText(sel).catch(()=>{});
+        if(e.type === 'keydown' && (e.ctrlKey || e.metaKey)) {
+            const k = e.key.toLowerCase();
+            if(k === 'c') {
+                if(t.hasSelection()){
+                    const sel = t.getSelection();
+                    if(navigator.clipboard && navigator.clipboard.writeText){
+                        navigator.clipboard.writeText(sel).catch(()=>{});
+                    }
+                    return false;
+                } else {
+                    sendBin(tabId, new Uint8Array([3]));
+                    return false;
                 }
-                return false;
-            } else {
-                sendBin(tabId, new Uint8Array([3]));
+            }
+            // Intercept Workbench & IDE shortcuts so xterm skips sending control bytes
+            // to PTY (e.g. Ctrl+S sends 0x13 XOFF freezing shell, Ctrl+B sends 0x02)
+            // Returning false prevents xterm processing while allowing standard DOM bubbling.
+            if(k === '`' || e.key === '~' || k === 'b' || k === 's' || k === 'f') {
                 return false;
             }
-        }
-        // Let Workbench shortcuts pass through without terminal interception
-        if(e.type === 'keydown' && (e.ctrlKey || e.metaKey) && (e.key === '`' || e.key === '~' || e.key === 'b' || e.key === 'B')) {
-            return true;
         }
         return true;
     });
@@ -458,7 +470,12 @@ function initTerminal(tabId){
     t.loadAddon(fa);
     terminals[tabId] = {term: t, fitAddon: fa};
     t.open(cont);
-    try { fa.fit(); } catch(e){}
+    const panel = document.getElementById('terminal-panel');
+    const wrap = document.getElementById('terminal-wrapper');
+    const canFit = panel && !panel.classList.contains('is-collapsed') && !panel.classList.contains('is-hidden') && wrap && wrap.clientWidth > 0 && wrap.clientHeight > 0;
+    if(canFit){
+        try { fa.fit(); } catch(e){}
+    }
     t.onData(d => sendBin(tabId, new TextEncoder().encode(d)));
     addTermTabBtn(tabId);
     if(!activeTerminalTab || !document.querySelector('#terminal-tabs .tab-btn-container.active')){
@@ -517,8 +534,8 @@ function addTermTabBtn(tabId){
         }
     };
     c.appendChild(icon); c.appendChild(content); c.appendChild(close);
-    const parentTabs = document.getElementById('terminal-tabs') || document.getElementById('tabs');
-    parentTabs.appendChild(c);
+    const parentTabs = document.getElementById('terminal-tabs');
+    if(parentTabs) parentTabs.appendChild(c);
 }
 
 function removeTermTab(tabId){
@@ -537,8 +554,14 @@ function removeTermTab(tabId){
 }
 function requestNewTab(){
     sendJson({type: 'control', action: 'request_new_tab'});
+    if(terminalPanelHidden){
+        hideTerminalPanel(false);
+    }
     if(terminalPanelCollapsed){
         toggleTerminalPanel(false);
+    }
+    if(window.innerWidth <= 768){
+        setMobileWorkbenchPane('terminal');
     }
 }
 
@@ -650,8 +673,8 @@ function openEditorTab(path, text){
     close.onclick = e => { e.stopPropagation(); closeEditorTab(id); };
 
     c.appendChild(icon); c.appendChild(content); c.appendChild(dirtyDot); c.appendChild(close);
-    const parentEditorTabs = document.getElementById('editor-tabs') || document.getElementById('tabs');
-    parentEditorTabs.appendChild(c);
+    const parentEditorTabs = document.getElementById('editor-tabs');
+    if(parentEditorTabs) parentEditorTabs.appendChild(c);
 
     activateEditorTab(id);
     if(cmInstance){
@@ -1265,7 +1288,14 @@ function consumeHashPassword(){
     return pass;
 }
 
-window.addEventListener('resize',refitActive);
+let windowResizeTimer = null;
+window.addEventListener('resize', () => {
+    if(windowResizeTimer) clearTimeout(windowResizeTimer);
+    windowResizeTimer = setTimeout(() => {
+        windowResizeTimer = null;
+        refitActive();
+    }, 100);
+});
 window.addEventListener('DOMContentLoaded',async()=>{
     // URL params take priority (sharable link: ?server=...&session=...)
     const params=new URLSearchParams(window.location.search);
@@ -1378,6 +1408,15 @@ window.addEventListener('DOMContentLoaded',async()=>{
                 fi.select();
             }
         }
+        if(e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')){
+            e.preventDefault();
+            const step = e.shiftKey ? 10 : 5;
+            const currentPct = parseFloat(getComputedStyle(document.getElementById('workspace')).getPropertyValue('--terminal-panel-height')) || 35;
+            const nextPct = e.key === 'ArrowUp' ? Math.min(80, currentPct + step) : Math.max(15, currentPct - step);
+            document.getElementById('workspace').style.setProperty('--terminal-panel-height', nextPct + '%');
+            try { localStorage.setItem('rmte_terminal_height', nextPct); } catch(err) {}
+            refitActive();
+        }
         if(e.key === 'Escape'){
             const jm = document.getElementById('join-modal');
             if(jm && jm.style.display !== 'none') closeJoinModal();
@@ -1401,7 +1440,7 @@ function initWorkbenchResizer() {
     const shield = document.getElementById('preview-drag-shield');
     if (!resizer || !panel || !mainArea) return;
 
-    // Load saved height and collapse state from localStorage
+    // Load saved height, collapse and hidden state from localStorage
     try {
         const savedHeight = localStorage.getItem('rmte_terminal_height');
         if (savedHeight) {
@@ -1414,7 +1453,31 @@ function initWorkbenchResizer() {
         if (savedCollapsed === 'true') {
             toggleTerminalPanel(true, true);
         }
+        const savedHidden = localStorage.getItem('rmte_terminal_hidden');
+        if (savedHidden === 'true') {
+            hideTerminalPanel(true);
+        }
     } catch(e) {}
+
+    // Responsive mobile listener
+    if (window.innerWidth <= 768) {
+        setMobileWorkbenchPane('terminal');
+    }
+    const mobileQuery = window.matchMedia('(max-width: 768px)');
+    const handleMobileQuery = e => {
+        if (!mainArea) return;
+        if (e.matches) {
+            setMobileWorkbenchPane(mobileActivePane);
+        } else {
+            mainArea.classList.remove('mobile-view-editor', 'mobile-view-terminal');
+        }
+        refitActive();
+    };
+    try {
+        mobileQuery.addEventListener('change', handleMobileQuery);
+    } catch(err) {
+        mobileQuery.addListener(handleMobileQuery);
+    }
 
     let isDragging = false;
     let startY = 0;
@@ -1489,6 +1552,69 @@ function initWorkbenchResizer() {
         try { localStorage.setItem('rmte_terminal_height', 35); } catch(err) {}
         refitActive();
     });
+
+    // Keyboard navigation (ArrowUp / ArrowDown) when resizer is focused
+    resizer.addEventListener('keydown', e => {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const step = e.shiftKey ? 10 : 5;
+            const currentPct = parseFloat(getComputedStyle(document.getElementById('workspace')).getPropertyValue('--terminal-panel-height')) || 35;
+            const nextPct = e.key === 'ArrowUp' ? Math.min(80, currentPct + step) : Math.max(15, currentPct - step);
+            document.getElementById('workspace').style.setProperty('--terminal-panel-height', nextPct + '%');
+            try { localStorage.setItem('rmte_terminal_height', nextPct); } catch(err) {}
+            refitActive();
+        }
+    });
+}
+
+function setMobileWorkbenchPane(pane) {
+    mobileActivePane = pane;
+    const mainArea = document.getElementById('main-area');
+    if (!mainArea) return;
+
+    if (window.innerWidth <= 768) {
+        mainArea.classList.toggle('mobile-view-editor', pane === 'editor');
+        mainArea.classList.toggle('mobile-view-terminal', pane === 'terminal');
+    } else {
+        mainArea.classList.remove('mobile-view-editor', 'mobile-view-terminal');
+    }
+
+    const switchEditorBtn = document.getElementById('mobile-switch-editor-btn');
+    const switchTermBtn = document.getElementById('mobile-switch-term-btn');
+    if (switchEditorBtn) switchEditorBtn.classList.toggle('active', pane === 'editor');
+    if (switchTermBtn) switchTermBtn.classList.toggle('active', pane === 'terminal');
+
+    const toggleBtn = document.getElementById('toggle-terminal-btn');
+    if (toggleBtn && window.innerWidth <= 768) {
+        toggleBtn.classList.toggle('active', pane === 'terminal');
+    }
+
+    setTimeout(refitActive, 50);
+}
+
+function hideTerminalPanel(hidden) {
+    const panel = document.getElementById('terminal-panel');
+    const mainArea = document.getElementById('main-area');
+    const toggleBtn = document.getElementById('toggle-terminal-btn');
+    if (!panel || !mainArea) return;
+
+    if (hidden === undefined) {
+        terminalPanelHidden = !terminalPanelHidden;
+    } else {
+        terminalPanelHidden = !!hidden;
+    }
+
+    panel.classList.toggle('is-hidden', terminalPanelHidden);
+    mainArea.classList.toggle('terminal-hidden', terminalPanelHidden);
+    if (toggleBtn) {
+        toggleBtn.classList.toggle('active', !terminalPanelHidden && !terminalPanelCollapsed);
+    }
+
+    try {
+        localStorage.setItem('rmte_terminal_hidden', terminalPanelHidden ? 'true' : 'false');
+    } catch(e) {}
+
+    setTimeout(refitActive, 50);
 }
 
 function toggleTerminalPanel(collapse, silent) {
@@ -1496,6 +1622,24 @@ function toggleTerminalPanel(collapse, silent) {
     const toggleBtn = document.getElementById('toggle-terminal-btn');
     const collapseBtn = document.getElementById('term-collapse-btn');
     if (!panel) return;
+
+    // Mobile single pane toggle
+    if (window.innerWidth <= 768) {
+        setMobileWorkbenchPane(mobileActivePane === 'terminal' ? 'editor' : 'terminal');
+        return;
+    }
+
+    // Unhide if hidden
+    if (terminalPanelHidden) {
+        hideTerminalPanel(false);
+        if (collapse === true) {
+            terminalPanelCollapsed = true;
+            panel.classList.add('is-collapsed');
+            if (collapseBtn) collapseBtn.innerText = '▲';
+            if (toggleBtn) toggleBtn.classList.remove('active');
+        }
+        return;
+    }
 
     if (collapse === undefined) {
         terminalPanelCollapsed = !terminalPanelCollapsed;
@@ -1533,6 +1677,7 @@ function toggleTerminalMaximize() {
 function initFileExplorerResizer() {
     const resizer = document.getElementById('fe-resizer');
     const fe = document.getElementById('file-explorer');
+    const shield = document.getElementById('preview-drag-shield');
     if (!resizer || !fe) return;
 
     try {
@@ -1556,6 +1701,7 @@ function initFileExplorerResizer() {
         resizer.classList.add('is-dragging');
         document.body.style.cursor = 'col-resize';
         document.body.style.userSelect = 'none';
+        if (shield) shield.style.display = 'block';
         e.preventDefault();
     });
 
@@ -1568,7 +1714,7 @@ function initFileExplorerResizer() {
         if (newWidth < minW) newWidth = minW;
         if (newWidth > maxW) newWidth = maxW;
         fe.style.width = newWidth + 'px';
-        refitActive();
+        // Note: Do NOT call refitActive() here to avoid spamming PTY resize messages during drag
     });
 
     window.addEventListener('mouseup', () => {
@@ -1577,9 +1723,11 @@ function initFileExplorerResizer() {
             resizer.classList.remove('is-dragging');
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
+            if (shield) shield.style.display = 'none';
             try {
                 localStorage.setItem('rmte_fe_width', parseInt(fe.style.width, 10));
             } catch(e) {}
+            // Send exactly 1 resize message after drag finishes if cols/rows changed
             refitActive();
         }
     });

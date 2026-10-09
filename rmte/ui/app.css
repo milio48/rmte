@@ -736,8 +736,10 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 
 #workbench-resizer:hover,
+#workbench-resizer:focus-visible,
 #workbench-resizer.is-dragging {
     background: var(--color-accent);
+    outline: none;
 }
 
 .workbench-resizer-line {
@@ -749,6 +751,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 }
 
 #workbench-resizer:hover .workbench-resizer-line,
+#workbench-resizer:focus-visible .workbench-resizer-line,
 #workbench-resizer.is-dragging .workbench-resizer-line {
     background: oklch(100% 0 0 / 0.8);
 }
@@ -2104,14 +2107,46 @@ kbd {
 /* ═══════════════════════════════════════
    RESPONSIVE WORKBENCH (< 768px)
    ═══════════════════════════════════════ */
+.mobile-pane-switcher {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    background: var(--color-paper-3);
+    color: var(--color-text-dim);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-left: auto;
+    margin-right: 6px;
+    transition: all var(--transition-fast);
+}
+
+.mobile-pane-switcher:hover,
+.mobile-pane-switcher:active {
+    background: var(--color-paper-4);
+    color: var(--color-text);
+    border-color: var(--color-border-hover);
+}
+
 @media (max-width: 768px) {
     #workbench-resizer {
         display: none !important;
     }
-    #main-area.mobile-view-terminal #workbench-top {
+    .mobile-pane-switcher {
+        display: inline-flex !important;
+    }
+    /* Single-pane mobile layout: editor or terminal full height (default terminal) */
+    #main-area.mobile-view-terminal #workbench-top,
+    #main-area:not(.mobile-view-editor) #workbench-top {
         display: none !important;
     }
-    #main-area.mobile-view-terminal #terminal-panel {
+    #main-area.mobile-view-terminal #terminal-panel,
+    #main-area:not(.mobile-view-editor) #terminal-panel {
+        display: flex !important;
         height: 100% !important;
         flex-grow: 1;
     }
@@ -2119,6 +2154,7 @@ kbd {
         display: none !important;
     }
     #main-area.mobile-view-editor #workbench-top {
+        display: flex !important;
         height: 100% !important;
         flex-grow: 1;
     }
