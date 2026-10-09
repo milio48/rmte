@@ -213,7 +213,7 @@ function updateStatusBarWrap() {
     const btn = document.getElementById('sb-wrap-btn');
     if (!btn) return;
     if (!activeEditorTab || !editorTabs[activeEditorTab] || !editorTabs[activeEditorTab].cm) {
-        btn.innerText = 'Wrap: Off';
+        btn.innerText = 'Wrap: Auto';
         btn.classList.remove('active');
         btn.title = 'Word wrapping';
         return;
@@ -222,7 +222,7 @@ function updateStatusBarWrap() {
     const wrapping = isTabWrapping(activeEditorTab);
     if (et.wrapOverride === null || et.wrapOverride === undefined) {
         btn.innerText = 'Wrap: Auto';
-        btn.title = `Word wrapping: Auto (${wrapping ? 'On' : 'Off'} by viewport). Click to toggle.`;
+        btn.title = `Word wrapping: Auto (${wrapping ? 'On' : 'Off'} by viewport). Click for forced On.`;
     } else {
         btn.innerText = et.wrapOverride ? 'Wrap: On' : 'Wrap: Off';
         btn.title = `Word wrapping: Forced ${et.wrapOverride ? 'On' : 'Off'}. Click to toggle.`;
@@ -235,10 +235,9 @@ function toggleActiveEditorWrap() {
     const et = editorTabs[activeEditorTab];
     if (!et.cm) return;
 
-    // 3-state cycle: Auto (null) -> Forced On (true) -> Forced Off (false) -> Auto (null)
+    // Strict 3-state cycle: Auto (null) -> Forced On (true) -> Forced Off (false) -> Auto (null)
     if (et.wrapOverride === null || et.wrapOverride === undefined) {
-        const curWrap = isTabWrapping(activeEditorTab);
-        et.wrapOverride = !curWrap;
+        et.wrapOverride = true;
     } else if (et.wrapOverride === true) {
         et.wrapOverride = false;
     } else {
@@ -251,13 +250,16 @@ function toggleActiveEditorWrap() {
     updateStatusBarWrap();
 }
 
-function getSyntaxDisplayName(mode, path, customSyntax) {
-    if (customSyntax) return customSyntax;
+function getSyntaxDisplayName(mode, path, syntaxOverride) {
+    if (syntaxOverride) {
+        const item = SYNTAX_MODES.find(m => m.id === syntaxOverride);
+        if (item) return item.name;
+    }
     if (typeof mode === 'object' && mode !== null) {
         mode = mode.name || mode.id || mode;
     }
     if (!mode || mode === 'null') return 'Plain Text';
-    if (path && (path.endsWith('.json') || getFileExt(path) === 'json')) {
+    if (!syntaxOverride && path && (path.endsWith('.json') || getFileExt(path) === 'json')) {
         return 'JSON';
     }
     const item = SYNTAX_MODES.find(m => m.id === mode);
@@ -273,7 +275,7 @@ function updateStatusBarSyntax() {
     }
     const et = editorTabs[activeEditorTab];
     const currentMode = et.cm.getOption('mode');
-    btn.innerText = getSyntaxDisplayName(currentMode, et.path, et.customSyntax);
+    btn.innerText = getSyntaxDisplayName(currentMode, et.path, et.syntaxOverride);
 }
 
 function toggleSyntaxPicker(e) {
@@ -291,7 +293,7 @@ function toggleSyntaxPicker(e) {
     if (typeof currentMode === 'object' && currentMode !== null) {
         currentMode = currentMode.name || currentMode.id;
     }
-    const activeLabel = getSyntaxDisplayName(currentMode, et.path, et.customSyntax);
+    const activeLabel = getSyntaxDisplayName(currentMode, et.path, et.syntaxOverride);
     const list = document.getElementById('syntax-picker-list');
     list.innerHTML = '';
     SYNTAX_MODES.forEach(m => {
@@ -314,11 +316,10 @@ function setEditorSyntaxMode(modeId) {
     if (!activeEditorTab || !editorTabs[activeEditorTab]) return;
     const et = editorTabs[activeEditorTab];
     if (!et.cm) return;
+    et.syntaxOverride = modeId;
     if (modeId === 'json') {
-        et.customSyntax = 'JSON';
         et.cm.setOption('mode', 'javascript');
     } else {
-        et.customSyntax = null;
         const mode = (modeId === 'null' || !modeId) ? null : modeId;
         et.cm.setOption('mode', mode);
     }
@@ -1150,7 +1151,7 @@ function openEditorTab(path, text){
                 cmInstance.on('focus', () => {
                     setActiveContext('editor');
                 });
-                editorTabs[id] = {path, cm: cmInstance, textarea: null, original: text, wrapOverride: null, cursorListener};
+                editorTabs[id] = {path, cm: cmInstance, textarea: null, original: text, wrapOverride: null, cursorListener, syntaxOverride: null};
             } catch(cmErr){
                 console.warn('CodeMirror failed to initialize, falling back to textarea:', cmErr);
                 cmInstance = null;
@@ -1180,7 +1181,7 @@ function openEditorTab(path, text){
                 setActiveContext('editor');
             });
             cont.appendChild(taInstance);
-            editorTabs[id] = {path, cm: null, textarea: taInstance, original: text, wrapOverride: null, cursorListener: null};
+            editorTabs[id] = {path, cm: null, textarea: taInstance, original: text, wrapOverride: null, cursorListener: null, syntaxOverride: null};
         }
     } else {
         const bp = document.createElement('div');
