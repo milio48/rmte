@@ -4,4 +4,5 @@ rmte/rmte
 *.exe
 *.old
 *.pid
-*.meta
+*.meta
+icons-preview.html

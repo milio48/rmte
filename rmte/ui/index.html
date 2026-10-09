@@ -48,7 +48,7 @@
                         <span class="brand-dot"></span>
                         <span>Ready to connect</span>
                     </div>
-                    <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" class="brand-github-link" title="View on GitHub">GitHub ↗</a>
+                    <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" class="brand-github-link" title="View on GitHub"><span>GitHub</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="ui-icon" style="margin-left:3px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
                 </div>
             </div>
             <!-- Right: Connect form -->
@@ -87,47 +87,47 @@
             <div class="tabs-brand" title="RMTE — Remote Terminal Relay">
                 <img src="rmte.svg" alt="RMTE Logo" class="tabs-brand-logo" />
             </div>
-            <button id="toggle-files-btn" onclick="toggleFileManager()" title="File Explorer (Toggle Ctrl+B)" aria-label="Toggle file explorer">📁</button>
-            <button id="toggle-preview-btn" onclick="toggleWebPreview()" title="Web Browser Preview (Toggle)" aria-label="Toggle browser preview">🌐</button>
-            <button id="toggle-terminal-btn" onclick="toggleTerminalPanel()" title="Terminal Panel (Toggle Ctrl+`)" aria-label="Toggle terminal panel" class="active">💻</button>
+            <button id="toggle-files-btn" onclick="toggleFileManager()" title="File Explorer (Toggle Ctrl+B)" aria-label="Toggle file explorer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></button>
+            <button id="toggle-preview-btn" onclick="toggleWebPreview()" title="Web Browser Preview (Toggle)" aria-label="Toggle browser preview"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></button>
+            <button id="toggle-terminal-btn" onclick="toggleTerminalPanel()" title="Terminal Panel (Toggle Ctrl+`)" aria-label="Toggle terminal panel" class="active"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button>
             <div id="tabs-bar-spacer"></div>
             <div id="tabs" style="display:none;"></div>
-            <button id="toggle-sidebar-btn" onclick="toggleSidebar('collab')" title="Collaborators" aria-label="Toggle collaborators panel">👥<span id="collab-badge-top" class="topbar-badge" style="display:none;">0</span></button>
-            <button id="toggle-chat-btn" onclick="toggleSidebar('chat')" title="Chat" aria-label="Toggle chat panel">💬<span id="chat-badge-top" class="topbar-badge" style="display:none;">0</span></button>
-            <button id="toggle-activity-btn" onclick="toggleSidebar('activity')" title="Activity Log" aria-label="Toggle activity log panel">📜<span id="activity-badge-top" class="topbar-badge" style="display:none;">0</span></button>
-            <button id="copy-link-btn" onclick="toggleShareModal(true)" title="Share Session" aria-label="Share session">🔗</button>
-            <button id="help-btn" onclick="toggleHelpModal()" title="Keyboard Shortcuts & Tips" aria-label="Help and keyboard shortcuts">❓</button>
-            <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" id="github-link-btn" title="View RMTE on GitHub" aria-label="GitHub repository">🐙</a>
-            <button id="disconnect-btn" onclick="disconnectSession()" title="Disconnect" aria-label="Disconnect session">⏻</button>
-            <button id="topbar-overflow-btn" onclick="toggleOverflowMenu()" title="More options" aria-label="More options">⋮<span id="overflow-badge-top" class="topbar-badge" style="display:none;">0</span></button>
+            <button id="toggle-sidebar-btn" onclick="toggleSidebar('collab')" title="Collaborators" aria-label="Toggle collaborators panel"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span id="collab-badge-top" class="topbar-badge" style="display:none;">0</span></button>
+            <button id="toggle-chat-btn" onclick="toggleSidebar('chat')" title="Chat" aria-label="Toggle chat panel"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span id="chat-badge-top" class="topbar-badge" style="display:none;">0</span></button>
+            <button id="toggle-activity-btn" onclick="toggleSidebar('activity')" title="Activity Log" aria-label="Toggle activity log panel"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 15"/></svg><span id="activity-badge-top" class="topbar-badge" style="display:none;">0</span></button>
+            <button id="copy-link-btn" onclick="toggleShareModal(true)" title="Share Session" aria-label="Share session"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
+            <button id="help-btn" onclick="toggleHelpModal()" title="Keyboard Shortcuts & Tips" aria-label="Help and keyboard shortcuts"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
+            <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" id="github-link-btn" title="View RMTE on GitHub" aria-label="GitHub repository"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg></a>
+            <button id="disconnect-btn" onclick="disconnectSession()" title="Disconnect" aria-label="Disconnect session"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+            <button id="topbar-overflow-btn" onclick="toggleOverflowMenu()" title="More options" aria-label="More options"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="ui-icon"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg><span id="overflow-badge-top" class="topbar-badge" style="display:none;">0</span></button>
         </div>
         <!-- Mobile Topbar Overflow Menu -->
         <div id="topbar-overflow-menu" class="overflow-dropdown" style="display:none;">
             <button class="overflow-menu-item" onclick="handleOverflowAction('collab')">
-                <span class="omi-icon">👥</span>
+                <span class="omi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
                 <span class="omi-text">Collaborators</span>
                 <span id="collab-badge-overflow" class="overflow-item-badge" style="display:none;">0</span>
             </button>
             <button class="overflow-menu-item" onclick="handleOverflowAction('activity')">
-                <span class="omi-icon">📜</span>
+                <span class="omi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 15"/></svg></span>
                 <span class="omi-text">Activity Log</span>
                 <span id="activity-badge-overflow" class="overflow-item-badge" style="display:none;">0</span>
             </button>
             <button class="overflow-menu-item" onclick="handleOverflowAction('share')">
-                <span class="omi-icon">🔗</span>
+                <span class="omi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
                 <span class="omi-text">Share Session</span>
             </button>
             <button class="overflow-menu-item" onclick="handleOverflowAction('help')">
-                <span class="omi-icon">❓</span>
+                <span class="omi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
                 <span class="omi-text">Shortcuts & Help</span>
             </button>
             <a class="overflow-menu-item" href="https://github.com/milio48/rmte" target="_blank" rel="noopener">
-                <span class="omi-icon">🐙</span>
+                <span class="omi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg></span>
                 <span class="omi-text">GitHub</span>
             </a>
             <div class="overflow-menu-divider"></div>
             <button class="overflow-menu-item danger" onclick="handleOverflowAction('disconnect')">
-                <span class="omi-icon">⏻</span>
+                <span class="omi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
                 <span class="omi-text">Disconnect</span>
             </button>
         </div>
@@ -139,19 +139,19 @@
                 <div id="fe-header">
                     <span id="fe-title">EXPLORER</span>
                     <div id="fe-actions">
-                        <button id="fe-new-file" onclick="showInlineInput('file')" title="New File" aria-label="New file">+📄</button>
-                        <button id="fe-new-dir" onclick="showInlineInput('dir')" title="New Folder" aria-label="New folder">+📁</button>
+                        <button id="fe-new-file" onclick="showInlineInput('file')" title="New File" aria-label="New file"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></button>
+                        <button id="fe-new-dir" onclick="showInlineInput('dir')" title="New Folder" aria-label="New folder"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><line x1="12" y1="10" x2="12" y2="16"/><line x1="9" y1="13" x2="15" y2="13"/></svg></button>
                         <label id="upload-label" title="Upload File" aria-label="Upload file">
-                            ⬆
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                             <input type="file" id="upload-input" onchange="handleFileUpload(event)" style="display:none;" multiple>
                         </label>
-                        <button id="fe-refresh" onclick="requestDir(currentFilePath)" title="Refresh" aria-label="Refresh directory">⟳</button>
-                        <button id="fe-close-btn" class="drawer-close-btn" onclick="toggleFileManager(false)" title="Close Explorer">✕</button>
+                        <button id="fe-refresh" onclick="requestDir(currentFilePath)" title="Refresh" aria-label="Refresh directory"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
+                        <button id="fe-close-btn" class="drawer-close-btn" onclick="toggleFileManager(false)" title="Close Explorer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                     </div>
                 </div>
                 <div id="fe-breadcrumb-wrap">
                     <div id="fe-breadcrumb"></div>
-                    <button id="fe-bc-edit-btn" onclick="editBreadcrumb()" title="Edit path directly">✏️</button>
+                    <button id="fe-bc-edit-btn" onclick="editBreadcrumb()" title="Edit path directly"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
                 </div>
                 <div id="fe-filter-box">
                     <input type="text" id="fe-filter" placeholder="Filter files... (Ctrl+F)" oninput="filterFiles(this.value)">
@@ -169,12 +169,12 @@
                     <div id="editor-workbench">
                         <div id="editor-tabs-bar">
                             <div id="editor-tabs"></div>
-                            <button id="mobile-switch-term-btn" class="mobile-pane-switcher" onclick="setMobileWorkbenchPane('terminal')" title="Switch to Terminal">💻 Terminal</button>
+                            <button id="mobile-switch-term-btn" class="mobile-pane-switcher" onclick="setMobileWorkbenchPane('terminal')" title="Switch to Terminal"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span>Terminal</span></button>
                         </div>
                         <div id="editor-empty-state">
-                            <div class="editor-empty-icon">📝</div>
+                            <div class="editor-empty-icon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
                             <div class="editor-empty-title">No file open</div>
-                            <div class="editor-empty-desc">Open a file from the explorer (📁) to edit code, or run commands in the terminal below</div>
+                            <div class="editor-empty-desc">Open a file from the explorer to edit code, or run commands in the terminal below</div>
                         </div>
                         <div id="editor-container-wrap"></div>
                     </div>
@@ -182,23 +182,23 @@
                     <div id="preview-panel" style="display:none;">
                         <div id="preview-toolbar">
                             <div class="preview-nav-group">
-                                <button class="preview-btn" id="preview-back-btn" onclick="previewGoBack()" title="Back">◀</button>
-                                <button class="preview-btn" id="preview-forward-btn" onclick="previewGoForward()" title="Forward">▶</button>
-                                <button class="preview-btn" id="preview-reload-btn" onclick="previewReload()" title="Reload">⟳</button>
+                                <button class="preview-btn" id="preview-back-btn" onclick="previewGoBack()" title="Back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+                                <button class="preview-btn" id="preview-forward-btn" onclick="previewGoForward()" title="Forward"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+                                <button class="preview-btn" id="preview-reload-btn" onclick="previewReload()" title="Reload"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
                             </div>
                             <div class="preview-address-bar">
-                                <span class="preview-address-icon">🌐</span>
+                                <span class="preview-address-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
                                 <span class="preview-address-prefix">http://localhost:</span>
                                 <input type="number" id="preview-port-input" min="1" max="65535" placeholder="8080" onkeydown="handlePreviewPortKey(event)">
                                 <span class="preview-address-slash">/</span>
                                 <input type="text" id="preview-path-input" placeholder="" onkeydown="handlePreviewPathKey(event)">
-                                <button id="preview-go-btn" onclick="previewNavigate()" title="Go">↵</button>
+                                <button id="preview-go-btn" onclick="previewNavigate()" title="Go"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><polyline points="9 10 4 15 9 20"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/></svg></button>
                             </div>
                             <div class="preview-actions-group">
-                                <button class="preview-btn" id="preview-open-tab-btn" onclick="previewOpenInNewTab()" title="Open in New Tab">↗</button>
-                                <button class="preview-btn" id="preview-mobile-btn" onclick="togglePreviewMobile()" title="Toggle Mobile View (390px)">📱</button>
-                                <button class="preview-btn" id="preview-maximize-btn" onclick="togglePreviewMaximize()" title="Maximize / Restore Preview (Full width)">□</button>
-                                <button class="preview-btn preview-close-btn" onclick="toggleWebPreview(false)" title="Close Preview">✕</button>
+                                <button class="preview-btn" id="preview-open-tab-btn" onclick="previewOpenInNewTab()" title="Open in New Tab"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+                                <button class="preview-btn" id="preview-mobile-btn" onclick="togglePreviewMobile()" title="Toggle Mobile View (390px)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button>
+                                <button class="preview-btn" id="preview-maximize-btn" onclick="togglePreviewMaximize()" title="Maximize / Restore Preview (Full width)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+                                <button class="preview-btn preview-close-btn" onclick="toggleWebPreview(false)" title="Close Preview"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                             </div>
                         </div>
                         <div id="preview-viewport-wrap">
@@ -217,15 +217,15 @@
                 <div id="terminal-panel">
                     <div id="terminal-panel-header">
                         <div class="term-panel-header-left">
-                            <span class="term-panel-icon">💻</span>
+                            <span class="term-panel-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
                             <div id="terminal-tabs"></div>
                             <button id="new-tab-btn" onclick="requestNewTab()" title="Open New Terminal Tab (+)" aria-label="New terminal"><span class="new-tab-plus">+</span><span class="new-tab-label">Terminal</span></button>
-                            <button id="mobile-switch-editor-btn" class="mobile-pane-switcher" onclick="setMobileWorkbenchPane('editor')" title="Switch to Editor">📝 Editor</button>
+                            <button id="mobile-switch-editor-btn" class="mobile-pane-switcher" onclick="setMobileWorkbenchPane('editor')" title="Switch to Editor"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span>Editor</span></button>
                         </div>
                         <div class="term-panel-actions">
-                            <button class="term-action-btn" id="term-collapse-btn" onclick="toggleTerminalPanel()" title="Toggle Terminal Panel (Ctrl+`)">_</button>
-                            <button class="term-action-btn" id="term-maximize-btn" onclick="toggleTerminalMaximize()" title="Maximize / Restore Terminal">□</button>
-                            <button class="term-action-btn" id="term-close-btn" onclick="hideTerminalPanel(true)" title="Hide Terminal Panel">✕</button>
+                            <button class="term-action-btn" id="term-collapse-btn" onclick="toggleTerminalPanel()" title="Toggle Terminal Panel (Ctrl+`)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                            <button class="term-action-btn" id="term-maximize-btn" onclick="toggleTerminalMaximize()" title="Maximize / Restore Terminal"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
+                            <button class="term-action-btn" id="term-close-btn" onclick="hideTerminalPanel(true)" title="Hide Terminal Panel"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                         </div>
                     </div>
                     <div id="terminal-wrapper"></div>
@@ -247,10 +247,10 @@
             <!-- Sidebar -->
             <div id="users-sidebar">
                 <div id="sidebar-tabs">
-                    <button class="sb-tab-btn active" id="sb-tab-collab" onclick="switchSidebarTab('collab')">👥 Users</button>
-                    <button class="sb-tab-btn" id="sb-tab-chat" onclick="switchSidebarTab('chat')">💬 Chat <span id="chat-badge" class="chat-badge" style="display:none;">0</span></button>
-                    <button class="sb-tab-btn" id="sb-tab-activity" onclick="switchSidebarTab('activity')">📜 Log <span id="activity-badge" class="activity-badge" style="display:none;">0</span></button>
-                    <button id="sidebar-close-btn" class="drawer-close-btn" onclick="closeSidebarDrawer()" title="Close Sidebar">✕</button>
+                    <button class="sb-tab-btn active" id="sb-tab-collab" onclick="switchSidebarTab('collab')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Users</span></button>
+                    <button class="sb-tab-btn" id="sb-tab-chat" onclick="switchSidebarTab('chat')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Chat</span> <span id="chat-badge" class="chat-badge" style="display:none;">0</span></button>
+                    <button class="sb-tab-btn" id="sb-tab-activity" onclick="switchSidebarTab('activity')"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/><polyline points="12 7 12 12 15 15"/></svg><span>Log</span> <span id="activity-badge" class="activity-badge" style="display:none;">0</span></button>
+                    <button id="sidebar-close-btn" class="drawer-close-btn" onclick="closeSidebarDrawer()" title="Close Sidebar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
                 <div id="users-section" class="sidebar-pane active">
                     <div id="users-list"></div>
@@ -262,13 +262,13 @@
                     </div>
                     <div id="chat-messages">
                         <div class="chat-empty-state">
-                            <div class="chat-empty-icon">💬</div>
+                            <div class="chat-empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
                             <div class="chat-empty-title">Session Chat</div>
                             <div class="chat-empty-sub">Messages sent here are encrypted and shared live with all Web and CLI collaborators.</div>
                         </div>
                     </div>
                     <div id="chat-input-container">
-                        <input type="text" id="chat-input" placeholder="Type a message... (Enter ↵)" onkeydown="handleChatKey(event)">
+                        <input type="text" id="chat-input" placeholder="Type a message... (Enter to send)" onkeydown="handleChatKey(event)">
                         <button id="chat-send-btn" onclick="sendChatMessage()" title="Send Message" aria-label="Send message">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                         </button>
@@ -277,7 +277,7 @@
                 <div id="activity-section" class="sidebar-pane" style="display:none;">
                     <div class="activity-header">
                         <span class="activity-title">ACTIVITY LOG</span>
-                        <button id="activity-export-btn" class="activity-export-btn" onclick="exportActivityLog()" title="Download event log">📥 Export</button>
+                        <button id="activity-export-btn" class="activity-export-btn" onclick="exportActivityLog()" title="Download event log"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Export</span></button>
                     </div>
                     <div id="activity-list"></div>
                 </div>
@@ -325,23 +325,23 @@
     <div id="share-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)toggleShareModal(false)">
         <div class="modal-box share-modal-box">
             <div class="modal-header">
-                <h3>🔗 Share Session</h3>
+                <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon" style="margin-right:6px;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Share Session</h3>
                 <button class="modal-close" onclick="toggleShareModal(false)" aria-label="Close share dialog">×</button>
             </div>
             <div class="modal-body">
                 <div class="share-section">
-                    <label class="share-label">🌐 Web Browser Link</label>
+                    <label class="share-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>Web Browser Link</label>
                     <div class="share-input-group">
                         <input type="text" id="share-link-input" readonly spellcheck="false" class="share-input" onclick="this.select()">
-                        <button id="copy-web-link-btn" class="share-copy-btn" onclick="copyWebLink()">📋 Copy</button>
+                        <button id="copy-web-link-btn" class="share-copy-btn" onclick="copyWebLink()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span>Copy</span></button>
                     </div>
                     <span class="share-hint">One-click link. The password travels in the <code>#pass=</code> fragment, which browsers never send to the relay.</span>
                 </div>
                 <div class="share-section" style="margin-top: 16px;">
-                    <label class="share-label">💻 CLI / TUI Join Command</label>
+                    <label class="share-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon" style="margin-right:5px;"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>CLI / TUI Join Command</label>
                     <div class="share-input-group">
                         <input type="text" id="share-cli-input" readonly spellcheck="false" class="share-input share-cli" onclick="this.select()">
-                        <button id="copy-cli-cmd-btn" class="share-copy-btn" onclick="copyCliCmd()">📋 Copy</button>
+                        <button id="copy-cli-cmd-btn" class="share-copy-btn" onclick="copyCliCmd()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span>Copy</span></button>
                     </div>
                     <span class="share-hint">Command to join from terminal using the RMTE CLI client.</span>
                 </div>
@@ -366,7 +366,7 @@
                     <tr><td><kbd>Ctrl</kbd> + <kbd>]</kbd></td><td>Escape active terminal in TUI CLI</td></tr>
                     <tr><td><kbd>Double Click</kbd></td><td>Edit absolute path directly in Explorer breadcrumb</td></tr>
                     <tr><td><kbd>Drag & Drop</kbd></td><td>Drop files directly into Explorer to upload</td></tr>
-                    <tr><td><kbd>⬇</kbd> Icon</td><td>Download file directly from host to local computer</td></tr>
+                    <tr><td>Download Icon</td><td>Download file directly from host to local computer</td></tr>
                     <tr><td><kbd>Esc</kbd></td><td>Close modal or dismiss inline input</td></tr>
                 </table>
             </div>

@@ -361,9 +361,174 @@ const _log = {
 };
 
 function getLang(name) { return LANG_MAP[getFileExt(name)] || 'Text'; }
-function fileIcon(name) {
-    const ext = getFileExt(name);
-    return {go:'🔷',js:'🟨',ts:'🔷',py:'🐍',rs:'🦀',html:'🌐',css:'🎨',json:'📋',yaml:'📋',yml:'📋',md:'📝',txt:'📄',log:'📜',sh:'⚙️',bat:'⚙️',png:'🖼️',jpg:'🖼️',jpeg:'🖼️',gif:'🖼️',webp:'🖼️',svg:'🖼️',ico:'🖼️',bmp:'🖼️',avif:'🖼️',zip:'📦',tar:'📦',gz:'📦',mod:'📦',sum:'🔒',exe:'💠',dll:'💠'}[ext]||'📄';
+
+const ICONS = {
+    // ── 1. WEB & MODERN FRONTEND ──
+    langJs: `<rect width="20" height="20" x="2" y="2" rx="3.5" fill="#F7DF1E"/><text x="12" y="12" font-family="'JetBrains Mono', 'Segoe UI', sans-serif" font-size="11" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#000000">JS</text>`,
+    langTs: `<rect width="20" height="20" x="2" y="2" rx="3.5" fill="#3178C6"/><text x="12" y="12" font-family="'JetBrains Mono', 'Segoe UI', sans-serif" font-size="11" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#FFFFFF">TS</text>`,
+    langReact: `<ellipse cx="12" cy="12" rx="9.5" ry="3.8" fill="none" stroke="#61DAFB" stroke-width="1.6"/><ellipse cx="12" cy="12" rx="9.5" ry="3.8" transform="rotate(60 12 12)" fill="none" stroke="#61DAFB" stroke-width="1.6"/><ellipse cx="12" cy="12" rx="9.5" ry="3.8" transform="rotate(120 12 12)" fill="none" stroke="#61DAFB" stroke-width="1.6"/><circle cx="12" cy="12" r="1.8" fill="#61DAFB"/>`,
+    langVue: `<polygon points="12,21 1.5,3 6.5,3 12,12.5 17.5,3 22.5,3" fill="#42B883"/><polygon points="12,14 6.5,4.5 9.5,4.5 12,9 14.5,4.5 17.5,4.5" fill="#35495E"/>`,
+    langSvelte: `<path fill="#FF3E00" d="M19.4 6.8a4.8 4.8 0 0 0-7.1-.9l-4.6 3.6a4.8 4.8 0 0 0-.8 6.5l1.3-1a3.1 3.1 0 0 1 .5-4.2l4.6-3.6a3.1 3.1 0 0 1 4.5.6 3.1 3.1 0 0 1-.6 4.2l-4.3 3.4a4.8 4.8 0 0 0-.8 6.5 4.8 4.8 0 0 0 7.1.9l4.6-3.6a4.8 4.8 0 0 0 .8-6.5l-1.3 1a3.1 3.1 0 0 1-.5 4.2l-4.6 3.6a3.1 3.1 0 0 1-4.5-.6 3.1 3.1 0 0 1 .6-4.2l4.3-3.4a4.8 4.8 0 0 0 .8-6.5z"/>`,
+    langHtml: `<path fill="#E34F26" d="M3 2l1.6 18.2L12 22.5l7.4-2.3L21 2H3z"/><path fill="#EF652A" d="M12 3.8v16.9l5.8-1.8 1.4-15.1H12z"/><text x="12" y="12.5" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#FFFFFF">5</text>`,
+    langCss: `<path fill="#1572B6" d="M3 2l1.6 18.2L12 22.5l7.4-2.3L21 2H3z"/><path fill="#33A9DC" d="M12 3.8v16.9l5.8-1.8 1.4-15.1H12z"/><text x="12" y="12.5" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#FFFFFF">3</text>`,
+    langSass: `<rect width="20" height="20" x="2" y="2" rx="3.5" fill="#CF649A"/><text x="12" y="12" font-family="'Segoe UI', sans-serif" font-size="8" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#FFFFFF">SASS</text>`,
+
+    // ── 2. BACKEND & SYSTEMS LANGUAGES ──
+    langGo: `<rect width="20" height="20" x="2" y="2" rx="3.5" fill="#00ADD8"/><text x="12" y="12" font-family="'JetBrains Mono', 'Segoe UI', sans-serif" font-size="10.5" font-weight="900" letter-spacing="-0.5px" text-anchor="middle" dominant-baseline="central" fill="#FFFFFF">GO</text>`,
+    langGoMod: `<rect width="20" height="20" x="2" y="2" rx="3.5" fill="#00ADD8" fill-opacity="0.15" stroke="#00ADD8" stroke-width="1.6"/><text x="12" y="12" font-family="'JetBrains Mono', monospace" font-size="8" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#00ADD8">MOD</text>`,
+    langPy: `<path fill="#3776AB" d="M11.9 2C8.7 2 6.8 2.8 6.8 4.7v2H12v.7H4.5C2.8 7.4 1.5 8.7 1.5 11.2c0 2.3 1.3 3.8 3 3.8h1.8v-1.8c0-1.8 1.5-3.3 3.3-3.3h5.4c1.5 0 2.7-1.2 2.7-2.7V4.7C17.7 2.8 15.1 2 11.9 2zm-1.5 1.5c.5 0 .9.4.9.9s-.4.9-.9.9-.9-.4-.9-.9.4-.9.9-.9z"/><path fill="#FFD43B" d="M12.1 22c3.2 0 5.1-.8 5.1-2.7v-2H12v-.7h7.5c1.7 0 3-1.3 3-3.8 0-2.3-1.3-3.8-3-3.8h-1.8v1.8c0 1.8-1.5 3.3-3.3 3.3H9c-1.5 0-2.7 1.2-2.7 2.7v2.5c0 1.9 2.6 2.7 5.8 2.7zm1.5-1.5c-.5 0-.9-.4-.9-.9s.4-.9.9-.9.9.4.9.9-.4.9-.9.9z"/>`,
+    langRs: `<circle cx="12" cy="12" r="9" fill="none" stroke="#DEA584" stroke-width="2.2" stroke-dasharray="2.8 1.4"/><circle cx="12" cy="12" r="6.8" fill="#DEA584" fill-opacity="0.18"/><text x="12" y="12" font-family="'Segoe UI', sans-serif" font-size="10.5" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#DEA584">R</text>`,
+    langJava: `<path d="M4 19h14a2 2 0 0 0 2-2V9H4v8a2 2 0 0 0 2 2z" fill="#E76F00" fill-opacity="0.15" stroke="#E76F00" stroke-width="1.8" stroke-linecap="round"/><path d="M20 11h2a2 2 0 0 1 0 4h-2M2 21h18" stroke="#E76F00" stroke-width="1.8" stroke-linecap="round"/><path d="M8 3c0 2-2 3-2 5M13 2c0 2-2 3-2 5M17 3c0 2-2 3-2 5" stroke="#E11D48" stroke-width="1.8" stroke-linecap="round"/>`,
+    langKotlin: `<rect width="20" height="20" x="2" y="2" rx="3.5" fill="#7F52FF"/><polygon points="2,22 22,2 2,2" fill="#E24462"/><polygon points="2,22 12,12 2,2" fill="#22D3EE" opacity="0.35"/><polygon points="22,2 12,12 22,22" fill="#F97316"/>`,
+    langC: `<polygon points="12,2 21,7 21,17 12,22 3,17 3,7" fill="#00599C" fill-opacity="0.2" stroke="#00599C" stroke-width="1.6"/><text x="12" y="12" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#00599C">C</text>`,
+    langCpp: `<polygon points="12,2 21,7 21,17 12,22 3,17 3,7" fill="#00599C" fill-opacity="0.2" stroke="#00599C" stroke-width="1.6"/><text x="12" y="12" font-family="'JetBrains Mono', sans-serif" font-size="8.5" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#00599C">C++</text>`,
+    langCs: `<polygon points="12,2 21,7 21,17 12,22 3,17 3,7" fill="#68217A" fill-opacity="0.2" stroke="#68217A" stroke-width="1.6"/><text x="12" y="12" font-family="'JetBrains Mono', sans-serif" font-size="9" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#A855F7">C#</text>`,
+    langPhp: `<ellipse cx="12" cy="12" rx="10" ry="6.5" fill="#777BB4" fill-opacity="0.2" stroke="#777BB4" stroke-width="1.6"/><text x="12" y="12" font-family="'Segoe UI', sans-serif" font-size="8" font-weight="900" letter-spacing="-0.5px" text-anchor="middle" dominant-baseline="central" fill="#777BB4">php</text>`,
+    langRuby: `<polygon points="6 3 18 3 22 9 12 21 2 9" fill="#CC342D" fill-opacity="0.15" stroke="#CC342D" stroke-width="1.8" stroke-linejoin="round"/><line x1="2" y1="9" x2="22" y2="9" stroke="#CC342D" stroke-width="1.8"/><line x1="12" y1="21" x2="8" y2="9" stroke="#CC342D" stroke-width="1.8"/><line x1="12" y1="21" x2="16" y2="9" stroke="#CC342D" stroke-width="1.8"/><line x1="6" y1="3" x2="8" y2="9" stroke="#CC342D" stroke-width="1.8"/><line x1="18" y1="3" x2="16" y2="9" stroke="#CC342D" stroke-width="1.8"/>`,
+    langSwift: `<path fill="#F05138" d="M21.5 16.5c-2.3 3.5-6.5 5.5-10.7 5.5 3.3-1.6 5.6-4.5 6.2-8.2-3.8 2.5-8.4 2.8-12.7 1 6.5-3.3 11-9.6 11.2-12.8-2 2-4.5 3.5-7.2 4.2 4.8-4 7.2-9 7.2-9s.5 4.8 3.8 9.5c2.6 3.7 6.4 6.8 2.2 9.8z"/>`,
+    langDart: `<polygon points="12,2 21,11 15,21 3,9" fill="#0175C2"/><polygon points="12,2 21,11 12,14 3,9" fill="#00E5FF"/><polygon points="12,14 21,11 15,21" fill="#01579B"/>`,
+    langLua: `<circle cx="12" cy="12" r="7.5" fill="none" stroke="#51A0D5" stroke-width="2"/><circle cx="15.8" cy="8.2" r="3.2" fill="#51A0D5"/><circle cx="19.2" cy="4.8" r="1.6" fill="#F7DF1E"/>`,
+
+    // ── 3. SHELL & SCRIPTS ──
+    langSh: `<rect x="2" y="3" width="20" height="18" rx="3.5" fill="#4EBD32" fill-opacity="0.15" stroke="#4EBD32" stroke-width="1.6"/><polyline points="6 8 10.5 12 6 16" fill="none" stroke="#4EBD32" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="13.5" y1="16" x2="18.5" y2="16" stroke="#4EBD32" stroke-width="2" stroke-linecap="round"/>`,
+    langPs: `<rect width="20" height="20" x="2" y="2" rx="3.5" fill="#012456" stroke="#2D7DD2" stroke-width="1.5"/><text x="12" y="12" font-family="'JetBrains Mono', monospace" font-size="8.5" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#58A6FF">PS</text>`,
+
+    // ── 4. DATA, CONFIG & QUERY ──
+    langJson: `<text x="12" y="12" font-family="'JetBrains Mono', monospace" font-size="14" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#CBCB41">{ }</text>`,
+    langYaml: `<rect width="20" height="20" x="2" y="2" rx="3.5" fill="#CB171E" fill-opacity="0.18" stroke="#CB171E" stroke-width="1.6"/><text x="12" y="12" font-family="'JetBrains Mono', monospace" font-size="8" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#CB171E">YML</text>`,
+    langToml: `<rect width="20" height="20" x="2" y="2" rx="3.5" fill="#9C4121" fill-opacity="0.18" stroke="#9C4121" stroke-width="1.6"/><text x="12" y="12" font-family="'JetBrains Mono', monospace" font-size="7.5" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#E06C38">TOML</text>`,
+    langSql: `<ellipse cx="12" cy="5" rx="8" ry="3" fill="none" stroke="#336791" stroke-width="1.8" stroke-linecap="round"/><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" fill="none" stroke="#336791" stroke-width="1.8" stroke-linecap="round"/><path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" fill="none" stroke="#336791" stroke-width="1.8" stroke-linecap="round"/>`,
+    langGraphql: `<polygon points="12,2 20.6,7 20.6,17 12,22 3.4,17 3.4,7" fill="none" stroke="#E10098" stroke-width="1.6"/><polygon points="12,5 18,15.5 6,15.5" fill="none" stroke="#E10098" stroke-width="1.4"/><circle cx="12" cy="2" r="1.8" fill="#E10098"/><circle cx="20.6" cy="7" r="1.8" fill="#E10098"/><circle cx="20.6" cy="17" r="1.8" fill="#E10098"/><circle cx="12" cy="22" r="1.8" fill="#E10098"/><circle cx="3.4" cy="17" r="1.8" fill="#E10098"/><circle cx="3.4" cy="7" r="1.8" fill="#E10098"/>`,
+
+    // ── 5. DEVOPS, BUILD & SECURITY ──
+    langDocker: `<path fill="#2496ED" d="M22.5 10.5c-.3-.2-1.3-.3-2.1.2-.5-1.1-1.4-1.8-2.5-1.8-.1 0-.3 0-.4.1-.7-1.4-2.1-2.4-3.8-2.4-.2 0-.4 0-.6.1V4h-9v5.2c-.7.1-1.4.4-2 .8C1.5 10.5.8 11.5.8 12.5c0 3.3 2.5 6 6.5 6 4.9 0 9.2-2.8 10.7-6.9.9.1 2.3-.2 3.1-1.4.6-.9.6-1.5.4-1.7zm-14.7-1H9.6v1.7H7.8V9.5zm2.3 0h1.8v1.7h-1.8V9.5zm-4.6 0h1.8v1.7H5.5V9.5zm4.6-2.2h1.8V9h-1.8V7.3zm-2.3 0H9.6V9H7.8V7.3zm4.6 2.2h1.8v1.7h-1.8V9.5zm2.3 0h1.8v1.7h-1.8V9.5z"/>`,
+    langGit: `<circle cx="6" cy="6" r="2.5" fill="none" stroke="#F05032" stroke-width="2" stroke-linecap="round"/><circle cx="6" cy="18" r="2.5" fill="none" stroke="#F05032" stroke-width="2" stroke-linecap="round"/><circle cx="18" cy="9" r="2.5" fill="none" stroke="#F05032" stroke-width="2" stroke-linecap="round"/><path d="M6 8.5v7M8.2 7.2l7.6 1.8" fill="none" stroke="#F05032" stroke-width="2" stroke-linecap="round"/>`,
+    langMakefile: `<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" fill="none" stroke="#E06C75" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`,
+    langEnv: `<line x1="4" y1="21" x2="4" y2="14" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/><line x1="4" y1="10" x2="4" y2="3" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/><line x1="12" y1="21" x2="12" y2="12" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/><line x1="12" y1="8" x2="12" y2="3" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/><line x1="20" y1="21" x2="20" y2="16" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/><line x1="20" y1="12" x2="20" y2="3" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/><line x1="1" y1="14" x2="7" y2="14" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="8" x2="15" y2="8" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/><line x1="17" y1="16" x2="23" y2="16" stroke="#8B949E" stroke-width="1.8" stroke-linecap="round"/>`,
+    langLock: `<rect x="4" y="11" width="16" height="10" rx="2" fill="none" stroke="#E5A00D" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5" fill="#E5A00D"/><path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none" stroke="#E5A00D" stroke-width="1.8" stroke-linecap="round"/>`,
+
+    // ── 6. DOCUMENTATION & MARKUP ──
+    langMd: `<rect x="2" y="4" width="20" height="16" rx="2.5" fill="none" stroke="#42A5F5" stroke-width="1.8"/><text x="8.5" y="12" font-family="'Segoe UI', -apple-system, sans-serif" font-size="10" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#42A5F5">M</text><polyline points="15 8.5 15 15.5" stroke="#42A5F5" stroke-width="1.8" stroke-linecap="round"/><polyline points="12.5 13 15 15.5 17.5 13" stroke="#42A5F5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`,
+    langPdf: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="#F43F5E" stroke-width="1.8" stroke-linecap="round"/><polyline points="14 2 14 8 20 8" fill="none" stroke="#F43F5E" stroke-width="1.8" stroke-linecap="round"/><text x="12" y="15" font-family="'JetBrains Mono', sans-serif" font-size="6.8" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#F43F5E">PDF</text>`,
+    langText: `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round"/><polyline points="14 2 14 8 20 8" fill="none" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round"/><line x1="8" y1="13" x2="16" y2="13" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round"/><line x1="8" y1="17" x2="14" y2="17" stroke="#94A3B8" stroke-width="1.8" stroke-linecap="round"/>`,
+
+    // ── 7. MEDIA, FONTS & BINARIES ──
+    langImage: `<rect x="3" y="3" width="18" height="18" rx="3" fill="none" stroke="#AB47BC" stroke-width="1.8" stroke-linecap="round"/><circle cx="8.5" cy="8.5" r="1.5" fill="#AB47BC"/><polyline points="21 15 16 10 5 21" fill="none" stroke="#AB47BC" stroke-width="1.8" stroke-linecap="round"/>`,
+    langAudio: `<circle cx="5.5" cy="17.5" r="3.5" fill="none" stroke="#E91E63" stroke-width="1.8" stroke-linecap="round"/><circle cx="17.5" cy="14.5" r="3.5" fill="none" stroke="#E91E63" stroke-width="1.8" stroke-linecap="round"/><path d="M9 17.5V4l12-3v13.5" fill="none" stroke="#E91E63" stroke-width="1.8" stroke-linecap="round"/>`,
+    langVideo: `<polygon points="23 7 16 12 23 17 23 7" fill="none" stroke="#8B5CF6" stroke-width="1.8" stroke-linecap="round"/><rect x="1" y="5" width="15" height="14" rx="2" fill="none" stroke="#8B5CF6" stroke-width="1.8" stroke-linecap="round"/>`,
+    langZip: `<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" fill="none" stroke="#FF9800" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="22" x2="12" y2="12" stroke="#FF9800" stroke-width="1.8" stroke-linecap="round"/><polyline points="3.27 6.96 12 12.01 20.73 6.96" fill="none" stroke="#FF9800" stroke-width="1.8" stroke-linecap="round"/>`,
+    langFont: `<rect width="20" height="20" x="2" y="2" rx="3.5" fill="#00BCD4" fill-opacity="0.15" stroke="#00BCD4" stroke-width="1.5"/><text x="12" y="12" font-family="'Times New Roman', serif" font-size="12" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#00BCD4">A</text>`,
+    langBinary: `<rect x="5" y="5" width="14" height="14" rx="2" fill="none" stroke="#00E5FF" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="1" x2="9" y2="5" stroke="#00E5FF" stroke-width="1.8" stroke-linecap="round"/><line x1="15" y1="1" x2="15" y2="5" stroke="#00E5FF" stroke-width="1.8" stroke-linecap="round"/><line x1="9" y1="19" x2="9" y2="23" stroke="#00E5FF" stroke-width="1.8" stroke-linecap="round"/><line x1="15" y1="19" x2="15" y2="23" stroke="#00E5FF" stroke-width="1.8" stroke-linecap="round"/><line x1="1" y1="9" x2="5" y2="9" stroke="#00E5FF" stroke-width="1.8" stroke-linecap="round"/><line x1="1" y1="15" x2="5" y2="15" stroke="#00E5FF" stroke-width="1.8" stroke-linecap="round"/><line x1="19" y1="9" x2="23" y2="9" stroke="#00E5FF" stroke-width="1.8" stroke-linecap="round"/><line x1="19" y1="15" x2="23" y2="15" stroke="#00E5FF" stroke-width="1.8" stroke-linecap="round"/>`,
+
+    // ── COMMON UI ACTIONS & CHROME ──
+    folder: `<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
+    terminal: `<polyline points="4 17 10 11 4 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="19" x2="20" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
+    save: `<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><polyline points="17 21 17 13 7 13 7 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><polyline points="7 3 7 8 15 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
+    download: `<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><polyline points="7 10 12 15 17 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
+    edit: `<path d="M12 20h9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>`,
+    trash: `<polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="10" y1="11" x2="10" y2="17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="14" y1="11" x2="14" y2="17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
+    palette: `<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
+    maximize: `<polyline points="15 3 21 3 21 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="9 21 3 21 3 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="21" y1="3" x2="14" y2="10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="21" x2="10" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
+    minimize: `<polyline points="4 14 10 14 10 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><polyline points="20 10 14 10 14 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="14" y1="10" x2="21" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="21" x2="10" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
+    chevronUp: `<polyline points="18 15 12 9 6 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`,
+    minus: `<line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
+    check: `<polyline points="20 6 9 17 4 12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`,
+    messageSquare: `<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
+    cornerDownLeft: `<polyline points="9 10 4 15 9 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 4v7a4 4 0 0 1-4 4H4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`
+};
+
+function svgIcon(name, opts) {
+    const inner = ICONS[name];
+    if (!inner) return '';
+    const size = (opts && opts.size) || 16;
+    const cls = (opts && opts.className) ? 'ui-icon ' + opts.className : 'ui-icon';
+    const title = (opts && opts.title) ? String(opts.title).replace(/&/g, '&amp;').replace(/"/g, '&quot;') : '';
+    const titleAttr = title ? ` title="${title}"` : '';
+    const ariaAttr = title ? '' : ' aria-hidden="true"';
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" class="${cls}"${titleAttr}${ariaAttr}>${inner}</svg>`;
+}
+
+function fileIcon(name, opts) {
+    if (!name) return svgIcon('langText', opts);
+    const lower = name.toLowerCase();
+
+    // 1. Exact filename matches
+    if (lower === 'dockerfile' || lower.startsWith('docker-compose')) return svgIcon('langDocker', opts);
+    if (lower === 'makefile' || lower === 'gnumakefile') return svgIcon('langMakefile', opts);
+    if (lower === '.gitignore' || lower === '.gitattributes' || lower === '.gitmodules') return svgIcon('langGit', opts);
+    if (lower === 'go.mod' || lower === 'go.sum' || lower === 'go.work') return svgIcon('langGoMod', opts);
+    if (lower === 'cargo.toml') return svgIcon('langToml', opts);
+    if (lower === 'cargo.lock' || lower === 'package-lock.json' || lower === 'yarn.lock' || lower === 'pnpm-lock.yaml') return svgIcon('langLock', opts);
+    if (lower === 'gemfile' || lower === 'gemfile.lock') return svgIcon('langRuby', opts);
+    if (lower === '.env' || lower.startsWith('.env.')) return svgIcon('langEnv', opts);
+
+    const ext = getFileExt(lower);
+    const EXT_MAP = {
+        // Web & Frontend
+        js: 'langJs', mjs: 'langJs', cjs: 'langJs',
+        ts: 'langTs', mts: 'langTs', cts: 'langTs',
+        jsx: 'langReact', tsx: 'langReact',
+        vue: 'langVue',
+        svelte: 'langSvelte',
+        html: 'langHtml', htm: 'langHtml',
+        css: 'langCss',
+        scss: 'langSass', sass: 'langSass', less: 'langSass',
+
+        // Systems & Backend
+        go: 'langGo',
+        py: 'langPy', pyw: 'langPy', ipynb: 'langPy', pyi: 'langPy',
+        rs: 'langRs',
+        java: 'langJava', class: 'langJava', jar: 'langJava',
+        kt: 'langKotlin', kts: 'langKotlin',
+        c: 'langC', h: 'langC',
+        cpp: 'langCpp', cc: 'langCpp', cxx: 'langCpp', hpp: 'langCpp',
+        cs: 'langCs', csx: 'langCs',
+        php: 'langPhp',
+        rb: 'langRuby',
+        swift: 'langSwift',
+        dart: 'langDart',
+        lua: 'langLua',
+
+        // Shell
+        sh: 'langSh', bash: 'langSh', zsh: 'langSh',
+        ps1: 'langPs', psm1: 'langPs',
+
+        // Data & Config
+        json: 'langJson', jsonc: 'langJson', json5: 'langJson',
+        yaml: 'langYaml', yml: 'langYaml',
+        toml: 'langToml',
+        sql: 'langSql', db: 'langSql', sqlite: 'langSql',
+        graphql: 'langGraphql', gql: 'langGraphql',
+        ini: 'langEnv', conf: 'langEnv', cfg: 'langEnv',
+
+        // Build / DevOps
+        dockerfile: 'langDocker',
+        mk: 'langMakefile',
+
+        // Docs
+        md: 'langMd', markdown: 'langMd', mdx: 'langMd',
+        pdf: 'langPdf',
+        txt: 'langText', log: 'langText',
+
+        // Media
+        png: 'langImage', jpg: 'langImage', jpeg: 'langImage', gif: 'langImage',
+        webp: 'langImage', svg: 'langImage', ico: 'langImage', bmp: 'langImage', avif: 'langImage',
+        mp3: 'langAudio', wav: 'langAudio', ogg: 'langAudio', flac: 'langAudio',
+        mp4: 'langVideo', mkv: 'langVideo', mov: 'langVideo', webm: 'langVideo',
+
+        // Archives
+        zip: 'langZip', tar: 'langZip', gz: 'langZip', '7z': 'langZip', rar: 'langZip',
+
+        // Fonts
+        woff: 'langFont', woff2: 'langFont', ttf: 'langFont', otf: 'langFont',
+
+        // Binaries
+        exe: 'langBinary', dll: 'langBinary', so: 'langBinary', dylib: 'langBinary', bin: 'langBinary'
+    };
+
+    const iconKey = EXT_MAP[ext];
+    if (iconKey) return svgIcon(iconKey, opts);
+    return isTextFile(name) ? svgIcon('langText', opts) : svgIcon('langBinary', opts);
 }
 function fmtSize(b){if(!b)return'0 B';const u=['B','KB','MB','GB'];const i=Math.floor(Math.log(b)/Math.log(1024));return(b/Math.pow(1024,i)).toFixed(i>0?1:0)+' '+u[i];}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
@@ -561,7 +726,7 @@ async function onJson(msg) {
             if(cm){
                 cm.innerHTML='';
                 if(!msg.history || msg.history.length===0){
-                    cm.innerHTML=`<div class="chat-empty-state"><div class="chat-empty-icon">💬</div><div class="chat-empty-title">Session Chat</div><div class="chat-empty-sub">Messages sent here are encrypted and shared live with all Web and CLI collaborators.</div></div>`;
+                    cm.innerHTML=`<div class="chat-empty-state"><div class="chat-empty-icon">${svgIcon('messageSquare', { size: 32 })}</div><div class="chat-empty-title">Session Chat</div><div class="chat-empty-sub">Messages sent here are encrypted and shared live with all Web and CLI collaborators.</div></div>`;
                 } else {
                     msg.history.forEach(m=>appendChat(m.sender,m.message,m.time));
                 }
@@ -1026,7 +1191,7 @@ function addTermTabBtn(tabId){
     c.className = 'tab-btn-container' + (activeTerminalTab === id ? ' active' : '');
     c.onclick = () => activateTerminalTab(id);
     enableTabDrag(c);
-    const icon = document.createElement('span'); icon.className = 'tab-icon'; icon.innerText = '⬛';
+    const icon = document.createElement('span'); icon.className = 'tab-icon'; icon.innerHTML = svgIcon('terminal', { size: 14 });
     const content = document.createElement('div'); content.className = 'tab-btn-content';
     const title = document.createElement('span'); title.className = 'tab-title-text'; title.innerText = 'Tab ' + tabId;
     const sub = document.createElement('span'); sub.id = 'tab-subtext-' + tabId; sub.className = 'tab-subtext';
@@ -1123,7 +1288,7 @@ function openEditorTab(path, text){
     if(isText){
         const saveBtn = document.createElement('button');
         saveBtn.className = 'editor-save';
-        saveBtn.innerText = '💾 Save';
+        saveBtn.innerHTML = `${svgIcon('save', { size: 14 })}<span>Save</span>`;
         saveBtn.onclick = () => saveEditor(id, path);
         bar.appendChild(saveBtn);
     }
@@ -1199,7 +1364,7 @@ function openEditorTab(path, text){
     c.className = 'tab-btn-container editor-tab';
     c.onclick = () => activateEditorTab(id);
     enableTabDrag(c);
-    const icon = document.createElement('span'); icon.className = 'tab-icon'; icon.innerText = fileIcon(path);
+    const icon = document.createElement('span'); icon.className = 'tab-icon'; icon.innerHTML = fileIcon(path);
     const content = document.createElement('div'); content.className = 'tab-btn-content';
     const title = document.createElement('span'); title.className = 'tab-title-text'; title.innerText = basename(path);
     content.appendChild(title);
@@ -1257,7 +1422,7 @@ function openImageTab(path, blobUrl, sizeBytes, rawBytes){
     if(isSvg && rawBytes){
         const editSvgBtn = document.createElement('button');
         editSvgBtn.className = 'editor-btn-secondary';
-        editSvgBtn.innerText = '📝 Edit as Code';
+        editSvgBtn.innerHTML = `${svgIcon('palette', { size: 14 })}<span>Edit as Code</span>`;
         editSvgBtn.title = 'Edit SVG code in editor';
         editSvgBtn.onclick = async () => {
             const txt = new TextDecoder().decode(rawBytes);
@@ -1269,7 +1434,7 @@ function openImageTab(path, blobUrl, sizeBytes, rawBytes){
 
     const dlBtn = document.createElement('button');
     dlBtn.className = 'editor-btn-secondary';
-    dlBtn.innerText = '⬇ Download';
+    dlBtn.innerHTML = `${svgIcon('download', { size: 14 })}<span>Download</span>`;
     dlBtn.title = 'Download file';
     dlBtn.onclick = () => {
         const a = document.createElement('a');
@@ -1321,7 +1486,7 @@ function openImageTab(path, blobUrl, sizeBytes, rawBytes){
     c.className = 'tab-btn-container editor-tab';
     c.onclick = () => activateEditorTab(id);
     enableTabDrag(c);
-    const icon = document.createElement('span'); icon.className = 'tab-icon'; icon.innerText = fileIcon(path);
+    const icon = document.createElement('span'); icon.className = 'tab-icon'; icon.innerHTML = fileIcon(path);
     const content = document.createElement('div'); content.className = 'tab-btn-content';
     const title = document.createElement('span'); title.className = 'tab-title-text'; title.innerText = basename(path);
     content.appendChild(title);
@@ -1480,12 +1645,12 @@ function renderFileList(path,files){
     if(filterInput)filterInput.value='';
     const list=document.getElementById('fe-list');list.innerHTML='';
     const parentPath = path.endsWith('/') ? (path + '..') : (path + '/..');
-    list.appendChild(mkItem('📁','..','',parentPath,true,()=>requestDir(parentPath)));
+    list.appendChild(mkItem(svgIcon('folder', { size: 18 }),'..','',parentPath,true,()=>requestDir(parentPath)));
     if(!files||!files.length){list.appendChild(Object.assign(document.createElement('div'),{className:'fe-empty',innerText:'Empty directory'}));return;}
     files.forEach(f=>{
         const fp=(path.endsWith('/')?path:path+'/')+f.name;
-        if(f.is_dir){list.appendChild(mkItem('📁',f.name,'',fp,true,()=>requestDir(fp)));}
-        else{list.appendChild(mkItem(fileIcon(f.name),f.name,fmtSize(f.size),fp,false,()=>{
+        if(f.is_dir){list.appendChild(mkItem(svgIcon('folder', { size: 18 }),f.name,'',fp,true,()=>requestDir(fp)));}
+        else{list.appendChild(mkItem(fileIcon(f.name, { size: 18 }),f.name,fmtSize(f.size),fp,false,()=>{
             _log.info('Open file',{path:fp,isImage:isImageFile(fp),isText:isTextFile(fp)});
             if(isImageFile(fp)){
                 openImageForView(fp);
@@ -1536,21 +1701,21 @@ function openFileForEdit(path){
 
 function mkItem(icon,name,size,fullPath,isDir,onclick){
     const item=document.createElement('div');item.className='fe-item'+(isDir?' is-dir':'');
-    const iconEl=document.createElement('span');iconEl.className='fe-icon';iconEl.innerText=icon;
+    const iconEl=document.createElement('span');iconEl.className='fe-icon';iconEl.innerHTML=icon;
     const nameEl=document.createElement('span');nameEl.className='fe-name';nameEl.innerText=name;
     const sizeEl=document.createElement('span');sizeEl.className='fe-size';sizeEl.innerText=size;
     const aDiv=document.createElement('div');aDiv.className='fe-item-actions';
     // Download action for files
     if(!isDir){
-        const dlBtn=document.createElement('button');dlBtn.innerText='⬇';dlBtn.title='Download';dlBtn.className='fe-download';
+        const dlBtn=document.createElement('button');dlBtn.innerHTML=svgIcon('download', { size: 13 });dlBtn.title='Download';dlBtn.className='fe-download';
         dlBtn.onclick=e=>{e.stopPropagation();downloadFile(fullPath,name,e);};
         aDiv.appendChild(dlBtn);
     }
     // Rename
-    const renBtn=document.createElement('button');renBtn.innerText='✏️';renBtn.title='Rename';
+    const renBtn=document.createElement('button');renBtn.innerHTML=svgIcon('edit', { size: 13 });renBtn.title='Rename';
     renBtn.onclick=e=>{e.stopPropagation();startInlineRename(item,nameEl,fullPath,name);};
     // Delete
-    const delBtn=document.createElement('button');delBtn.innerText='🗑';delBtn.title='Delete';delBtn.className='fe-delete';
+    const delBtn=document.createElement('button');delBtn.innerHTML=svgIcon('trash', { size: 13 });delBtn.title='Delete';delBtn.className='fe-delete';
     delBtn.onclick=e=>{e.stopPropagation();startInlineDelete(item,fullPath,name,isDir);};
     aDiv.appendChild(renBtn);aDiv.appendChild(delBtn);
     item.appendChild(iconEl);item.appendChild(nameEl);item.appendChild(sizeEl);item.appendChild(aDiv);
@@ -1608,7 +1773,7 @@ function editBreadcrumb(){
     if(bc.dataset.editing==='true')return;
     bc.dataset.editing='true';bc.innerHTML='';
     const inp=document.createElement('input');inp.className='bc-edit-input';inp.value=currentFilePath;
-    const hint=document.createElement('span');hint.className='bc-hint';hint.innerText='Enter ↵';
+    const hint=document.createElement('span');hint.className='bc-hint';hint.innerHTML=`Enter ${svgIcon('cornerDownLeft', { size: 10 })}`;
     inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const v=inp.value.trim();if(v)requestDir(v);else renderBreadcrumb(currentFilePath);}if(e.key==='Escape'){renderBreadcrumb(currentFilePath);}};
     inp.onblur=()=>{setTimeout(()=>renderBreadcrumb(currentFilePath),150);};
     bc.appendChild(inp);bc.appendChild(hint);inp.focus();inp.select();
@@ -1617,7 +1782,7 @@ function editBreadcrumb(){
 // ===== INLINE INPUT (new file/folder) =====
 function showInlineInput(type){
     const el=document.getElementById('fe-inline');el.style.display='flex';el.innerHTML='';
-    const icon=document.createElement('span');icon.className='inline-icon';icon.innerText=type==='dir'?'📁':'📄';
+    const icon=document.createElement('span');icon.className='inline-icon';icon.innerHTML=type==='dir'?svgIcon('folder', { size: 14 }):svgIcon('langText', { size: 14 });
     const inp=document.createElement('input');inp.placeholder=type==='dir'?'Folder name...':'File name...';
     inp.onkeydown=e=>{
         if(e.key==='Enter'){const n=inp.value.trim();if(!n)return;const p=(currentFilePath.endsWith('/')?currentFilePath:currentFilePath+'/')+n;sendJson({type:'control',action:type==='dir'?'create_dir':'create_file',path:p});hideInlineInput();}
@@ -1753,10 +1918,10 @@ function copyCliCmd(){
 function copyToClip(text,btn){
     const flash=()=>{
         if(!btn)return;
-        const old=btn.innerText;
-        btn.innerText='✓ Copied!';
+        const old=btn.innerHTML;
+        btn.innerHTML=`${svgIcon('check', { size: 12 })}<span>Copied!</span>`;
         btn.classList.add('copied');
-        setTimeout(()=>{btn.innerText=old;btn.classList.remove('copied');},2000);
+        setTimeout(()=>{btn.innerHTML=old;btn.classList.remove('copied');},2000);
     };
     // Works on HTTP (non-secure) origins where navigator.clipboard is unavailable.
     const legacyCopy=()=>{
@@ -2562,7 +2727,7 @@ function toggleTerminalPanel(collapse, silent) {
         if (collapse === true) {
             terminalPanelCollapsed = true;
             panel.classList.add('is-collapsed');
-            if (collapseBtn) collapseBtn.innerText = '▲';
+            if (collapseBtn) collapseBtn.innerHTML = svgIcon('chevronUp', { size: 12 });
             if (toggleBtn) toggleBtn.classList.remove('active');
         }
         return;
@@ -2576,7 +2741,7 @@ function toggleTerminalPanel(collapse, silent) {
 
     panel.classList.toggle('is-collapsed', terminalPanelCollapsed);
     if (toggleBtn) toggleBtn.classList.toggle('active', !terminalPanelCollapsed);
-    if (collapseBtn) collapseBtn.innerText = terminalPanelCollapsed ? '▲' : '_';
+    if (collapseBtn) collapseBtn.innerHTML = terminalPanelCollapsed ? svgIcon('chevronUp', { size: 12 }) : svgIcon('minus', { size: 12 });
 
     try {
         localStorage.setItem('rmte_terminal_collapsed', terminalPanelCollapsed);
@@ -2600,7 +2765,7 @@ function toggleTerminalMaximize() {
     terminalPanelMaximized = !terminalPanelMaximized;
     panel.classList.toggle('is-maximized', terminalPanelMaximized);
     mainArea.classList.toggle('terminal-maximized', terminalPanelMaximized);
-    if (maxBtn) maxBtn.innerText = terminalPanelMaximized ? '❐' : '□';
+    if (maxBtn) maxBtn.innerHTML = terminalPanelMaximized ? svgIcon('minimize', { size: 12 }) : svgIcon('maximize', { size: 12 });
 
     setTimeout(refitActive, 50);
 }
@@ -2847,7 +3012,7 @@ function togglePreviewMaximize() {
     mainArea.classList.toggle('preview-maximized', previewMaximized);
 
     if (maxBtn) {
-        maxBtn.innerText = previewMaximized ? '❐' : '□';
+        maxBtn.innerHTML = previewMaximized ? svgIcon('minimize', { size: 14 }) : svgIcon('maximize', { size: 14 });
         maxBtn.title = previewMaximized ? 'Restore Preview' : 'Maximize / Restore Preview (Full width)';
     }
     setTimeout(refitActive, 50);
