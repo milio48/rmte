@@ -7,6 +7,11 @@ const myViewerId = 'v-web-' + Math.random().toString(16).slice(2,10);
 let terminals = {}, editorTabs = {};
 let fileManagerOpen = false, currentFilePath = './';
 let webPreviewOpen = false, previewPort = 8080, previewPath = '', previewMobileMode = false, previewMaximized = false;
+// Mobile UI state
+let stickyCtrl = 0; // 0 = off, 1 = once, 2 = locked
+let stickyAlt = 0;  // 0 = off, 1 = once, 2 = locked
+let overflowMenuOpen = false;
+let activePeerCount = 0;
 
 // Auto-reconnect state
 let isConnected = false, manualDisconnect = false;
@@ -558,11 +563,140 @@ function initTerminal(tabId){
     if(canFit){
         try { fa.fit(); } catch(e){}
     }
-    t.onData(d => sendBin(tabId, new TextEncoder().encode(d)));
+    t.onData(d => handleTerminalData(tabId, d));
+    try {
+        t.onBlur(() => {
+            if(stickyCtrl === 1) setStickyModifier('ctrl', 0);
+            if(stickyAlt === 1) setStickyModifier('alt', 0);
+        });
+    } catch(e){}
+    if(t.parser && t.parser.registerCsiHandler){
+        try {
+            t.parser.registerCsiHandler({ prefix: '?', final: 'h' }, params => {
+                if(params && params[0] === 1) terminals[tabId].appCursorKeys = true;
+                return false;
+            });
+            t.parser.registerCsiHandler({ prefix: '?', final: 'l' }, params => {
+                if(params && params[0] === 1) terminals[tabId].appCursorKeys = false;
+                return false;
+            });
+        } catch(e){}
+    }
     addTermTabBtn(tabId);
     if(!activeTerminalTab || !document.querySelector('#terminal-tabs .tab-btn-container.active')){
         activateTerminalTab(id);
     }
+}
+
+// ── Mobile Virtual Key Accessory Bar & Sticky Modifiers ──
+function getActiveTerminalTabId(){
+    if(!activeTerminalTab || !activeTerminalTab.startsWith('term-')) return 0;
+    return parseInt(activeTerminalTab.slice(5), 10) || 0;
+}
+
+function setStickyModifier(mod, val){
+    if(mod === 'ctrl'){
+        stickyCtrl = val;
+        const btn = document.getElementById('mkey-ctrl');
+        if(btn){
+            btn.classList.toggle('active', stickyCtrl === 1);
+            btn.classList.toggle('locked', stickyCtrl === 2);
+        }
+    } else if(mod === 'alt'){
+        stickyAlt = val;
+        const btn = document.getElementById('mkey-alt');
+        if(btn){
+            btn.classList.toggle('active', stickyAlt === 1);
+            btn.classList.toggle('locked', stickyAlt === 2);
+        }
+    }
+}
+
+function toggleVirtualModifier(mod){
+    if(mod === 'ctrl'){
+        setStickyModifier('ctrl', (stickyCtrl + 1) % 3);
+    } else if(mod === 'alt'){
+        setStickyModifier('alt', (stickyAlt + 1) % 3);
+    }
+}
+
+function isAppCursorMode(tabId){
+    const t = terminals[tabId]?.term;
+    if(!t) return false;
+    if(t.modes && typeof t.modes.applicationCursorKeysMode === 'boolean'){
+        return t.modes.applicationCursorKeysMode;
+    }
+    if(t._core && t._core.coreService && t._core.coreService.decPrivateModes){
+        return Boolean(t._core.coreService.decPrivateModes.applicationCursorKeys);
+    }
+    return Boolean(terminals[tabId]?.appCursorKeys);
+}
+
+function sendVirtualKey(key){
+    const tid = getActiveTerminalTabId();
+    let bytes = null;
+    switch(key){
+        case 'esc':
+            bytes = new Uint8Array([0x1b]);
+            if(stickyCtrl === 1) setStickyModifier('ctrl', 0);
+            if(stickyAlt === 1) setStickyModifier('alt', 0);
+            break;
+        case 'tab':
+            bytes = new Uint8Array([0x09]);
+            break;
+        case 'sigint':
+            bytes = new Uint8Array([0x03]);
+            break;
+        case 'up':
+            bytes = new TextEncoder().encode(isAppCursorMode(tid) ? '\x1bOA' : '\x1b[A');
+            break;
+        case 'down':
+            bytes = new TextEncoder().encode(isAppCursorMode(tid) ? '\x1bOB' : '\x1b[B');
+            break;
+        case 'left':
+            bytes = new TextEncoder().encode(isAppCursorMode(tid) ? '\x1bOD' : '\x1b[D');
+            break;
+        case 'right':
+            bytes = new TextEncoder().encode(isAppCursorMode(tid) ? '\x1bOC' : '\x1b[C');
+            break;
+    }
+    if(bytes){
+        sendBin(tid, bytes);
+    }
+    if(terminals[tid] && terminals[tid].term){
+        try { terminals[tid].term.focus(); } catch(e){}
+    }
+}
+
+function toggleVirtualKeyRow(){
+    const row = document.getElementById('mobile-terminal-keys');
+    if(!row) return;
+    row.classList.toggle('is-hidden');
+    const isHidden = row.classList.contains('is-hidden');
+    const toggleBtn = document.getElementById('mkey-toggle');
+    if(toggleBtn){
+        toggleBtn.classList.toggle('active', !isHidden);
+    }
+    setTimeout(refitActive, 50);
+}
+
+function handleTerminalData(tabId, data){
+    if(stickyCtrl > 0){
+        if(data.length === 1){
+            const code = data.charCodeAt(0);
+            if((code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code === 64 || (code >= 91 && code <= 95)){
+                data = String.fromCharCode(code & 0x1f);
+            }
+        }
+        if(stickyCtrl === 1) setStickyModifier('ctrl', 0);
+    }
+    if(stickyAlt > 0){
+        if(data.length === 1){
+            data = '\x1b' + data;
+        }
+        if(stickyAlt === 1) setStickyModifier('alt', 0);
+    }
+    sendBin(tabId, new TextEncoder().encode(data));
 }
 
 let draggedTabEl = null;
@@ -709,7 +843,7 @@ function openEditorTab(path, text){
                     indentUnit: 4,
                     tabSize: 4,
                     indentWithTabs: true,
-                    lineWrapping: false
+                    lineWrapping: window.innerWidth <= 768
                 });
                 cmInstance.on('change', () => checkDirty(id));
                 editorTabs[id] = {path, cm: cmInstance, textarea: null, original: text};
@@ -933,13 +1067,55 @@ async function sendPendingFile(){if(!pendingFileBytes){_log.err('No pending data
 // ===== FILE MANAGER =====
 function toggleFileManager(force){
     fileManagerOpen=typeof force==='boolean'?force:!fileManagerOpen;
-    document.getElementById('file-explorer').style.display=fileManagerOpen?'flex':'none';
+    const fe = document.getElementById('file-explorer');
+    const isMobile = window.innerWidth <= 768;
+    if(fe){
+        fe.classList.toggle('drawer-open', isMobile && fileManagerOpen);
+        fe.style.display = fileManagerOpen ? 'flex' : 'none';
+    }
     const resizer=document.getElementById('fe-resizer');
-    if(resizer)resizer.style.display=fileManagerOpen?'block':'none';
+    if(resizer)resizer.style.display=(!isMobile && fileManagerOpen)?'block':'none';
     const b=document.getElementById('toggle-files-btn');
     if(b)b.classList.toggle('active',fileManagerOpen);
     if(fileManagerOpen)requestDir(currentFilePath);
+    updateDrawerBackdrop();
     setTimeout(refitActive,100);
+}
+
+function updateDrawerBackdrop(){
+    const backdrop = document.getElementById('drawer-backdrop');
+    if(!backdrop) return;
+    const isMobile = window.innerWidth <= 768;
+    const fe = document.getElementById('file-explorer');
+    const feOpen = isMobile && fe && fe.classList.contains('drawer-open');
+    const ws = document.getElementById('workspace');
+    const sbOpen = isMobile && ws && !ws.classList.contains('sidebar-collapsed');
+    if(feOpen || sbOpen){
+        backdrop.style.display = 'block';
+    } else {
+        backdrop.style.display = 'none';
+    }
+}
+
+function closeSidebarDrawer(){
+    const ws = document.getElementById('workspace');
+    if(ws) ws.classList.add('sidebar-collapsed');
+    const collabBtn = document.getElementById('toggle-sidebar-btn');
+    const chatBtn = document.getElementById('toggle-chat-btn');
+    const actBtn = document.getElementById('toggle-activity-btn');
+    if(collabBtn) collabBtn.classList.remove('active');
+    if(chatBtn) chatBtn.classList.remove('active');
+    if(actBtn) actBtn.classList.remove('active');
+    updateDrawerBackdrop();
+    setTimeout(refitActive, 50);
+}
+
+function closeAllDrawers(){
+    if(window.innerWidth <= 768){
+        if(fileManagerOpen) toggleFileManager(false);
+        closeSidebarDrawer();
+    }
+    updateDrawerBackdrop();
 }
 function requestDir(p){currentFilePath=p;sendJson({type:'control',action:'req_dir',path:p});}
 
@@ -1305,6 +1481,8 @@ function updatePresence(tabs){
             collabBadge.style.display = 'none';
         }
     }
+    activePeerCount = peers.size;
+    updateOverflowBadge();
 }
 function handleChatKey(e){if(e.key==='Enter')sendChatMessage();}
 function sendChatMessage(){
@@ -1392,6 +1570,8 @@ function switchSidebarTab(tabName){
         const ci = document.getElementById('chat-input');
         if(ci) setTimeout(() => ci.focus(), 60);
     }
+    updateOverflowBadge();
+    updateDrawerBackdrop();
     setTimeout(refitActive, 50);
 }
 
@@ -1414,7 +1594,67 @@ function toggleSidebar(preferredTab){
     } else {
         switchSidebarTab(preferredTab);
     }
+    updateOverflowBadge();
+    updateDrawerBackdrop();
     setTimeout(refitActive, 200);
+}
+
+// ── Topbar Overflow Menu for Mobile (<= 640px) ──
+function toggleOverflowMenu(force){
+    const menu = document.getElementById('topbar-overflow-menu');
+    const btn = document.getElementById('topbar-overflow-btn');
+    overflowMenuOpen = typeof force === 'boolean' ? force : !overflowMenuOpen;
+    if(menu) menu.style.display = overflowMenuOpen ? 'flex' : 'none';
+    if(btn) btn.classList.toggle('active', overflowMenuOpen);
+    if(overflowMenuOpen) updateOverflowBadge();
+}
+
+function handleOverflowAction(action){
+    toggleOverflowMenu(false);
+    switch(action){
+        case 'collab':
+            toggleSidebar('collab');
+            break;
+        case 'activity':
+            toggleSidebar('activity');
+            break;
+        case 'share':
+            toggleShareModal(true);
+            break;
+        case 'help':
+            toggleHelpModal();
+            break;
+        case 'disconnect':
+            disconnectSession();
+            break;
+    }
+}
+
+function updateOverflowBadge(){
+    const ovBadge = document.getElementById('overflow-badge-top');
+    const collabBadge = document.getElementById('collab-badge-overflow');
+    const actBadge = document.getElementById('activity-badge-overflow');
+
+    const collabCount = activePeerCount || 0;
+    const actCount = unreadActivityCount || 0;
+
+    if(collabBadge){
+        collabBadge.innerText = collabCount > 99 ? '99+' : collabCount;
+        collabBadge.style.display = collabCount > 0 ? 'inline-flex' : 'none';
+    }
+    if(actBadge){
+        actBadge.innerText = actCount > 99 ? '99+' : actCount;
+        actBadge.style.display = actCount > 0 ? 'inline-flex' : 'none';
+    }
+    if(ovBadge){
+        const totalHidden = collabCount + actCount;
+        if(totalHidden > 0){
+            ovBadge.innerText = totalHidden > 99 ? '99+' : totalHidden;
+            ovBadge.style.display = 'inline-flex';
+        } else {
+            ovBadge.style.display = 'none';
+        }
+    }
 }
 
 function createActivityItem(evt){
@@ -1454,6 +1694,7 @@ function appendActivityLog(evt){
             topBadge.innerText = unreadActivityCount > 99 ? '99+' : unreadActivityCount;
             topBadge.style.display = 'inline-flex';
         }
+        updateOverflowBadge();
     }
 }
 
@@ -1718,6 +1959,16 @@ function initWorkbenchResizer() {
     if (window.innerWidth <= 768) {
         setMobileWorkbenchPane('terminal');
     }
+    function updateEditorLineWrapping(){
+        const isMobile = window.innerWidth <= 768;
+        Object.values(editorTabs).forEach(et => {
+            if(et && et.cm){
+                et.cm.setOption('lineWrapping', isMobile);
+                try { et.cm.refresh(); } catch(e){}
+            }
+        });
+    }
+
     const mobileQuery = window.matchMedia('(max-width: 768px)');
     const handleMobileQuery = e => {
         if (!mainArea) return;
@@ -1725,7 +1976,9 @@ function initWorkbenchResizer() {
             setMobileWorkbenchPane(mobileActivePane);
         } else {
             mainArea.classList.remove('mobile-view-editor', 'mobile-view-terminal');
+            closeAllDrawers();
         }
+        updateEditorLineWrapping();
         refitActive();
     };
     try {
@@ -2161,4 +2414,24 @@ function handlePreviewPathKey(e) {
         previewNavigate();
     }
 }
+
+// ── Mobile Global Listeners ──
+document.addEventListener('click', e => {
+    if(!overflowMenuOpen) return;
+    const menu = document.getElementById('topbar-overflow-menu');
+    const btn = document.getElementById('topbar-overflow-btn');
+    if(menu && !menu.contains(e.target) && btn && !btn.contains(e.target)){
+        toggleOverflowMenu(false);
+    }
+});
+
+if (window.visualViewport) {
+    let vpTimer = null;
+    window.visualViewport.addEventListener('resize', () => {
+        if (window.innerWidth > 768) return;
+        if (vpTimer) clearTimeout(vpTimer);
+        vpTimer = setTimeout(refitActive, 100);
+    });
+}
+
 

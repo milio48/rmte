@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <title>RMTE — Remote Terminal Relay</title>
     <link rel="icon" type="image/svg+xml" href="rmte.svg" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css" />
@@ -99,8 +99,41 @@
             <button id="help-btn" onclick="toggleHelpModal()" title="Keyboard Shortcuts & Tips" aria-label="Help and keyboard shortcuts">❓</button>
             <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" id="github-link-btn" title="View RMTE on GitHub" aria-label="GitHub repository">🐙</a>
             <button id="disconnect-btn" onclick="disconnectSession()" title="Disconnect" aria-label="Disconnect session">⏻</button>
+            <button id="topbar-overflow-btn" onclick="toggleOverflowMenu()" title="More options" aria-label="More options">⋮<span id="overflow-badge-top" class="topbar-badge" style="display:none;">0</span></button>
+        </div>
+        <!-- Mobile Topbar Overflow Menu -->
+        <div id="topbar-overflow-menu" class="overflow-dropdown" style="display:none;">
+            <button class="overflow-menu-item" onclick="handleOverflowAction('collab')">
+                <span class="omi-icon">👥</span>
+                <span class="omi-text">Collaborators</span>
+                <span id="collab-badge-overflow" class="overflow-item-badge" style="display:none;">0</span>
+            </button>
+            <button class="overflow-menu-item" onclick="handleOverflowAction('activity')">
+                <span class="omi-icon">📜</span>
+                <span class="omi-text">Activity Log</span>
+                <span id="activity-badge-overflow" class="overflow-item-badge" style="display:none;">0</span>
+            </button>
+            <button class="overflow-menu-item" onclick="handleOverflowAction('share')">
+                <span class="omi-icon">🔗</span>
+                <span class="omi-text">Share Session</span>
+            </button>
+            <button class="overflow-menu-item" onclick="handleOverflowAction('help')">
+                <span class="omi-icon">❓</span>
+                <span class="omi-text">Shortcuts & Help</span>
+            </button>
+            <a class="overflow-menu-item" href="https://github.com/milio48/rmte" target="_blank" rel="noopener">
+                <span class="omi-icon">🐙</span>
+                <span class="omi-text">GitHub</span>
+            </a>
+            <div class="overflow-menu-divider"></div>
+            <button class="overflow-menu-item danger" onclick="handleOverflowAction('disconnect')">
+                <span class="omi-icon">⏻</span>
+                <span class="omi-text">Disconnect</span>
+            </button>
         </div>
         <div id="workspace">
+            <!-- Mobile Drawer Backdrop -->
+            <div id="drawer-backdrop" onclick="closeAllDrawers()" style="display:none;"></div>
             <!-- File Explorer -->
             <div id="file-explorer">
                 <div id="fe-header">
@@ -113,6 +146,7 @@
                             <input type="file" id="upload-input" onchange="handleFileUpload(event)" style="display:none;" multiple>
                         </label>
                         <button id="fe-refresh" onclick="requestDir(currentFilePath)" title="Refresh" aria-label="Refresh directory">⟳</button>
+                        <button id="fe-close-btn" class="drawer-close-btn" onclick="toggleFileManager(false)" title="Close Explorer">✕</button>
                     </div>
                 </div>
                 <div id="fe-breadcrumb-wrap">
@@ -195,6 +229,19 @@
                         </div>
                     </div>
                     <div id="terminal-wrapper"></div>
+                    <!-- Virtual Key Row for Mobile Terminal (Termux-style) -->
+                    <div id="mobile-terminal-keys">
+                        <button class="mkey-btn" id="mkey-esc" onclick="sendVirtualKey('esc')">ESC</button>
+                        <button class="mkey-btn" id="mkey-tab" onclick="sendVirtualKey('tab')">TAB</button>
+                        <button class="mkey-btn" id="mkey-ctrl" onclick="toggleVirtualModifier('ctrl')">CTRL</button>
+                        <button class="mkey-btn" id="mkey-alt" onclick="toggleVirtualModifier('alt')">ALT</button>
+                        <button class="mkey-btn" id="mkey-up" onclick="sendVirtualKey('up')">▲</button>
+                        <button class="mkey-btn" id="mkey-down" onclick="sendVirtualKey('down')">▼</button>
+                        <button class="mkey-btn" id="mkey-left" onclick="sendVirtualKey('left')">◀</button>
+                        <button class="mkey-btn" id="mkey-right" onclick="sendVirtualKey('right')">▶</button>
+                        <button class="mkey-btn mkey-accent" id="mkey-sigint" onclick="sendVirtualKey('sigint')">^C</button>
+                        <button class="mkey-btn mkey-toggle" id="mkey-toggle" onclick="toggleVirtualKeyRow()" title="Toggle Virtual Keys">⌨</button>
+                    </div>
                 </div>
             </div>
             <!-- Sidebar -->
@@ -203,6 +250,7 @@
                     <button class="sb-tab-btn active" id="sb-tab-collab" onclick="switchSidebarTab('collab')">👥 Users</button>
                     <button class="sb-tab-btn" id="sb-tab-chat" onclick="switchSidebarTab('chat')">💬 Chat <span id="chat-badge" class="chat-badge" style="display:none;">0</span></button>
                     <button class="sb-tab-btn" id="sb-tab-activity" onclick="switchSidebarTab('activity')">📜 Log <span id="activity-badge" class="activity-badge" style="display:none;">0</span></button>
+                    <button id="sidebar-close-btn" class="drawer-close-btn" onclick="closeSidebarDrawer()" title="Close Sidebar">✕</button>
                 </div>
                 <div id="users-section" class="sidebar-pane active">
                     <div id="users-list"></div>
