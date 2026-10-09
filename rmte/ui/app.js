@@ -6,7 +6,7 @@ let mobileActivePane = 'terminal';
 const myViewerId = 'v-web-' + Math.random().toString(16).slice(2,10);
 let terminals = {}, editorTabs = {};
 let fileManagerOpen = false, currentFilePath = './';
-let webPreviewOpen = false, previewPort = 8080, previewPath = '', previewMobileMode = false;
+let webPreviewOpen = false, previewPort = 8080, previewPath = '', previewMobileMode = false, previewMaximized = false;
 
 // Auto-reconnect state
 let isConnected = false, manualDisconnect = false;
@@ -18,11 +18,56 @@ let uploadQueue = [], uploadActive = false, fileOpBusy = false;
 let pingTimer = null;
 const DATA_CH = 255;
 
-const TEXT_EXT = new Set('go,js,ts,jsx,tsx,py,rb,rs,c,cpp,h,hpp,java,kt,cs,php,html,css,scss,less,json,yaml,yml,toml,xml,sql,md,txt,log,csv,ini,cfg,conf,env,sh,bash,bat,ps1,cmd,mod,sum,lock,editorconfig,gitignore,makefile,dockerfile'.split(','));
-const LANG_MAP = {go:'Go',js:'JavaScript',ts:'TypeScript',py:'Python',rs:'Rust',html:'HTML',css:'CSS',json:'JSON',md:'Markdown',yaml:'YAML',yml:'YAML',sh:'Shell',sql:'SQL',c:'C',cpp:'C++',java:'Java',rb:'Ruby',php:'PHP',xml:'XML',toml:'TOML'};
+const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif']);
+const BINARY_EXT = new Set([
+    'exe', 'dll', 'so', 'dylib', 'bin', 'o', 'a', 'lib', 'iso', 'img',
+    'zip', 'tar', 'gz', 'tgz', 'bz2', 'tbz2', 'xz', 'txz', '7z', 'rar', 'zst',
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+    'mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a',
+    'mp4', 'mkv', 'avi', 'mov', 'webm', 'wmv',
+    'woff', 'woff2', 'ttf', 'otf', 'eot',
+    'wasm', 'class', 'pyc', 'pyo', 'db', 'sqlite', 'sqlite3'
+]);
+
+const TEXT_EXT = new Set('go,js,ts,jsx,tsx,py,rb,rs,c,cpp,h,hpp,java,kt,cs,php,html,css,scss,less,json,yaml,yml,toml,xml,sql,md,txt,log,csv,ini,cfg,conf,env,sh,bash,bat,ps1,cmd,mod,sum,lock,editorconfig,gitignore,makefile,dockerfile,license'.split(','));
+const LANG_MAP = {go:'Go',js:'JavaScript',ts:'TypeScript',py:'Python',rs:'Rust',html:'HTML',css:'CSS',json:'JSON',md:'Markdown',yaml:'YAML',yml:'YAML',sh:'Shell',sql:'SQL',c:'C',cpp:'C++',java:'Java',rb:'Ruby',php:'PHP',xml:'XML',toml:'TOML',svg:'SVG'};
+
+function basename(p){if(!p)return'';return p.replace(/\\/g,'/').split('/').filter(Boolean).pop()||p;}
+
+function getFileExt(p){
+    const fn = basename(p);
+    const dot = fn.lastIndexOf('.');
+    if(dot <= 0) return '';
+    return fn.slice(dot + 1).toLowerCase();
+}
+
+function isImageFile(path){
+    const ext = getFileExt(path);
+    return IMAGE_EXT.has(ext);
+}
+
+function isBinaryFile(path){
+    const ext = getFileExt(path);
+    return BINARY_EXT.has(ext);
+}
+
+function isTextFile(path){
+    if(isImageFile(path)) return false;
+    if(isBinaryFile(path)) return false;
+    return true; // Plaintext, LICENSE, Makefile, Dockerfile, configs, etc.
+}
+
+function getImageMime(path){
+    const ext = getFileExt(path);
+    const mimes = {
+        svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+        gif: 'image/gif', webp: 'image/webp', ico: 'image/x-icon', bmp: 'image/bmp', avif: 'image/avif'
+    };
+    return mimes[ext] || 'image/png';
+}
 
 function getCodeMirrorMode(path) {
-    const ext = (path.split('.').pop() || '').toLowerCase();
+    const ext = getFileExt(path);
     const map = {
         js: 'javascript', ts: 'javascript', jsx: 'javascript', tsx: 'javascript', json: 'javascript',
         go: 'go', py: 'python',
@@ -43,19 +88,13 @@ const _log = {
     info(m,d){console.info(`%c[INFO] %c${m}`,'color:#bc8cff;font-weight:bold','color:#8b949e',d||'')},
 };
 
-function isTextFile(name) {
-    const ext = (name.split('.').pop()||'').toLowerCase();
-    const base = name.toLowerCase();
-    return TEXT_EXT.has(ext) || ['makefile','dockerfile','readme','license','changelog','.gitignore','.env'].includes(base);
-}
-function getLang(name) { return LANG_MAP[(name.split('.').pop()||'').toLowerCase()] || 'Text'; }
+function getLang(name) { return LANG_MAP[getFileExt(name)] || 'Text'; }
 function fileIcon(name) {
-    const ext = (name.split('.').pop()||'').toLowerCase();
-    return {go:'🔷',js:'🟨',ts:'🔷',py:'🐍',rs:'🦀',html:'🌐',css:'🎨',json:'📋',yaml:'📋',yml:'📋',md:'📝',txt:'📄',log:'📜',sh:'⚙️',bat:'⚙️',png:'🖼️',jpg:'🖼️',svg:'🖼️',zip:'📦',tar:'📦',gz:'📦',mod:'📦',sum:'🔒',exe:'💠',dll:'💠'}[ext]||'📄';
+    const ext = getFileExt(name);
+    return {go:'🔷',js:'🟨',ts:'🔷',py:'🐍',rs:'🦀',html:'🌐',css:'🎨',json:'📋',yaml:'📋',yml:'📋',md:'📝',txt:'📄',log:'📜',sh:'⚙️',bat:'⚙️',png:'🖼️',jpg:'🖼️',jpeg:'🖼️',gif:'🖼️',webp:'🖼️',svg:'🖼️',ico:'🖼️',bmp:'🖼️',avif:'🖼️',zip:'📦',tar:'📦',gz:'📦',mod:'📦',sum:'🔒',exe:'💠',dll:'💠'}[ext]||'📄';
 }
 function fmtSize(b){if(!b)return'0 B';const u=['B','KB','MB','GB'];const i=Math.floor(Math.log(b)/Math.log(1024));return(b/Math.pow(1024,i)).toFixed(i>0?1:0)+' '+u[i];}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
-function basename(p){return p.replace(/\\/g,'/').split('/').filter(Boolean).pop()||p;}
 
 // ===== FILE OPERATION SERIALIZATION =====
 // The host keeps a single pending-save slot, so file reads, saves and uploads
@@ -310,6 +349,11 @@ async function onBinary(raw) {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 showToast(`Downloaded ${a.download}`);
+            } else if(isImageFile(pendingEditorPath)){
+                const mime=getImageMime(pendingEditorPath);
+                const blob=new Blob([dec],{type:mime});
+                const blobUrl=URL.createObjectURL(blob);
+                openImageTab(pendingEditorPath,blobUrl,dec.byteLength,dec);
             } else {
                 const txt=new TextDecoder().decode(dec);
                 _log.info('File received',{bytes:dec.byteLength});
@@ -626,7 +670,13 @@ function openEditorTab(path, text){
         activateEditorTab(id);
         return;
     }
-    const isText = isTextFile(path);
+    const hasBinary = (function(str){
+        if(!str) return false;
+        const len = Math.min(str.length, 1024);
+        for(let i=0; i<len; i++) if(str.charCodeAt(i) === 0) return true;
+        return false;
+    })(text);
+    const isText = !hasBinary && isTextFile(path);
     // Container in editor-container-wrap
     const cont = document.createElement('div');
     cont.id = 'content-' + CSS.escape(id);
@@ -722,9 +772,119 @@ function openEditorTab(path, text){
     }
 }
 
+function openImageTab(path, blobUrl, sizeBytes, rawBytes){
+    const id = 'file:' + path;
+    const isSvg = getFileExt(path) === 'svg';
+
+    if(editorTabs[id]){
+        if(editorTabs[id].blobUrl && editorTabs[id].blobUrl !== blobUrl){
+            try { URL.revokeObjectURL(editorTabs[id].blobUrl); } catch(e){}
+        }
+        editorTabs[id].blobUrl = blobUrl;
+        editorTabs[id].sizeBytes = sizeBytes;
+        editorTabs[id].rawBytes = rawBytes;
+        const imgEl = document.getElementById('img-el-' + CSS.escape(id));
+        if(imgEl) imgEl.src = blobUrl;
+        activateEditorTab(id);
+        return;
+    }
+
+    const cont = document.createElement('div');
+    cont.id = 'content-' + CSS.escape(id);
+    cont.dataset.type = 'image';
+    cont.className = 'editor-container image-preview-container';
+    cont.style.display = 'none';
+
+    const bar = document.createElement('div');
+    bar.className = 'editor-bar';
+    bar.innerHTML = `
+        <span class="editor-path">${esc(path)}</span>
+        <span class="editor-size">${fmtSize(sizeBytes)}</span>
+        <span class="image-dimensions" id="img-dim-${CSS.escape(id)}">Measuring...</span>
+    `;
+
+    const actions = document.createElement('div');
+    actions.className = 'image-bar-actions';
+
+    if(isSvg && rawBytes){
+        const editSvgBtn = document.createElement('button');
+        editSvgBtn.className = 'editor-btn-secondary';
+        editSvgBtn.innerText = '📝 Edit as Code';
+        editSvgBtn.title = 'Edit SVG code in editor';
+        editSvgBtn.onclick = () => {
+            const txt = new TextDecoder().decode(rawBytes);
+            closeEditorTab(id);
+            openEditorTab(path, txt);
+        };
+        actions.appendChild(editSvgBtn);
+    }
+
+    const dlBtn = document.createElement('button');
+    dlBtn.className = 'editor-btn-secondary';
+    dlBtn.innerText = '⬇ Download';
+    dlBtn.title = 'Download file';
+    dlBtn.onclick = () => {
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = basename(path);
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+    actions.appendChild(dlBtn);
+    bar.appendChild(actions);
+    cont.appendChild(bar);
+
+    const viewport = document.createElement('div');
+    viewport.className = 'image-viewport';
+    const img = document.createElement('img');
+    img.id = 'img-el-' + CSS.escape(id);
+    img.className = 'image-preview-img';
+    img.alt = basename(path);
+    img.src = blobUrl;
+    img.onload = () => {
+        const dimEl = document.getElementById('img-dim-' + CSS.escape(id));
+        if(dimEl && img.naturalWidth) {
+            dimEl.innerText = `${img.naturalWidth} × ${img.naturalHeight} px`;
+        }
+    };
+    img.onerror = () => {
+        const dimEl = document.getElementById('img-dim-' + CSS.escape(id));
+        if(dimEl) dimEl.innerText = 'Image load failed';
+    };
+    viewport.appendChild(img);
+    cont.appendChild(viewport);
+
+    const wrap = document.getElementById('editor-container-wrap') || document.getElementById('terminal-wrapper');
+    wrap.appendChild(cont);
+
+    const c = document.createElement('div');
+    c.id = 'tab-' + CSS.escape(id);
+    c.className = 'tab-btn-container editor-tab';
+    c.onclick = () => activateEditorTab(id);
+    enableTabDrag(c);
+    const icon = document.createElement('span'); icon.className = 'tab-icon'; icon.innerText = fileIcon(path);
+    const content = document.createElement('div'); content.className = 'tab-btn-content';
+    const title = document.createElement('span'); title.className = 'tab-title-text'; title.innerText = basename(path);
+    content.appendChild(title);
+
+    const close = document.createElement('button'); close.className = 'tab-close-btn'; close.innerText = '×';
+    close.onclick = e => { e.stopPropagation(); closeEditorTab(id); };
+
+    c.appendChild(icon); c.appendChild(content); c.appendChild(close);
+    const parentEditorTabs = document.getElementById('editor-tabs');
+    if(parentEditorTabs) parentEditorTabs.appendChild(c);
+
+    editorTabs[id] = { path, type: 'image', blobUrl, sizeBytes, rawBytes, cm: null, textarea: null, original: null };
+    activateEditorTab(id);
+}
+
 async function closeEditorTab(id){
     const et = editorTabs[id];
     if(et){
+        if(et.type === 'image' && et.blobUrl){
+            try { URL.revokeObjectURL(et.blobUrl); } catch(e){}
+        }
         const val = et.cm ? et.cm.getValue() : (et.textarea ? et.textarea.value : '');
         if(val !== et.original && !await uiConfirm('File has unsaved changes. Close anyway?', {title: 'Unsaved Changes', okText: 'Close', danger: true})) return;
         if(et.cm){
@@ -793,7 +953,16 @@ function renderFileList(path,files){
     files.forEach(f=>{
         const fp=(path.endsWith('/')?path:path+'/')+f.name;
         if(f.is_dir){list.appendChild(mkItem('📁',f.name,'',fp,true,()=>requestDir(fp)));}
-        else{list.appendChild(mkItem(fileIcon(f.name),f.name,fmtSize(f.size),fp,false,()=>{_log.info('Open file',{path:fp,isText:isTextFile(f.name)});if(!isTextFile(f.name)){downloadFile(fp,f.name);return;}openFileForEdit(fp);}));}
+        else{list.appendChild(mkItem(fileIcon(f.name),f.name,fmtSize(f.size),fp,false,()=>{
+            _log.info('Open file',{path:fp,isImage:isImageFile(fp),isText:isTextFile(fp)});
+            if(isImageFile(fp)){
+                openImageForView(fp);
+            } else if(isBinaryFile(fp)){
+                downloadFile(fp,f.name);
+            } else {
+                openFileForEdit(fp);
+            }
+        }));}
     });
 }
 
@@ -814,6 +983,14 @@ function downloadFile(path,name,e){
     pendingDownload=true;
     pendingDownloadName=name||basename(path);
     showToast(`Downloading ${pendingDownloadName}...`);
+    sendJson({type:'control',action:'req_read_file',path,transfer_id:currentTransferId});
+}
+
+function openImageForView(path){
+    if(!beginFileOp())return;
+    currentTransferId=newTransferId();
+    pendingDownload=false;
+    pendingDownloadName=null;
     sendJson({type:'control',action:'req_read_file',path,transfer_id:currentTransferId});
 }
 
@@ -1107,9 +1284,23 @@ function closeConfirm(result){
 // ===== PRESENCE + CHAT =====
 function updatePresence(tabs){
     document.querySelectorAll('.tab-subtext').forEach(el=>el.innerText='');
-    Object.keys(tabs).forEach(tid=>{const s=document.getElementById('tab-subtext-'+tid);if(s&&tabs[tid]&&tabs[tid].length)s.innerText=tabs[tid].join(', ');});
+    Object.keys(tabs||{}).forEach(tid=>{const s=document.getElementById('tab-subtext-'+tid);if(s&&tabs[tid]&&tabs[tid].length)s.innerText=tabs[tid].join(', ');});
     const list=document.getElementById('users-list');list.innerHTML='';
-    Object.keys(tabs).forEach(tid=>(tabs[tid]||[]).forEach(name=>{const i=document.createElement('div');i.className='user-item';i.innerHTML=`<span class="dot"></span><span class="user-name">${esc(name)}</span><span class="user-tab-badge">Tab ${tid}</span>`;list.appendChild(i);}));
+    const peers = new Set();
+    Object.keys(tabs||{}).forEach(tid=>(tabs[tid]||[]).forEach(name=>{
+        const i=document.createElement('div');i.className='user-item';i.innerHTML=`<span class="dot"></span><span class="user-name">${esc(name)}</span><span class="user-tab-badge">Tab ${tid}</span>`;list.appendChild(i);
+        if(name && name !== myUsername) peers.add(name);
+    }));
+    const collabBadge = document.getElementById('collab-badge-top');
+    if(collabBadge){
+        if(peers.size > 0){
+            collabBadge.innerText = peers.size > 99 ? '99+' : peers.size;
+            collabBadge.style.display = 'inline-flex';
+            collabBadge.title = `${peers.size} active collaborator(s)`;
+        } else {
+            collabBadge.style.display = 'none';
+        }
+    }
 }
 function handleChatKey(e){if(e.key==='Enter')sendChatMessage();}
 function sendChatMessage(){
@@ -1146,6 +1337,11 @@ function appendChat(sender,msg,time){
             badge.innerText=unreadChatCount>99?'99+':unreadChatCount;
             badge.style.display='inline-block';
         }
+        const topBadge=document.getElementById('chat-badge-top');
+        if(topBadge){
+            topBadge.innerText=unreadChatCount>99?'99+':unreadChatCount;
+            topBadge.style.display='inline-flex';
+        }
     }
 }
 
@@ -1180,11 +1376,15 @@ function switchSidebarTab(tabName){
         unreadActivityCount = 0;
         const b = document.getElementById('activity-badge');
         if(b) b.style.display = 'none';
+        const tb = document.getElementById('activity-badge-top');
+        if(tb) tb.style.display = 'none';
     }
     if(tabName === 'chat'){
         unreadChatCount = 0;
         const b = document.getElementById('chat-badge');
         if(b) b.style.display = 'none';
+        const tb = document.getElementById('chat-badge-top');
+        if(tb) tb.style.display = 'none';
         const ci = document.getElementById('chat-input');
         if(ci) setTimeout(() => ci.focus(), 60);
     }
@@ -1236,12 +1436,19 @@ function appendActivityLog(evt){
         list.scrollTop = list.scrollHeight;
     }
 
-    if(currentSidebarTab !== 'activity'){
+    const ws = document.getElementById('workspace');
+    const isSidebarHidden = ws && ws.classList.contains('sidebar-collapsed');
+    if(currentSidebarTab !== 'activity' || isSidebarHidden){
         unreadActivityCount++;
         const badge = document.getElementById('activity-badge');
         if(badge){
             badge.innerText = unreadActivityCount > 99 ? '99+' : unreadActivityCount;
             badge.style.display = 'inline-block';
+        }
+        const topBadge = document.getElementById('activity-badge-top');
+        if(topBadge){
+            topBadge.innerText = unreadActivityCount > 99 ? '99+' : unreadActivityCount;
+            topBadge.style.display = 'inline-flex';
         }
     }
 }
@@ -1789,6 +1996,19 @@ function toggleWebPreview(force) {
     }
     const panel = document.getElementById('preview-panel');
     const btn = document.getElementById('toggle-preview-btn');
+    const mainArea = document.getElementById('main-area');
+    const maxBtn = document.getElementById('preview-maximize-btn');
+
+    if (!webPreviewOpen && previewMaximized) {
+        previewMaximized = false;
+        if (panel) panel.classList.remove('is-maximized');
+        if (mainArea) mainArea.classList.remove('preview-maximized');
+        if (maxBtn) {
+            maxBtn.innerText = '□';
+            maxBtn.title = 'Maximize / Restore Preview (Full width)';
+        }
+    }
+
     if (panel) panel.style.display = webPreviewOpen ? 'flex' : 'none';
     if (btn) btn.classList.toggle('active', webPreviewOpen);
 
@@ -1899,6 +2119,23 @@ function togglePreviewMobile() {
     const btn = document.getElementById('preview-mobile-btn');
     if (wrap) wrap.classList.toggle('mobile-view', previewMobileMode);
     if (btn) btn.classList.toggle('active', previewMobileMode);
+}
+
+function togglePreviewMaximize() {
+    const previewPanel = document.getElementById('preview-panel');
+    const mainArea = document.getElementById('main-area');
+    const maxBtn = document.getElementById('preview-maximize-btn');
+    if (!previewPanel || !mainArea) return;
+
+    previewMaximized = !previewMaximized;
+    previewPanel.classList.toggle('is-maximized', previewMaximized);
+    mainArea.classList.toggle('preview-maximized', previewMaximized);
+
+    if (maxBtn) {
+        maxBtn.innerText = previewMaximized ? '❐' : '□';
+        maxBtn.title = previewMaximized ? 'Restore Preview' : 'Maximize / Restore Preview (Full width)';
+    }
+    setTimeout(refitActive, 50);
 }
 
 function handlePreviewPortKey(e) {

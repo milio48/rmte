@@ -562,6 +562,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     transition: all var(--dur-short) var(--ease-out);
     border-radius: 0;
     border-bottom: 2px solid transparent;
+    position: relative;
 }
 #toggle-sidebar-btn:hover, #toggle-chat-btn:hover, #toggle-activity-btn:hover, #copy-link-btn:hover, #help-btn:hover {
     color: var(--color-accent);
@@ -571,6 +572,40 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     color: var(--color-accent);
     background: var(--color-paper-3);
     border-bottom-color: var(--color-accent);
+}
+
+.topbar-badge {
+    position: absolute;
+    top: 5px;
+    right: 2px;
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+    font-size: 9px;
+    font-family: var(--font-body);
+    font-weight: 700;
+    line-height: 1;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    border-radius: var(--radius-pill);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 1.5px var(--color-paper-2);
+    pointer-events: none;
+    z-index: 2;
+}
+#chat-badge-top {
+    background: var(--color-green);
+    color: oklch(15% 0.05 155);
+}
+#activity-badge-top {
+    background: var(--color-orange);
+    color: oklch(15% 0.05 70);
+}
+#collab-badge-top {
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
 }
 #disconnect-btn:hover { color: var(--color-red); background: oklch(68% 0.19 25 / 0.06); }
 
@@ -1902,7 +1937,7 @@ kbd {
 #toggle-preview-btn {
     background: transparent;
     border: none;
-    color: var(--color-ink-muted);
+    color: var(--color-ink-2);
     font-size: 15px;
     padding: 0 10px;
     cursor: pointer;
@@ -1910,16 +1945,18 @@ kbd {
     align-items: center;
     justify-content: center;
     height: 100%;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
     transition: all var(--dur-short) var(--ease-out);
 }
 #toggle-preview-btn:hover {
-    color: var(--color-accent);
-    background: var(--color-paper-2);
+    color: var(--color-ink);
+    background: var(--color-paper-3);
 }
 #toggle-preview-btn.active {
-    color: #38bdf8;
-    background: var(--color-paper-2);
-    box-shadow: inset 0 -2px 0 #38bdf8;
+    color: var(--color-accent);
+    background: var(--color-paper-3);
+    border-bottom-color: var(--color-accent);
 }
 
 #preview-panel {
@@ -1930,6 +1967,88 @@ kbd {
     height: 100%;
     overflow: hidden;
     background: var(--color-paper-1);
+}
+
+#preview-panel.is-maximized {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+#main-area.preview-maximized #editor-workbench,
+#main-area.preview-maximized #terminal-panel,
+#main-area.preview-maximized #workbench-resizer {
+    display: none !important;
+}
+
+#main-area.preview-maximized #workbench-top {
+    height: 100% !important;
+    flex: 1 1 100% !important;
+}
+
+/* ── Image Viewer in Editor Workbench ── */
+.image-preview-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: var(--color-paper);
+}
+
+.image-viewport {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-md);
+    overflow: auto;
+    /* Transparent image checkerboard */
+    background-color: var(--color-paper-2);
+    background-image:
+        linear-gradient(45deg, var(--color-paper-3) 25%, transparent 25%),
+        linear-gradient(-45deg, var(--color-paper-3) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, var(--color-paper-3) 75%),
+        linear-gradient(-45deg, transparent 75%, var(--color-paper-3) 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+
+.image-preview-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+.image-dimensions, .editor-size {
+    font-size: var(--text-xs);
+    color: var(--color-ink-muted);
+    font-family: var(--font-mono);
+    margin-left: var(--space-xs);
+}
+
+.image-bar-actions {
+    margin-left: auto;
+    display: flex;
+    gap: var(--space-xs);
+}
+
+.editor-btn-secondary {
+    background: var(--color-paper-3);
+    color: var(--color-ink-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all var(--dur-short) var(--ease-out);
+}
+.editor-btn-secondary:hover {
+    color: var(--color-ink);
+    background: var(--color-paper-4);
+    border-color: var(--color-accent);
 }
 
 #preview-toolbar {

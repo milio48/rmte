@@ -92,9 +92,9 @@
             <button id="toggle-terminal-btn" onclick="toggleTerminalPanel()" title="Terminal Panel (Toggle Ctrl+`)" aria-label="Toggle terminal panel" class="active">💻</button>
             <div id="tabs-bar-spacer"></div>
             <div id="tabs" style="display:none;"></div>
-            <button id="toggle-sidebar-btn" onclick="toggleSidebar('collab')" title="Collaborators" aria-label="Toggle collaborators panel">👥</button>
-            <button id="toggle-chat-btn" onclick="toggleSidebar('chat')" title="Chat" aria-label="Toggle chat panel">💬</button>
-            <button id="toggle-activity-btn" onclick="toggleSidebar('activity')" title="Activity Log" aria-label="Toggle activity log panel">📜</button>
+            <button id="toggle-sidebar-btn" onclick="toggleSidebar('collab')" title="Collaborators" aria-label="Toggle collaborators panel">👥<span id="collab-badge-top" class="topbar-badge" style="display:none;">0</span></button>
+            <button id="toggle-chat-btn" onclick="toggleSidebar('chat')" title="Chat" aria-label="Toggle chat panel">💬<span id="chat-badge-top" class="topbar-badge" style="display:none;">0</span></button>
+            <button id="toggle-activity-btn" onclick="toggleSidebar('activity')" title="Activity Log" aria-label="Toggle activity log panel">📜<span id="activity-badge-top" class="topbar-badge" style="display:none;">0</span></button>
             <button id="copy-link-btn" onclick="toggleShareModal(true)" title="Share Session" aria-label="Share session">🔗</button>
             <button id="help-btn" onclick="toggleHelpModal()" title="Keyboard Shortcuts & Tips" aria-label="Help and keyboard shortcuts">❓</button>
             <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" id="github-link-btn" title="View RMTE on GitHub" aria-label="GitHub repository">🐙</a>
@@ -163,6 +163,7 @@
                             <div class="preview-actions-group">
                                 <button class="preview-btn" id="preview-open-tab-btn" onclick="previewOpenInNewTab()" title="Open in New Tab">↗</button>
                                 <button class="preview-btn" id="preview-mobile-btn" onclick="togglePreviewMobile()" title="Toggle Mobile View (390px)">📱</button>
+                                <button class="preview-btn" id="preview-maximize-btn" onclick="togglePreviewMaximize()" title="Maximize / Restore Preview (Full width)">□</button>
                                 <button class="preview-btn preview-close-btn" onclick="toggleWebPreview(false)" title="Close Preview">✕</button>
                             </div>
                         </div>
