@@ -589,8 +589,282 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 /* ═══════════════════════════════════════
    WORKSPACE LAYOUT
    ═══════════════════════════════════════ */
-#workspace { display: flex; flex-grow: 1; overflow: hidden; }
-#main-area { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; overflow: hidden; }
+#tabs-bar-spacer { flex-grow: 1; }
+
+#toggle-terminal-btn {
+    background: transparent;
+    border: none;
+    color: var(--color-ink-2);
+    width: 36px;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: var(--text-sm);
+    transition: all var(--dur-short) var(--ease-out);
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+}
+#toggle-terminal-btn:hover {
+    color: var(--color-accent);
+    background: var(--color-paper-3);
+}
+#toggle-terminal-btn.active {
+    color: var(--color-accent);
+    background: var(--color-paper-3);
+    border-bottom-color: var(--color-accent);
+}
+
+#workspace {
+    display: flex;
+    flex-grow: 1;
+    overflow: hidden;
+    position: relative;
+    --terminal-panel-height: 35%;
+}
+
+#main-area {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+    background: var(--color-paper);
+}
+
+/* ── Upper Workbench Area: Editor + Preview ── */
+#workbench-top {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 120px;
+    overflow: hidden;
+    position: relative;
+    background: var(--color-paper);
+}
+
+#editor-workbench {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--color-paper);
+    position: relative;
+}
+
+#editor-tabs-bar {
+    display: flex;
+    align-items: stretch;
+    height: 36px;
+    background: var(--color-paper-2);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+#editor-tabs-bar::-webkit-scrollbar { display: none; }
+
+#editor-tabs {
+    display: flex;
+    gap: 2px;
+    align-items: stretch;
+    padding: 0 4px;
+    height: 100%;
+}
+
+#editor-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-grow: 1;
+    height: 100%;
+    gap: var(--space-xs);
+    color: var(--color-ink-muted);
+    user-select: none;
+    text-align: center;
+    padding: var(--space-md);
+}
+
+.editor-empty-icon {
+    font-size: 36px;
+    opacity: 0.7;
+    margin-bottom: var(--space-2xs);
+}
+
+.editor-empty-title {
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    font-weight: 600;
+    color: var(--color-ink-2);
+}
+
+.editor-empty-desc {
+    font-size: var(--text-xs);
+    max-width: 320px;
+    line-height: 1.5;
+}
+
+#editor-container-wrap {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+/* ── Workbench Split Resizer ── */
+#workbench-resizer {
+    height: 6px;
+    cursor: row-resize;
+    background: var(--color-border);
+    flex-shrink: 0;
+    transition: background 0.15s ease;
+    user-select: none;
+    position: relative;
+    z-index: 10;
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#workbench-resizer:hover,
+#workbench-resizer.is-dragging {
+    background: var(--color-accent);
+}
+
+.workbench-resizer-line {
+    width: 36px;
+    height: 2px;
+    border-radius: 1px;
+    background: transparent;
+    transition: background 0.15s ease;
+}
+
+#workbench-resizer:hover .workbench-resizer-line,
+#workbench-resizer.is-dragging .workbench-resizer-line {
+    background: oklch(100% 0 0 / 0.8);
+}
+
+/* ── Bottom Integrated Terminal Dock ── */
+#terminal-panel {
+    display: flex;
+    flex-direction: column;
+    height: var(--terminal-panel-height, 35%);
+    min-height: 32px;
+    flex-shrink: 0;
+    overflow: hidden;
+    background: oklch(8% 0.01 260);
+    position: relative;
+    border-top: 1px solid var(--color-border);
+}
+
+#terminal-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 34px;
+    background: var(--color-paper-2);
+    border-bottom: 1px solid var(--color-border);
+    padding: 0 var(--space-xs);
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.term-panel-header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    flex-grow: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
+    height: 100%;
+}
+.term-panel-header-left::-webkit-scrollbar { display: none; }
+
+.term-panel-icon {
+    font-size: 13px;
+    margin-right: var(--space-3xs);
+    color: var(--color-ink-2);
+}
+
+#terminal-tabs {
+    display: flex;
+    align-items: stretch;
+    height: 100%;
+    gap: 2px;
+}
+
+.term-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.term-action-btn {
+    background: transparent;
+    border: none;
+    color: var(--color-ink-muted);
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all var(--dur-short) var(--ease-out);
+}
+
+.term-action-btn:hover {
+    color: var(--color-ink);
+    background: var(--color-paper-3);
+}
+
+/* Terminal panel states */
+#terminal-panel.is-collapsed {
+    height: 34px !important;
+}
+#terminal-panel.is-collapsed #terminal-wrapper {
+    display: none !important;
+}
+
+#terminal-panel.is-maximized {
+    height: 100% !important;
+    flex-grow: 1;
+}
+
+#main-area.terminal-maximized #workbench-top,
+#main-area.terminal-maximized #workbench-resizer {
+    display: none !important;
+}
+
+#terminal-panel.is-hidden {
+    display: none !important;
+}
+#main-area.terminal-hidden #workbench-resizer {
+    display: none !important;
+}
+#main-area.terminal-hidden #workbench-top {
+    flex-grow: 1;
+}
+
+/* Shield overlay to prevent iframe stealing pointer events during drag */
+#preview-drag-shield {
+    position: absolute;
+    inset: 0;
+    z-index: 99;
+    background: transparent;
+}
 
 /* ── File Explorer ── */
 #file-explorer {
@@ -1826,5 +2100,29 @@ kbd {
     border-radius: 16px;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
+
+/* ═══════════════════════════════════════
+   RESPONSIVE WORKBENCH (< 768px)
+   ═══════════════════════════════════════ */
+@media (max-width: 768px) {
+    #workbench-resizer {
+        display: none !important;
+    }
+    #main-area.mobile-view-terminal #workbench-top {
+        display: none !important;
+    }
+    #main-area.mobile-view-terminal #terminal-panel {
+        height: 100% !important;
+        flex-grow: 1;
+    }
+    #main-area.mobile-view-editor #terminal-panel {
+        display: none !important;
+    }
+    #main-area.mobile-view-editor #workbench-top {
+        height: 100% !important;
+        flex-grow: 1;
+    }
+}
+
 
 

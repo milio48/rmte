@@ -87,10 +87,11 @@
             <div class="tabs-brand" title="RMTE — Remote Terminal Relay">
                 <img src="rmte.svg" alt="RMTE Logo" class="tabs-brand-logo" />
             </div>
-            <button id="toggle-files-btn" onclick="toggleFileManager()" title="File Explorer (Toggle)" aria-label="Toggle file explorer">📁</button>
+            <button id="toggle-files-btn" onclick="toggleFileManager()" title="File Explorer (Toggle Ctrl+B)" aria-label="Toggle file explorer">📁</button>
             <button id="toggle-preview-btn" onclick="toggleWebPreview()" title="Web Browser Preview (Toggle)" aria-label="Toggle browser preview">🌐</button>
-            <div id="tabs"></div>
-            <button id="new-tab-btn" onclick="requestNewTab()" title="Open New Terminal Tab (+)" aria-label="New terminal"><span class="new-tab-plus">+</span><span class="new-tab-label">Terminal</span></button>
+            <button id="toggle-terminal-btn" onclick="toggleTerminalPanel()" title="Terminal Panel (Toggle Ctrl+`)" aria-label="Toggle terminal panel" class="active">💻</button>
+            <div id="tabs-bar-spacer"></div>
+            <div id="tabs" style="display:none;"></div>
             <button id="toggle-sidebar-btn" onclick="toggleSidebar('collab')" title="Collaborators" aria-label="Toggle collaborators panel">👥</button>
             <button id="toggle-chat-btn" onclick="toggleSidebar('chat')" title="Chat" aria-label="Toggle chat panel">💬</button>
             <button id="toggle-activity-btn" onclick="toggleSidebar('activity')" title="Activity Log" aria-label="Toggle activity log panel">📜</button>
@@ -129,32 +130,68 @@
             <div id="fe-resizer" title="Drag to resize file explorer"></div>
             <!-- Main Area -->
             <div id="main-area">
-                <div id="terminal-wrapper"></div>
-                <!-- Mini Browser Preview Panel -->
-                <div id="preview-panel" style="display:none;">
-                    <div id="preview-toolbar">
-                        <div class="preview-nav-group">
-                            <button class="preview-btn" id="preview-back-btn" onclick="previewGoBack()" title="Back">◀</button>
-                            <button class="preview-btn" id="preview-forward-btn" onclick="previewGoForward()" title="Forward">▶</button>
-                            <button class="preview-btn" id="preview-reload-btn" onclick="previewReload()" title="Reload">⟳</button>
+                <!-- Upper Area: Editor Workbench + Web Preview -->
+                <div id="workbench-top">
+                    <div id="editor-workbench">
+                        <div id="editor-tabs-bar">
+                            <div id="editor-tabs"></div>
                         </div>
-                        <div class="preview-address-bar">
-                            <span class="preview-address-icon">🌐</span>
-                            <span class="preview-address-prefix">http://localhost:</span>
-                            <input type="number" id="preview-port-input" min="1" max="65535" placeholder="8080" onkeydown="handlePreviewPortKey(event)">
-                            <span class="preview-address-slash">/</span>
-                            <input type="text" id="preview-path-input" placeholder="" onkeydown="handlePreviewPathKey(event)">
-                            <button id="preview-go-btn" onclick="previewNavigate()" title="Go">↵</button>
+                        <div id="editor-empty-state">
+                            <div class="editor-empty-icon">📝</div>
+                            <div class="editor-empty-title">No file open</div>
+                            <div class="editor-empty-desc">Open a file from the explorer (📁) to edit code, or run commands in the terminal below</div>
                         </div>
-                        <div class="preview-actions-group">
-                            <button class="preview-btn" id="preview-open-tab-btn" onclick="previewOpenInNewTab()" title="Open in New Tab">↗</button>
-                            <button class="preview-btn" id="preview-mobile-btn" onclick="togglePreviewMobile()" title="Toggle Mobile View (390px)">📱</button>
-                            <button class="preview-btn preview-close-btn" onclick="toggleWebPreview(false)" title="Close Preview">✕</button>
+                        <div id="editor-container-wrap"></div>
+                    </div>
+                    <!-- Mini Browser Preview Panel -->
+                    <div id="preview-panel" style="display:none;">
+                        <div id="preview-toolbar">
+                            <div class="preview-nav-group">
+                                <button class="preview-btn" id="preview-back-btn" onclick="previewGoBack()" title="Back">◀</button>
+                                <button class="preview-btn" id="preview-forward-btn" onclick="previewGoForward()" title="Forward">▶</button>
+                                <button class="preview-btn" id="preview-reload-btn" onclick="previewReload()" title="Reload">⟳</button>
+                            </div>
+                            <div class="preview-address-bar">
+                                <span class="preview-address-icon">🌐</span>
+                                <span class="preview-address-prefix">http://localhost:</span>
+                                <input type="number" id="preview-port-input" min="1" max="65535" placeholder="8080" onkeydown="handlePreviewPortKey(event)">
+                                <span class="preview-address-slash">/</span>
+                                <input type="text" id="preview-path-input" placeholder="" onkeydown="handlePreviewPathKey(event)">
+                                <button id="preview-go-btn" onclick="previewNavigate()" title="Go">↵</button>
+                            </div>
+                            <div class="preview-actions-group">
+                                <button class="preview-btn" id="preview-open-tab-btn" onclick="previewOpenInNewTab()" title="Open in New Tab">↗</button>
+                                <button class="preview-btn" id="preview-mobile-btn" onclick="togglePreviewMobile()" title="Toggle Mobile View (390px)">📱</button>
+                                <button class="preview-btn preview-close-btn" onclick="toggleWebPreview(false)" title="Close Preview">✕</button>
+                            </div>
+                        </div>
+                        <div id="preview-viewport-wrap">
+                            <iframe id="preview-frame" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-same-origin" src="about:blank"></iframe>
+                            <div id="preview-drag-shield" style="display:none;"></div>
                         </div>
                     </div>
-                    <div id="preview-viewport-wrap">
-                        <iframe id="preview-frame" sandbox="allow-scripts allow-forms allow-modals allow-downloads allow-same-origin" src="about:blank"></iframe>
+                </div>
+
+                <!-- Workbench Resizer Handle -->
+                <div id="workbench-resizer" role="separator" aria-orientation="horizontal" tabindex="0" title="Drag to resize terminal panel (double click to reset)">
+                    <div class="workbench-resizer-line"></div>
+                </div>
+
+                <!-- Bottom Panel: Integrated Terminal Dock -->
+                <div id="terminal-panel">
+                    <div id="terminal-panel-header">
+                        <div class="term-panel-header-left">
+                            <span class="term-panel-icon">💻</span>
+                            <div id="terminal-tabs"></div>
+                            <button id="new-tab-btn" onclick="requestNewTab()" title="Open New Terminal Tab (+)" aria-label="New terminal"><span class="new-tab-plus">+</span><span class="new-tab-label">Terminal</span></button>
+                        </div>
+                        <div class="term-panel-actions">
+                            <button class="term-action-btn" id="term-collapse-btn" onclick="toggleTerminalPanel()" title="Toggle Terminal Panel (Ctrl+`)">_</button>
+                            <button class="term-action-btn" id="term-maximize-btn" onclick="toggleTerminalMaximize()" title="Maximize / Restore Terminal">□</button>
+                            <button class="term-action-btn" id="term-close-btn" onclick="toggleTerminalPanel(false)" title="Hide Terminal Panel">✕</button>
+                        </div>
                     </div>
+                    <div id="terminal-wrapper"></div>
                 </div>
             </div>
             <!-- Sidebar -->

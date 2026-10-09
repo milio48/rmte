@@ -1,5 +1,7 @@
-// RMTE v0.6 — Web Viewer with Editor Tabs + File Manager + Web Preview
+// RMTE v0.6 — Web Viewer with Editor Workbench + Split Terminal Dock + Preview
 let ws, aesKey, rawAesKeyBytes = null, currentTab = 'term-0', myUsername = '';
+let activeEditorTab = null, activeTerminalTab = 'term-0';
+let terminalPanelCollapsed = false, terminalPanelMaximized = false;
 const myViewerId = 'v-web-' + Math.random().toString(16).slice(2,10);
 let terminals = {}, editorTabs = {};
 let fileManagerOpen = false, currentFilePath = './';
@@ -327,55 +329,117 @@ async function onBinary(raw) {
     }
 }
 
-// ===== TAB SYSTEM =====
-// Tab IDs: "term-N" for terminals, "file:path" for editors
-function activeTabId(){return currentTab;}
-function switchToTab(id){
-    if(webPreviewOpen){
-        toggleWebPreview(false);
-    }
-    currentTab=id;
-    document.querySelectorAll('.tab-btn-container').forEach(b=>b.classList.remove('active'));
-    const el=document.getElementById('tab-'+CSS.escape(id));
-    if(el)el.classList.add('active');
-    // Hide all containers
-    document.querySelectorAll('#terminal-wrapper > div').forEach(d=>d.style.display='none');
-    const cont=document.getElementById('content-'+CSS.escape(id));
-    if(cont)cont.style.display=cont.dataset.type==='editor'?'flex':'block';
-    // Terminal-specific
-    if(id.startsWith('term-')){
-        const tid=parseInt(id.slice(5));
-        if(terminals[tid]){setTimeout(()=>{terminals[tid].fitAddon.fit();},20);terminals[tid].term.focus();}
-        sendJson({type:'control',action:'set_focus',viewer_id:myViewerId,viewer_name:myUsername,tab_id:tid});
-        sendJson({type:'control',action:'req_sync',tab_id:tid});
-    } else if(id.startsWith('file:')&&editorTabs[id]&&editorTabs[id].cm){
-        setTimeout(()=>{try{editorTabs[id].cm.refresh();}catch(e){}},20);
-    }
-    setTimeout(refitActive,50);
+// ===== TAB SYSTEM (WORKBENCH ARCHITECTURE) =====
+// Separates Editor Tabs (upper pane) from Terminal Tabs (dock panel)
+function activeTabId(){ return activeEditorTab || activeTerminalTab; }
+
+function updateEditorEmptyState(){
+    const emptyState = document.getElementById('editor-empty-state');
+    if(!emptyState) return;
+    const hasFiles = Object.keys(editorTabs).length > 0;
+    emptyState.style.display = hasFiles ? 'none' : 'flex';
 }
-function refitActive(){
-    if(currentTab.startsWith('term-')){
-        const tid=parseInt(currentTab.slice(5)),t=terminals[tid];
-        if(!t)return;
-        try{t.fitAddon.fit();sendJson({type:'control',action:'resize',tab_id:tid,cols:t.term.cols,rows:t.term.rows});}catch(e){}
-    } else if(currentTab.startsWith('file:')&&editorTabs[currentTab]&&editorTabs[currentTab].cm){
-        try{editorTabs[currentTab].cm.refresh();}catch(e){}
+
+function switchToTab(id){
+    if(id.startsWith('file:')){
+        activateEditorTab(id);
+    } else if(id.startsWith('term-')){
+        activateTerminalTab(id);
     }
+}
+
+function activateEditorTab(id){
+    activeEditorTab = id;
+    currentTab = id;
+    document.querySelectorAll('#editor-tabs .tab-btn-container').forEach(b => b.classList.remove('active'));
+    const el = document.getElementById('tab-' + CSS.escape(id));
+    if(el) el.classList.add('active');
+
+    // Show selected editor container in editor-container-wrap
+    document.querySelectorAll('#editor-container-wrap > div').forEach(d => d.style.display = 'none');
+    const cont = document.getElementById('content-' + CSS.escape(id));
+    if(cont) cont.style.display = cont.dataset.type === 'editor' ? 'flex' : 'block';
+
+    updateEditorEmptyState();
+
+    if(editorTabs[id] && editorTabs[id].cm){
+        setTimeout(() => {
+            try { editorTabs[id].cm.refresh(); } catch(e){}
+        }, 20);
+    }
+}
+
+function activateTerminalTab(id){
+    activeTerminalTab = id;
+    if(!activeEditorTab) currentTab = id;
+    document.querySelectorAll('#terminal-tabs .tab-btn-container').forEach(b => b.classList.remove('active'));
+    const el = document.getElementById('tab-' + CSS.escape(id));
+    if(el) el.classList.add('active');
+
+    // Show selected terminal container in terminal-wrapper
+    document.querySelectorAll('#terminal-wrapper > div').forEach(d => d.style.display = 'none');
+    const cont = document.getElementById('content-' + CSS.escape(id));
+    if(cont) cont.style.display = 'block';
+
+    const tid = parseInt(id.slice(5));
+    if(terminals[tid]){
+        setTimeout(() => {
+            refitTerminal(tid);
+            try { terminals[tid].term.focus(); } catch(e){}
+        }, 20);
+    }
+    sendJson({type: 'control', action: 'set_focus', viewer_id: myViewerId, viewer_name: myUsername, tab_id: tid});
+    sendJson({type: 'control', action: 'req_sync', tab_id: tid});
+}
+
+function refitActive(){
+    if(activeTerminalTab && activeTerminalTab.startsWith('term-')){
+        const tid = parseInt(activeTerminalTab.slice(5));
+        refitTerminal(tid);
+    }
+    if(activeEditorTab && editorTabs[activeEditorTab] && editorTabs[activeEditorTab].cm){
+        try { editorTabs[activeEditorTab].cm.refresh(); } catch(e){}
+    }
+}
+
+function refitTerminal(tid){
+    const t = terminals[tid];
+    if(!t) return;
+    const panel = document.getElementById('terminal-panel');
+    if(!panel || panel.classList.contains('is-collapsed') || panel.classList.contains('is-hidden')) return;
+    const wrap = document.getElementById('terminal-wrapper');
+    if(!wrap || wrap.clientWidth <= 0 || wrap.clientHeight <= 0) return;
+    try {
+        const prevCols = t.term.cols;
+        const prevRows = t.term.rows;
+        t.fitAddon.fit();
+        if(t.term.cols !== prevCols || t.term.rows !== prevRows){
+            sendJson({type: 'control', action: 'resize', tab_id: tid, cols: t.term.cols, rows: t.term.rows});
+        }
+    } catch(e){}
 }
 
 // Terminal tabs
 function initTerminal(tabId){
-    if(terminals[tabId])return;
-    const id='term-'+tabId;
-    const cont=document.createElement('div');cont.id='content-'+CSS.escape(id);cont.dataset.type='terminal';
-    cont.style.cssText='height:100%;width:100%;display:'+(currentTab===id?'block':'none');
+    if(terminals[tabId]) return;
+    const id = 'term-' + tabId;
+    const cont = document.createElement('div');
+    cont.id = 'content-' + CSS.escape(id);
+    cont.dataset.type = 'terminal';
+    cont.style.cssText = 'height:100%;width:100%;display:' + (activeTerminalTab === id ? 'block' : 'none');
     document.getElementById('terminal-wrapper').appendChild(cont);
-    const t=new Terminal({cursorBlink:true,convertEol:true,theme:{background:'#0d1117',foreground:'#e6edf3',cursor:'#58a6ff'},fontFamily:"'Consolas','Courier New',monospace",fontSize:14});
+    const t = new Terminal({
+        cursorBlink: true,
+        convertEol: true,
+        theme: {background: '#0d1117', foreground: '#e6edf3', cursor: '#58a6ff'},
+        fontFamily: "'Consolas','Courier New',monospace",
+        fontSize: 14
+    });
     t.attachCustomKeyEventHandler(e => {
-        if (e.type === 'keydown' && (e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
-            if (t.hasSelection()) {
+        if(e.type === 'keydown' && (e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+            if(t.hasSelection()){
                 const sel = t.getSelection();
-                if (navigator.clipboard && navigator.clipboard.writeText) {
+                if(navigator.clipboard && navigator.clipboard.writeText){
                     navigator.clipboard.writeText(sel).catch(()=>{});
                 }
                 return false;
@@ -384,172 +448,240 @@ function initTerminal(tabId){
                 return false;
             }
         }
+        // Let Workbench shortcuts pass through without terminal interception
+        if(e.type === 'keydown' && (e.ctrlKey || e.metaKey) && (e.key === '`' || e.key === '~' || e.key === 'b' || e.key === 'B')) {
+            return true;
+        }
         return true;
     });
-    const fa=new FitAddon.FitAddon();t.loadAddon(fa);
-    terminals[tabId]={term:t,fitAddon:fa};
-    t.open(cont);fa.fit();
-    t.onData(d=>sendBin(tabId,new TextEncoder().encode(d)));
+    const fa = new FitAddon.FitAddon();
+    t.loadAddon(fa);
+    terminals[tabId] = {term: t, fitAddon: fa};
+    t.open(cont);
+    try { fa.fit(); } catch(e){}
+    t.onData(d => sendBin(tabId, new TextEncoder().encode(d)));
     addTermTabBtn(tabId);
-    if(!document.querySelector('.tab-btn-container.active'))switchToTab(id);
+    if(!activeTerminalTab || !document.querySelector('#terminal-tabs .tab-btn-container.active')){
+        activateTerminalTab(id);
+    }
 }
-let draggedTabEl=null;
+
+let draggedTabEl = null;
 function enableTabDrag(el){
-    el.draggable=true;
-    el.addEventListener('dragstart',e=>{
-        draggedTabEl=el;
+    el.draggable = true;
+    el.addEventListener('dragstart', e => {
+        draggedTabEl = el;
         el.classList.add('tab-dragging');
-        e.dataTransfer.effectAllowed='move';
-        e.dataTransfer.setData('text/plain',el.id);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', el.id);
     });
-    el.addEventListener('dragend',()=>{
+    el.addEventListener('dragend', () => {
         el.classList.remove('tab-dragging');
-        draggedTabEl=null;
+        draggedTabEl = null;
     });
-    el.addEventListener('dragover',e=>{
+    el.addEventListener('dragover', e => {
         e.preventDefault();
-        e.dataTransfer.dropEffect='move';
-        if(!draggedTabEl||draggedTabEl===el)return;
-        const rect=el.getBoundingClientRect();
-        const mid=rect.left+rect.width/2;
-        const parent=el.parentNode;
-        if(!parent)return;
-        if(e.clientX<mid){
-            parent.insertBefore(draggedTabEl,el);
+        e.dataTransfer.dropEffect = 'move';
+        if(!draggedTabEl || draggedTabEl === el) return;
+        const parent = el.parentNode;
+        // Strictly scope drag reordering within the same parent tab container!
+        if(!parent || draggedTabEl.parentNode !== parent) return;
+        const rect = el.getBoundingClientRect();
+        const mid = rect.left + rect.width / 2;
+        if(e.clientX < mid){
+            parent.insertBefore(draggedTabEl, el);
         } else {
-            parent.insertBefore(draggedTabEl,el.nextSibling);
+            parent.insertBefore(draggedTabEl, el.nextSibling);
         }
     });
 }
 
 function addTermTabBtn(tabId){
-    const id='term-'+tabId;
-    if(document.getElementById('tab-'+CSS.escape(id)))return;
-    const c=document.createElement('div');c.id='tab-'+CSS.escape(id);c.className='tab-btn-container'+(currentTab===id?' active':'');
-    c.onclick=()=>switchToTab(id);
+    const id = 'term-' + tabId;
+    if(document.getElementById('tab-' + CSS.escape(id))) return;
+    const c = document.createElement('div');
+    c.id = 'tab-' + CSS.escape(id);
+    c.className = 'tab-btn-container' + (activeTerminalTab === id ? ' active' : '');
+    c.onclick = () => activateTerminalTab(id);
     enableTabDrag(c);
-    const icon=document.createElement('span');icon.className='tab-icon';icon.innerText='⬛';
-    const content=document.createElement('div');content.className='tab-btn-content';
-    const title=document.createElement('span');title.className='tab-title-text';title.innerText='Tab '+tabId;
-    const sub=document.createElement('span');sub.id='tab-subtext-'+tabId;sub.className='tab-subtext';
-    content.appendChild(title);content.appendChild(sub);
-    const close=document.createElement('button');close.className='tab-close-btn';close.innerText='×';
-    close.onclick=async e=>{e.stopPropagation();if(await uiConfirm('Delete Tab '+tabId+'?',{okText:'Delete',danger:true}))sendJson({type:'control',action:'delete_tab',tab_id:tabId});};
-    c.appendChild(icon);c.appendChild(content);c.appendChild(close);
-    document.getElementById('tabs').appendChild(c);
+    const icon = document.createElement('span'); icon.className = 'tab-icon'; icon.innerText = '⬛';
+    const content = document.createElement('div'); content.className = 'tab-btn-content';
+    const title = document.createElement('span'); title.className = 'tab-title-text'; title.innerText = 'Tab ' + tabId;
+    const sub = document.createElement('span'); sub.id = 'tab-subtext-' + tabId; sub.className = 'tab-subtext';
+    content.appendChild(title); content.appendChild(sub);
+    const close = document.createElement('button'); close.className = 'tab-close-btn'; close.innerText = '×';
+    close.onclick = async e => {
+        e.stopPropagation();
+        if(await uiConfirm('Delete Tab ' + tabId + '?', {okText: 'Delete', danger: true})){
+            sendJson({type: 'control', action: 'delete_tab', tab_id: tabId});
+        }
+    };
+    c.appendChild(icon); c.appendChild(content); c.appendChild(close);
+    const parentTabs = document.getElementById('terminal-tabs') || document.getElementById('tabs');
+    parentTabs.appendChild(c);
 }
+
 function removeTermTab(tabId){
-    const id='term-'+tabId;
-    const el=document.getElementById('tab-'+CSS.escape(id));if(el)el.remove();
-    const cont=document.getElementById('content-'+CSS.escape(id));if(cont)cont.remove();
-    if(terminals[tabId]){terminals[tabId].term.dispose();delete terminals[tabId];}
-    if(currentTab===id){const k=Object.keys(terminals);if(k.length)switchToTab('term-'+k[0]);else{const et=Object.keys(editorTabs);if(et.length)switchToTab(et[0]);}}
+    const id = 'term-' + tabId;
+    const el = document.getElementById('tab-' + CSS.escape(id)); if(el) el.remove();
+    const cont = document.getElementById('content-' + CSS.escape(id)); if(cont) cont.remove();
+    if(terminals[tabId]){
+        try { terminals[tabId].term.dispose(); } catch(e){}
+        delete terminals[tabId];
+    }
+    if(activeTerminalTab === id){
+        const k = Object.keys(terminals);
+        if(k.length) activateTerminalTab('term-' + k[0]);
+        else activeTerminalTab = null;
+    }
 }
-function requestNewTab(){sendJson({type:'control',action:'request_new_tab'});}
+function requestNewTab(){
+    sendJson({type: 'control', action: 'request_new_tab'});
+    if(terminalPanelCollapsed){
+        toggleTerminalPanel(false);
+    }
+}
 
 // Editor tabs
 function checkDirty(id){
-    const et=editorTabs[id];if(!et)return;
-    const val=et.cm?et.cm.getValue():(et.textarea?et.textarea.value:'');
-    const isDirty=val!==et.original;
-    const tabEl=document.getElementById('tab-'+CSS.escape(id));
-    if(tabEl)tabEl.classList.toggle('dirty',isDirty);
+    const et = editorTabs[id]; if(!et) return;
+    const val = et.cm ? et.cm.getValue() : (et.textarea ? et.textarea.value : '');
+    const isDirty = val !== et.original;
+    const tabEl = document.getElementById('tab-' + CSS.escape(id));
+    if(tabEl) tabEl.classList.toggle('dirty', isDirty);
 }
 
-function openEditorTab(path,text){
-    const id='file:'+path;
+function openEditorTab(path, text){
+    const id = 'file:' + path;
     if(editorTabs[id]){
         if(editorTabs[id].cm){
             editorTabs[id].cm.setValue(text);
-            setTimeout(()=>{try{editorTabs[id].cm.refresh();}catch(e){}},20);
+            setTimeout(() => { try { editorTabs[id].cm.refresh(); } catch(e){} }, 20);
+        } else if(editorTabs[id].textarea){
+            editorTabs[id].textarea.value = text;
         }
-        else if(editorTabs[id].textarea)editorTabs[id].textarea.value=text;
-        editorTabs[id].original=text;
+        editorTabs[id].original = text;
         checkDirty(id);
-        switchToTab(id);
+        activateEditorTab(id);
         return;
     }
-    const isText=isTextFile(path);
-    // Container
-    const cont=document.createElement('div');cont.id='content-'+CSS.escape(id);cont.dataset.type='editor';cont.className='editor-container';cont.style.display='none';
+    const isText = isTextFile(path);
+    // Container in editor-container-wrap
+    const cont = document.createElement('div');
+    cont.id = 'content-' + CSS.escape(id);
+    cont.dataset.type = 'editor';
+    cont.className = 'editor-container';
+    cont.style.display = 'none';
+
     // Bar
-    const bar=document.createElement('div');bar.className='editor-bar';
-    bar.innerHTML=`<span class="editor-path">${esc(path)}</span><span class="editor-lang">${getLang(path)}</span><span class="editor-status" id="estatus-${CSS.escape(id)}"></span>`;
+    const bar = document.createElement('div');
+    bar.className = 'editor-bar';
+    bar.innerHTML = `<span class="editor-path">${esc(path)}</span><span class="editor-lang">${getLang(path)}</span><span class="editor-status" id="estatus-${CSS.escape(id)}"></span>`;
     if(isText){
-        const saveBtn=document.createElement('button');saveBtn.className='editor-save';saveBtn.innerText='💾 Save';
-        saveBtn.onclick=()=>saveEditor(id,path);bar.appendChild(saveBtn);
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'editor-save';
+        saveBtn.innerText = '💾 Save';
+        saveBtn.onclick = () => saveEditor(id, path);
+        bar.appendChild(saveBtn);
     }
     cont.appendChild(bar);
 
-    let cmInstance=null, taInstance=null;
+    let cmInstance = null, taInstance = null;
     if(isText){
-        if(typeof CodeMirror!=='undefined'){
+        if(typeof CodeMirror !== 'undefined'){
             try {
-                cmInstance=CodeMirror(cont,{
-                    value:text,
-                    mode:getCodeMirrorMode(path),
-                    theme:'material-darker',
-                    lineNumbers:true,
-                    indentUnit:4,
-                    tabSize:4,
-                    indentWithTabs:true,
-                    lineWrapping:false
+                cmInstance = CodeMirror(cont, {
+                    value: text,
+                    mode: getCodeMirrorMode(path),
+                    theme: 'material-darker',
+                    lineNumbers: true,
+                    indentUnit: 4,
+                    tabSize: 4,
+                    indentWithTabs: true,
+                    lineWrapping: false
                 });
-                cmInstance.on('change',()=>checkDirty(id));
-                editorTabs[id]={path,cm:cmInstance,textarea:null,original:text};
+                cmInstance.on('change', () => checkDirty(id));
+                editorTabs[id] = {path, cm: cmInstance, textarea: null, original: text};
             } catch(cmErr){
                 console.warn('CodeMirror failed to initialize, falling back to textarea:', cmErr);
-                cmInstance=null;
+                cmInstance = null;
             }
         }
         if(!cmInstance){
-            taInstance=document.createElement('textarea');taInstance.className='editor-textarea';taInstance.spellcheck=false;taInstance.value=text;
-            taInstance.addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const s=taInstance.selectionStart;taInstance.value=taInstance.value.substring(0,s)+'\t'+taInstance.value.substring(taInstance.selectionEnd);taInstance.selectionStart=taInstance.selectionEnd=s+1;}});
-            taInstance.addEventListener('input',()=>checkDirty(id));
+            taInstance = document.createElement('textarea');
+            taInstance.className = 'editor-textarea';
+            taInstance.spellcheck = false;
+            taInstance.value = text;
+            taInstance.addEventListener('keydown', e => {
+                if(e.key === 'Tab'){
+                    e.preventDefault();
+                    const s = taInstance.selectionStart;
+                    taInstance.value = taInstance.value.substring(0, s) + '\t' + taInstance.value.substring(taInstance.selectionEnd);
+                    taInstance.selectionStart = taInstance.selectionEnd = s + 1;
+                }
+            });
+            taInstance.addEventListener('input', () => checkDirty(id));
             cont.appendChild(taInstance);
-            editorTabs[id]={path,cm:null,textarea:taInstance,original:text};
+            editorTabs[id] = {path, cm: null, textarea: taInstance, original: text};
         }
     } else {
-        const bp=document.createElement('div');bp.className='binary-preview';
-        bp.innerHTML=`<span class="bp-icon">${fileIcon(path)}</span><span class="bp-msg">Binary file — cannot preview</span><span class="bp-msg" style="font-size:11px;color:#484f58">${fmtSize(text.length)} · ${path}</span>`;
+        const bp = document.createElement('div');
+        bp.className = 'binary-preview';
+        bp.innerHTML = `<span class="bp-icon">${fileIcon(path)}</span><span class="bp-msg">Binary file — cannot preview</span><span class="bp-msg" style="font-size:11px;color:#484f58">${fmtSize(text.length)} · ${path}</span>`;
         cont.appendChild(bp);
-        editorTabs[id]={path,cm:null,textarea:null,original:null};
+        editorTabs[id] = {path, cm: null, textarea: null, original: null};
     }
-    document.getElementById('terminal-wrapper').appendChild(cont);
+    const wrap = document.getElementById('editor-container-wrap') || document.getElementById('terminal-wrapper');
+    wrap.appendChild(cont);
 
-    // Tab button
-    const c=document.createElement('div');c.id='tab-'+CSS.escape(id);c.className='tab-btn-container editor-tab';
-    c.onclick=()=>switchToTab(id);
+    // Tab button in editor-tabs
+    const c = document.createElement('div');
+    c.id = 'tab-' + CSS.escape(id);
+    c.className = 'tab-btn-container editor-tab';
+    c.onclick = () => activateEditorTab(id);
     enableTabDrag(c);
-    const icon=document.createElement('span');icon.className='tab-icon';icon.innerText=fileIcon(path);
-    const content=document.createElement('div');content.className='tab-btn-content';
-    const title=document.createElement('span');title.className='tab-title-text';title.innerText=basename(path);
+    const icon = document.createElement('span'); icon.className = 'tab-icon'; icon.innerText = fileIcon(path);
+    const content = document.createElement('div'); content.className = 'tab-btn-content';
+    const title = document.createElement('span'); title.className = 'tab-title-text'; title.innerText = basename(path);
     content.appendChild(title);
 
-    const dirtyDot=document.createElement('span');dirtyDot.className='tab-dirty-dot';dirtyDot.innerText='●';dirtyDot.title='Unsaved changes';
-    const close=document.createElement('button');close.className='tab-close-btn';close.innerText='×';
-    close.onclick=e=>{e.stopPropagation();closeEditorTab(id);};
+    const dirtyDot = document.createElement('span'); dirtyDot.className = 'tab-dirty-dot'; dirtyDot.innerText = '●'; dirtyDot.title = 'Unsaved changes';
+    const close = document.createElement('button'); close.className = 'tab-close-btn'; close.innerText = '×';
+    close.onclick = e => { e.stopPropagation(); closeEditorTab(id); };
 
-    c.appendChild(icon);c.appendChild(content);c.appendChild(dirtyDot);c.appendChild(close);
-    document.getElementById('tabs').appendChild(c);
-    switchToTab(id);
+    c.appendChild(icon); c.appendChild(content); c.appendChild(dirtyDot); c.appendChild(close);
+    const parentEditorTabs = document.getElementById('editor-tabs') || document.getElementById('tabs');
+    parentEditorTabs.appendChild(c);
+
+    activateEditorTab(id);
     if(cmInstance){
-        requestAnimationFrame(()=>{try{cmInstance.refresh();}catch(e){}});
-        setTimeout(()=>{try{cmInstance.refresh();}catch(e){}},30);
-        setTimeout(()=>{try{cmInstance.refresh();}catch(e){}},120);
+        requestAnimationFrame(() => { try { cmInstance.refresh(); } catch(e){} });
+        setTimeout(() => { try { cmInstance.refresh(); } catch(e){} }, 30);
+        setTimeout(() => { try { cmInstance.refresh(); } catch(e){} }, 120);
     }
 }
 
 async function closeEditorTab(id){
-    const et=editorTabs[id];
+    const et = editorTabs[id];
     if(et){
-        const val=et.cm?et.cm.getValue():(et.textarea?et.textarea.value:'');
-        if(val!==et.original&&!await uiConfirm('File has unsaved changes. Close anyway?',{title:'Unsaved Changes',okText:'Close',danger:true}))return;
+        const val = et.cm ? et.cm.getValue() : (et.textarea ? et.textarea.value : '');
+        if(val !== et.original && !await uiConfirm('File has unsaved changes. Close anyway?', {title: 'Unsaved Changes', okText: 'Close', danger: true})) return;
+        if(et.cm){
+            try { et.cm.toTextArea && et.cm.toTextArea(); } catch(e){}
+        }
     }
-    const el=document.getElementById('tab-'+CSS.escape(id));if(el)el.remove();
-    const cont=document.getElementById('content-'+CSS.escape(id));if(cont)cont.remove();
+    const el = document.getElementById('tab-' + CSS.escape(id)); if(el) el.remove();
+    const cont = document.getElementById('content-' + CSS.escape(id)); if(cont) cont.remove();
     delete editorTabs[id];
-    if(currentTab===id){const k=Object.keys(terminals);if(k.length)switchToTab('term-'+k[0]);else{const et2=Object.keys(editorTabs);if(et2.length)switchToTab(et2[0]);}}
+    if(activeEditorTab === id){
+        const et2 = Object.keys(editorTabs);
+        if(et2.length){
+            activateEditorTab(et2[et2.length - 1]);
+        } else {
+            activeEditorTab = null;
+            updateEditorEmptyState();
+        }
+    }
 }
 
 function saveEditor(id,path){
@@ -1223,32 +1355,180 @@ window.addEventListener('DOMContentLoaded',async()=>{
         connect();
     }
 
-    document.addEventListener('keydown',e=>{
-        if((e.ctrlKey||e.metaKey)&&e.key==='s'){
-            const id=currentTab;if(id.startsWith('file:')&&editorTabs[id]){e.preventDefault();saveEditor(id,editorTabs[id].path);}
+    document.addEventListener('keydown', e => {
+        if((e.ctrlKey || e.metaKey) && e.key === 's'){
+            e.preventDefault();
+            if(activeEditorTab && editorTabs[activeEditorTab]){
+                saveEditor(activeEditorTab, editorTabs[activeEditorTab].path);
+            }
         }
-        if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){
-            const fi=document.getElementById('fe-filter');
-            if(fi&&fileManagerOpen){
+        if((e.ctrlKey || e.metaKey) && (e.key === '`' || e.key === '~')){
+            e.preventDefault();
+            toggleTerminalPanel();
+        }
+        if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b'){
+            e.preventDefault();
+            toggleFileManager();
+        }
+        if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f'){
+            const fi = document.getElementById('fe-filter');
+            if(fi && fileManagerOpen){
                 e.preventDefault();
                 fi.focus();
                 fi.select();
             }
         }
-        if(e.key==='Escape'){
-            const jm=document.getElementById('join-modal');
-            if(jm&&jm.style.display!=='none')closeJoinModal();
-            const cf=document.getElementById('confirm-modal');
-            if(cf&&cf.style.display!=='none')closeConfirm(false);
-            const hm=document.getElementById('help-modal');
-            if(hm&&hm.style.display!=='none')toggleHelpModal();
-            const sm=document.getElementById('share-modal');
-            if(sm&&sm.style.display!=='none')toggleShareModal(false);
+        if(e.key === 'Escape'){
+            const jm = document.getElementById('join-modal');
+            if(jm && jm.style.display !== 'none') closeJoinModal();
+            const cf = document.getElementById('confirm-modal');
+            if(cf && cf.style.display !== 'none') closeConfirm(false);
+            const hm = document.getElementById('help-modal');
+            if(hm && hm.style.display !== 'none') toggleHelpModal();
+            const sm = document.getElementById('share-modal');
+            if(sm && sm.style.display !== 'none') toggleShareModal(false);
         }
     });
 
     initFileExplorerResizer();
+    initWorkbenchResizer();
 });
+
+function initWorkbenchResizer() {
+    const resizer = document.getElementById('workbench-resizer');
+    const panel = document.getElementById('terminal-panel');
+    const mainArea = document.getElementById('main-area');
+    const shield = document.getElementById('preview-drag-shield');
+    if (!resizer || !panel || !mainArea) return;
+
+    // Load saved height and collapse state from localStorage
+    try {
+        const savedHeight = localStorage.getItem('rmte_terminal_height');
+        if (savedHeight) {
+            const h = parseFloat(savedHeight);
+            if (h >= 15 && h <= 80) {
+                document.getElementById('workspace').style.setProperty('--terminal-panel-height', h + '%');
+            }
+        }
+        const savedCollapsed = localStorage.getItem('rmte_terminal_collapsed');
+        if (savedCollapsed === 'true') {
+            toggleTerminalPanel(true, true);
+        }
+    } catch(e) {}
+
+    let isDragging = false;
+    let startY = 0;
+    let startHeightPx = 0;
+    let rafId = null;
+    let lastHeightPct = 35;
+
+    resizer.addEventListener('pointerdown', e => {
+        if (panel.classList.contains('is-collapsed') || panel.classList.contains('is-maximized')) return;
+        isDragging = true;
+        startY = e.clientY;
+        startHeightPx = panel.getBoundingClientRect().height;
+        try { resizer.setPointerCapture(e.pointerId); } catch(err) {}
+        resizer.classList.add('is-dragging');
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+        if (shield) shield.style.display = 'block';
+        e.preventDefault();
+    });
+
+    resizer.addEventListener('pointermove', e => {
+        if (!isDragging) return;
+        const dy = e.clientY - startY;
+        const mainRect = mainArea.getBoundingClientRect();
+        if (mainRect.height <= 0) return;
+
+        let newHeightPx = startHeightPx - dy;
+        const minHeightPx = 80;
+        const maxHeightPx = mainRect.height - 120; // preserve at least 120px for editor
+
+        if (newHeightPx < minHeightPx) newHeightPx = minHeightPx;
+        if (newHeightPx > maxHeightPx) newHeightPx = maxHeightPx;
+
+        const heightPct = (newHeightPx / mainRect.height) * 100;
+        lastHeightPct = Math.round(heightPct * 10) / 10;
+
+        if (!rafId) {
+            rafId = requestAnimationFrame(() => {
+                document.getElementById('workspace').style.setProperty('--terminal-panel-height', lastHeightPct + '%');
+                rafId = null;
+            });
+        }
+    });
+
+    const endDrag = e => {
+        if (!isDragging) return;
+        isDragging = false;
+        try { resizer.releasePointerCapture(e.pointerId); } catch(err) {}
+        resizer.classList.remove('is-dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        if (shield) shield.style.display = 'none';
+        if (rafId) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        }
+
+        try {
+            localStorage.setItem('rmte_terminal_height', lastHeightPct);
+        } catch(err) {}
+
+        // Send exactly 1 resize message on drag finish if cols/rows changed
+        refitActive();
+    };
+
+    resizer.addEventListener('pointerup', endDrag);
+    resizer.addEventListener('pointercancel', endDrag);
+
+    // Double-click resets split to default 35%
+    resizer.addEventListener('dblclick', () => {
+        document.getElementById('workspace').style.setProperty('--terminal-panel-height', '35%');
+        try { localStorage.setItem('rmte_terminal_height', 35); } catch(err) {}
+        refitActive();
+    });
+}
+
+function toggleTerminalPanel(collapse, silent) {
+    const panel = document.getElementById('terminal-panel');
+    const toggleBtn = document.getElementById('toggle-terminal-btn');
+    const collapseBtn = document.getElementById('term-collapse-btn');
+    if (!panel) return;
+
+    if (collapse === undefined) {
+        terminalPanelCollapsed = !terminalPanelCollapsed;
+    } else {
+        terminalPanelCollapsed = collapse;
+    }
+
+    panel.classList.toggle('is-collapsed', terminalPanelCollapsed);
+    if (toggleBtn) toggleBtn.classList.toggle('active', !terminalPanelCollapsed);
+    if (collapseBtn) collapseBtn.innerText = terminalPanelCollapsed ? '▲' : '_';
+
+    try {
+        localStorage.setItem('rmte_terminal_collapsed', terminalPanelCollapsed);
+    } catch(e) {}
+
+    if (!silent) {
+        setTimeout(refitActive, 50);
+    }
+}
+
+function toggleTerminalMaximize() {
+    const panel = document.getElementById('terminal-panel');
+    const mainArea = document.getElementById('main-area');
+    const maxBtn = document.getElementById('term-maximize-btn');
+    if (!panel || !mainArea) return;
+
+    terminalPanelMaximized = !terminalPanelMaximized;
+    panel.classList.toggle('is-maximized', terminalPanelMaximized);
+    mainArea.classList.toggle('terminal-maximized', terminalPanelMaximized);
+    if (maxBtn) maxBtn.innerText = terminalPanelMaximized ? '❐' : '□';
+
+    setTimeout(refitActive, 50);
+}
 
 function initFileExplorerResizer() {
     const resizer = document.getElementById('fe-resizer');
@@ -1316,14 +1596,11 @@ function toggleWebPreview(force) {
         webPreviewOpen = !webPreviewOpen;
     }
     const panel = document.getElementById('preview-panel');
-    const termWrap = document.getElementById('terminal-wrapper');
     const btn = document.getElementById('toggle-preview-btn');
     if (panel) panel.style.display = webPreviewOpen ? 'flex' : 'none';
-    if (termWrap) termWrap.style.display = webPreviewOpen ? 'none' : 'block';
     if (btn) btn.classList.toggle('active', webPreviewOpen);
 
     if (webPreviewOpen) {
-        document.querySelectorAll('.tab-btn-container').forEach(b => b.classList.remove('active'));
         const portInput = document.getElementById('preview-port-input');
         if (portInput && !portInput.value) {
             portInput.value = previewPort || 8080;
@@ -1332,9 +1609,8 @@ function toggleWebPreview(force) {
         if (frame && (!frame.src || frame.src === 'about:blank')) {
             previewNavigate();
         }
-    } else {
-        switchToTab(currentTab || 'term-0');
     }
+    setTimeout(refitActive, 50);
 }
 
 async function getPreviewTicket(sessionId, port) {
