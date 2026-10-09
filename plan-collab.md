@@ -14,7 +14,11 @@ Transform the RMTE web workspace from a single-tab switcher into a **VS Code-lik
 2. **Horizontal Resizer Bar:** Allows drag-to-resize split between editor and terminal panel.
 3. **Bottom Panel (Integrated Terminal Dock):** Houses terminal tabs (`xterm.js`), resizable height, collapsible/expandable.
 4. **Local Viewport Principle:** All layout states (panel heights, collapsed status, active viewports) are **100% local per viewer**. Zero additional relay/server bandwidth consumed.
-5. **Zero Regression:** Existing E2EE encryption, binary protocols, Web Preview, file manager operations, and CLI viewer compatibility must remain fully intact.
+5. **Zero Regression for `rmte join` (TUI Client):**
+   - The CLI/TUI viewer (`rmte join`) must remain **100% stable and untouched**.
+   - No protocol breaking changes: WebSocket message formats (`websocket.BinaryMessage` with tab ID prefix, `resize`, `chat`, `set_focus`, etc.) remain backward-compatible.
+   - `rmte join` does NOT need split pane features; keeping it fast, simple, and lightweight in native terminal mode is an explicit design goal.
+6. **Zero Regression for Core Systems:** Existing E2EE crypto (AES-256), Web Preview reverse proxy, ConPTY, and file manager operations remain fully intact.
 
 ---
 
@@ -101,3 +105,4 @@ When reviewing implementations, please evaluate against these key criteria:
 3. **DOM Leak / Clean Disconnect:** Are editor and terminal DOM elements properly destroyed when tabs or sessions are closed?
 4. **Mobile & Small Screen Fallback:** Does the layout gracefully degrade to single-pane or stacked view on viewport width `< 768px`?
 5. **Accessibility & Usability:** Are keyboard shortcuts conflict-free across Windows/Linux/macOS browsers?
+6. **`rmte join` (TUI) Integrity:** Does `rmte join` continue to connect, render tabs, send keystrokes, and exchange chat without any regressions from web UI changes?
