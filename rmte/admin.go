@@ -135,7 +135,7 @@ func getBannedIPList() []BannedIPInfo {
 	return list
 }
 
-func recordClosedSession(sess *Session, reason string) {
+func recordClosedSessionLocked(sess *Session, reason string) {
 	if sess == nil {
 		return
 	}
@@ -162,6 +162,15 @@ func recordClosedSession(sess *Session, reason string) {
 	sessionHistory = append(sessionHistory, info)
 }
 
+func recordClosedSession(sess *Session, reason string) {
+	if sess == nil {
+		return
+	}
+	sess.Mutex.RLock()
+	defer sess.Mutex.RUnlock()
+	recordClosedSessionLocked(sess, reason)
+}
+
 func terminateSession(sessionID string) bool {
 	sessionMu.Lock()
 	sess, exists := sessions[sessionID]
@@ -172,17 +181,21 @@ func terminateSession(sessionID string) bool {
 	delete(sessions, sessionID)
 	sessionMu.Unlock()
 
-	recordClosedSession(sess, "Terminated by admin")
-
 	sess.Mutex.Lock()
+	if sess.ReconnectTimer != nil {
+		sess.ReconnectTimer.Stop()
+		sess.ReconnectTimer = nil
+	}
 	if sess.Host != nil {
 		_ = sess.Host.Close()
+		sess.Host = nil
 	}
 	for _, viewerConns := range sess.Viewers {
 		for _, vConn := range viewerConns {
 			_ = vConn.Close()
 		}
 	}
+	recordClosedSessionLocked(sess, "Terminated by admin")
 	sess.Mutex.Unlock()
 
 	sess.SmuxMu.Lock()

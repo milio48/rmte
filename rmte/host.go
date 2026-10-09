@@ -117,7 +117,23 @@ var (
 	eventLogMu     sync.Mutex
 	eventHistory   []map[string]interface{}
 	eventHistoryMu sync.RWMutex
+
+	// Active host WebSocket connection (supports seamless reconnect)
+	currentHostConnMu sync.RWMutex
+	currentHostConn   *SafeConn
 )
+
+func setHostConn(c *SafeConn) {
+	currentHostConnMu.Lock()
+	currentHostConn = c
+	currentHostConnMu.Unlock()
+}
+
+func getHostConn() *SafeConn {
+	currentHostConnMu.RLock()
+	defer currentHostConnMu.RUnlock()
+	return currentHostConn
+}
 
 // HostOptions configures a host session (used by `serve` and `share`).
 type HostOptions struct {
@@ -179,6 +195,9 @@ func logEvent(conn *SafeConn, eventType, user, message string) {
 	}
 	eventHistoryMu.Unlock()
 
+	if conn == nil {
+		conn = getHostConn()
+	}
 	if conn != nil {
 		conn.WriteJSON(map[string]interface{}{
 			"type":   "control",
@@ -320,15 +339,31 @@ func runHost(opts HostOptions) {
 		defer removeSessionMeta(authResp.SessionID)
 	}
 
+	setHostConn(conn)
+
 	// Create initial tab (ID 0)
 	createTab(0, conn)
 
-	// Message loop
+	// Message loop with auto-reconnect
 	for {
 		mt, data, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("[Host] conn.ReadMessage error: %v", err)
-			break
+			log.Printf("[Host] Relay connection interrupted: %v", err)
+			_ = conn.Close()
+			setHostConn(nil)
+
+			// Enter Reconnect Phase (120 seconds grace period)
+			newConn, rerr := reconnectToRelay(opts, authResp.SessionID, 120*time.Second)
+			if rerr != nil {
+				log.Printf("[Host] Reconnect timeout (120s) exceeded: %v. Terminating host session.", rerr)
+				break
+			}
+
+			conn = newConn
+			setHostConn(conn)
+
+			logEvent(conn, "HOST_RECONNECT", "host", fmt.Sprintf("Host session %s reconnected to relay", authResp.SessionID))
+			continue
 		}
 
 		if mt == websocket.BinaryMessage {
@@ -611,6 +646,92 @@ func runHost(opts HostOptions) {
 			}
 		}
 	}
+
+	// Clean up active host connection, proxy secret, and tabs when host session terminates
+	if c := getHostConn(); c != nil {
+		_ = c.Close()
+		setHostConn(nil)
+	}
+	resetHostProxySecret()
+
+	tabsMu.Lock()
+	for _, t := range tabs {
+		t.Close()
+	}
+	tabsMu.Unlock()
+}
+
+func reconnectToRelay(opts HostOptions, sessionID string, timeout time.Duration) (*SafeConn, error) {
+	fmt.Printf("\n⚠️  [Host] Connection to relay lost. Keeping terminal alive, reconnecting (timeout %v)...\n", timeout)
+	log.Printf("[Host] Connection to relay lost. Keeping terminal alive, reconnecting (timeout %v)...", timeout)
+
+	deadline := time.Now().Add(timeout)
+	attempt := 0
+
+	u, err := url.Parse(opts.DialURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid dial URL: %w", err)
+	}
+
+	for time.Now().Before(deadline) {
+		attempt++
+		if attempt > 1 {
+			time.Sleep(2 * time.Second)
+		}
+
+		rawConn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+		if err != nil {
+			continue
+		}
+
+		conn := &SafeConn{Conn: rawConn}
+
+		auth := map[string]interface{}{
+			"type":             "auth",
+			"role":             "host",
+			"auth_token":       generateAuthToken(opts.Pass),
+			"protocol_version": protocolVersion,
+			"preview":          opts.Preview,
+			"session_id":       sessionID,
+		}
+		if opts.InternalToken != "" {
+			auth["internal_token"] = opts.InternalToken
+		}
+
+		if err := conn.WriteJSON(auth); err != nil {
+			_ = conn.Close()
+			continue
+		}
+
+		var authResp struct {
+			Type           string `json:"type"`
+			SessionID      string `json:"session_id"`
+			Message        string `json:"message"`
+			PreviewEnabled bool   `json:"preview_enabled"`
+			ProxySecret    string `json:"proxy_secret"`
+			WSProxyPath    string `json:"ws_proxy_path"`
+		}
+
+		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+		err = conn.ReadJSON(&authResp)
+		_ = conn.SetReadDeadline(time.Time{})
+
+		if err != nil || authResp.Type != "auth_success" {
+			_ = conn.Close()
+			continue
+		}
+
+		// Update preview proxy secret if changed
+		if opts.Preview && authResp.PreviewEnabled && authResp.ProxySecret != "" {
+			setHostProxySecret(authResp.ProxySecret)
+		}
+
+		fmt.Printf("✅ [Host] Reconnected to relay successfully! Session %s resumed.\n\n", sessionID)
+		log.Printf("[Host] Reconnected to relay successfully! Session %s resumed.", sessionID)
+		return conn, nil
+	}
+
+	return nil, fmt.Errorf("could not reconnect within %v", timeout)
 }
 
 // ===== FILE MANAGER HANDLERS =====
@@ -947,7 +1068,10 @@ func createTab(id byte, ws *SafeConn) {
 
 			payload, err := encryptBinary(id, data)
 			if err == nil {
-				ws.WriteMessage(websocket.BinaryMessage, payload)
+				c := getHostConn()
+				if c != nil {
+					_ = c.WriteMessage(websocket.BinaryMessage, payload)
+				}
 			}
 		}
 		tab.Close()
@@ -1007,7 +1131,10 @@ func runWithPipes(id byte, c *exec.Cmd, ws *SafeConn) {
 
 			payload, err := encryptBinary(id, data)
 			if err == nil {
-				ws.WriteMessage(websocket.BinaryMessage, payload)
+				c := getHostConn()
+				if c != nil {
+					_ = c.WriteMessage(websocket.BinaryMessage, payload)
+				}
 			}
 		}
 		c.Wait()

@@ -34,6 +34,9 @@ type Session struct {
 	SmuxSession    *smux.Session
 	SmuxMu         sync.RWMutex
 
+	// Reconnect grace period fields
+	ReconnectTimer *time.Timer
+
 	// Metrics & Admin monitoring
 	HostIP    string
 	CreatedAt time.Time
@@ -45,8 +48,9 @@ type Session struct {
 const maxViewersPerSession = 50
 
 var (
-	sessions  = make(map[string]*Session)
-	sessionMu sync.RWMutex
+	hostReconnectGracePeriod = 120 * time.Second
+	sessions                 = make(map[string]*Session)
+	sessionMu                sync.RWMutex
 
 	// serverCfg is the active relay configuration (set by runServer)
 	serverCfg *ServeConfig
@@ -139,13 +143,44 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 				fmt.Printf("Host rejected from %s: invalid session_id %q: %v\n", r.RemoteAddr, auth.SessionID, err)
 				return
 			}
-			if _, exists := sessions[reqID]; exists {
-				sessionMu.Unlock()
-				conn.WriteJSON(map[string]string{"type": "error", "message": fmt.Sprintf("session ID %q is already in use", reqID)})
-				fmt.Printf("Host rejected from %s: session ID %q is already in use\n", r.RemoteAddr, reqID)
-				return
+			if existingSess, exists := sessions[reqID]; exists {
+				if existingSess.AuthToken != "" && existingSess.AuthToken == auth.AuthToken {
+					fmt.Printf("Host reconnecting for active session %s from %s. Replacing stale connection.\n", reqID, r.RemoteAddr)
+					existingSess.Mutex.Lock()
+					if existingSess.ReconnectTimer != nil {
+						existingSess.ReconnectTimer.Stop()
+						existingSess.ReconnectTimer = nil
+					}
+					if existingSess.Host != nil {
+						_ = existingSess.Host.Close()
+					}
+					existingSess.Host = conn
+					existingSess.HostIP = clientIP
+
+					// Notify viewers that host reconnected
+					hostUpMsg, _ := json.Marshal(map[string]interface{}{
+						"type":    "control",
+						"action":  "host_status",
+						"status":  "connected",
+						"message": "Host reconnected successfully",
+					})
+					for _, conns := range existingSess.Viewers {
+						for _, vConn := range conns {
+							_ = vConn.WriteMessage(websocket.TextMessage, hostUpMsg)
+						}
+					}
+					existingSess.Mutex.Unlock()
+
+					sessionID = reqID
+				} else {
+					sessionMu.Unlock()
+					conn.WriteJSON(map[string]string{"type": "error", "message": fmt.Sprintf("session ID %q is already in use", reqID)})
+					fmt.Printf("Host rejected from %s: session ID %q is already in use\n", r.RemoteAddr, reqID)
+					return
+				}
+			} else {
+				sessionID = reqID
 			}
-			sessionID = reqID
 		} else {
 			for {
 				randBytes := make([]byte, 4)
@@ -158,23 +193,30 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		s, isResume := sessions[sessionID]
 		var proxySecret string
 		if auth.Preview {
-			proxySecret = generatePassword(32)
+			if isResume && s.ProxySecret != "" {
+				proxySecret = s.ProxySecret
+			} else {
+				proxySecret = generatePassword(32)
+			}
 		}
 
-		s := &Session{
-			ID:             sessionID,
-			Host:           conn,
-			Viewers:        make(map[string]map[string]*SafeConn),
-			ChatHistory:    make([]map[string]interface{}, 0),
-			AuthToken:      auth.AuthToken,
-			PreviewEnabled: auth.Preview,
-			ProxySecret:    proxySecret,
-			HostIP:         clientIP,
-			CreatedAt:      time.Now(),
+		if !isResume {
+			s = &Session{
+				ID:             sessionID,
+				Host:           conn,
+				Viewers:        make(map[string]map[string]*SafeConn),
+				ChatHistory:    make([]map[string]interface{}, 0),
+				AuthToken:      auth.AuthToken,
+				PreviewEnabled: auth.Preview,
+				ProxySecret:    proxySecret,
+				HostIP:         clientIP,
+				CreatedAt:      time.Now(),
+			}
+			sessions[sessionID] = s
 		}
-		sessions[sessionID] = s
 		sessionMu.Unlock()
 
 		// Send back the session ID plus relay paths so the host can build correct links
@@ -202,17 +244,78 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 
 		defer func() {
 			sessionMu.Lock()
-			if sess, ok := sessions[sessionID]; ok {
-				recordClosedSession(sess, "Closed by host")
-				sess.SmuxMu.Lock()
-				if sess.SmuxSession != nil {
-					sess.SmuxSession.Close()
-				}
-				sess.SmuxMu.Unlock()
+			sess, ok := sessions[sessionID]
+			if !ok {
+				sessionMu.Unlock()
+				return
 			}
-			delete(sessions, sessionID)
+
+			sess.Mutex.Lock()
+			if sess.Host != conn {
+				// Socket has already been replaced by a fresher host connection
+				sess.Mutex.Unlock()
+				sessionMu.Unlock()
+				return
+			}
+
+			// Host disconnected, mark host offline and initiate grace period
+			sess.Host = nil
+			fmt.Printf("Host disconnected for session %s. Grace period active (%v)...\n", sessionID, hostReconnectGracePeriod)
+
+			// Notify viewers that host disconnected temporarily
+			hostDownMsg, _ := json.Marshal(map[string]interface{}{
+				"type":    "control",
+				"action":  "host_status",
+				"status":  "disconnected",
+				"message": "Host connection lost. Waiting for host to reconnect...",
+			})
+			for _, conns := range sess.Viewers {
+				for _, vConn := range conns {
+					_ = vConn.WriteMessage(websocket.TextMessage, hostDownMsg)
+				}
+			}
+
+			if sess.ReconnectTimer != nil {
+				sess.ReconnectTimer.Stop()
+			}
+
+			sess.ReconnectTimer = time.AfterFunc(hostReconnectGracePeriod, func() {
+				sessionMu.Lock()
+				defer sessionMu.Unlock()
+
+				curSess, exists := sessions[sessionID]
+				if !exists || curSess != sess {
+					return
+				}
+
+				sess.Mutex.Lock()
+				defer sess.Mutex.Unlock()
+
+				if sess.Host == nil {
+					recordClosedSessionLocked(sess, "Host reconnect timeout expired")
+					sess.SmuxMu.Lock()
+					if sess.SmuxSession != nil {
+						sess.SmuxSession.Close()
+					}
+					sess.SmuxMu.Unlock()
+
+					closeMsg, _ := json.Marshal(map[string]interface{}{
+						"type":    "control",
+						"action":  "session_closed",
+						"message": "Host disconnected permanently (reconnect timeout expired)",
+					})
+					for _, conns := range sess.Viewers {
+						for _, vConn := range conns {
+							_ = vConn.WriteMessage(websocket.TextMessage, closeMsg)
+							_ = vConn.Close()
+						}
+					}
+					delete(sessions, sessionID)
+					fmt.Printf("Host reconnect timeout (%v) expired. Session %s closed.\n", hostReconnectGracePeriod, sessionID)
+				}
+			})
+			sess.Mutex.Unlock()
 			sessionMu.Unlock()
-			fmt.Printf("Host disconnected. Session %s closed.\n", sessionID)
 		}()
 	} else {
 		// Soft restriction: clients self-declare their type, so this can be spoofed
@@ -282,11 +385,16 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("Viewer %s disconnected from session %s\n", viewerID, sessionID)
 
 			if !hasOtherConn {
-				s.Host.WriteJSON(map[string]interface{}{
-					"type":      "control",
-					"action":    "viewer_disconnected",
-					"viewer_id": viewerID,
-				})
+				s.Mutex.RLock()
+				hostConn := s.Host
+				s.Mutex.RUnlock()
+				if hostConn != nil {
+					hostConn.WriteJSON(map[string]interface{}{
+						"type":      "control",
+						"action":    "viewer_disconnected",
+						"viewer_id": viewerID,
+					})
+				}
 			}
 		}()
 	}
@@ -350,8 +458,13 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				// Send to host
-				s.Host.WriteMessage(websocket.BinaryMessage, data)
-				atomic.AddUint64(&s.BytesTx, msgLen)
+				s.Mutex.RLock()
+				hostConn := s.Host
+				s.Mutex.RUnlock()
+				if hostConn != nil {
+					hostConn.WriteMessage(websocket.BinaryMessage, data)
+					atomic.AddUint64(&s.BytesTx, msgLen)
+				}
 			}
 		} else if mt == websocket.TextMessage {
 			// Handle control messages
@@ -381,21 +494,28 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 							"action": "pong",
 							"t":      ctrl["t"],
 						})
-					} else if action == "req_sync" ||
-						action == "req_dir" ||
-						action == "req_read_file" ||
-						action == "prepare_save" ||
-						action == "prepare_upload" ||
-						action == "create_file" ||
-						action == "create_dir" ||
-						action == "rename_file" ||
-						action == "delete_file" {
-						// Inject caller's connID so host can route responses back
-						ctrl["target_conn"] = connID
-						newData, _ := json.Marshal(ctrl)
-						s.Host.WriteMessage(websocket.TextMessage, newData)
 					} else {
-						s.Host.WriteMessage(websocket.TextMessage, data)
+						s.Mutex.RLock()
+						hostConn := s.Host
+						s.Mutex.RUnlock()
+						if hostConn != nil {
+							if action == "req_sync" ||
+								action == "req_dir" ||
+								action == "req_read_file" ||
+								action == "prepare_save" ||
+								action == "prepare_upload" ||
+								action == "create_file" ||
+								action == "create_dir" ||
+								action == "rename_file" ||
+								action == "delete_file" {
+								// Inject caller's connID so host can route responses back
+								ctrl["target_conn"] = connID
+								newData, _ := json.Marshal(ctrl)
+								hostConn.WriteMessage(websocket.TextMessage, newData)
+							} else {
+								hostConn.WriteMessage(websocket.TextMessage, data)
+							}
+						}
 					}
 				} else {
 					targetConn, hasTarget := ctrl["target_conn"].(string)

@@ -11,14 +11,40 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/xtaci/smux/v2"
 )
 
+var (
+	hostProxySecretMu sync.RWMutex
+	hostProxySecret   string
+)
+
+func setHostProxySecret(sec string) {
+	hostProxySecretMu.Lock()
+	hostProxySecret = sec
+	hostProxySecretMu.Unlock()
+}
+
+func getHostProxySecret() string {
+	hostProxySecretMu.RLock()
+	defer hostProxySecretMu.RUnlock()
+	return hostProxySecret
+}
+
+func resetHostProxySecret() {
+	hostProxySecretMu.Lock()
+	hostProxySecret = ""
+	hostProxySecretMu.Unlock()
+}
+
 // runHostProxy manages the outbound WebSocket connection to the relay for the preview data channel.
 func runHostProxy(opts HostOptions, sessionID, proxySecret, wsProxyPath string) {
+	setHostProxySecret(proxySecret)
+
 	u, err := url.Parse(opts.DialURL)
 	if err != nil {
 		logEvent(nil, "PREVIEW_ERROR", "host", fmt.Sprintf("Invalid dial URL for proxy: %v", err))
@@ -33,11 +59,12 @@ func runHostProxy(opts HostOptions, sessionID, proxySecret, wsProxyPath string) 
 			continue
 		}
 
+		currentSecret := getHostProxySecret()
 		auth := map[string]string{
 			"type":         "auth",
 			"role":         "host_proxy",
 			"session_id":   sessionID,
-			"proxy_secret": proxySecret,
+			"proxy_secret": currentSecret,
 		}
 		if err := rawConn.WriteJSON(auth); err != nil {
 			rawConn.Close()
