@@ -181,11 +181,11 @@ body {
     padding: 0 var(--space-xs);
     color: var(--color-ink-2);
     border-radius: var(--radius-sm);
-    transition: all var(--transition-fast);
+    transition: all var(--dur-short) var(--ease-out);
 }
 #github-link-btn:hover {
     color: var(--color-ink);
-    background: var(--color-hover);
+    background: var(--color-paper-3);
 }
 .brand-dot {
     width: 6px;
@@ -2112,7 +2112,7 @@ kbd {
     align-items: center;
     gap: 4px;
     background: var(--color-paper-3);
-    color: var(--color-text-dim);
+    color: var(--color-ink-2);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     padding: 2px 8px;
@@ -2122,14 +2122,19 @@ kbd {
     flex-shrink: 0;
     margin-left: auto;
     margin-right: 6px;
-    transition: all var(--transition-fast);
+    transition: all var(--dur-short) var(--ease-out);
 }
 
-.mobile-pane-switcher:hover,
-.mobile-pane-switcher:active {
+.mobile-pane-switcher:hover {
     background: var(--color-paper-4);
-    color: var(--color-text);
-    border-color: var(--color-border-hover);
+    color: var(--color-ink);
+    border-color: var(--color-border-active);
+}
+
+.mobile-pane-switcher.active {
+    background: var(--color-accent-dim);
+    color: var(--color-accent);
+    border-color: var(--color-accent);
 }
 
 @media (max-width: 768px) {
@@ -2140,20 +2145,23 @@ kbd {
         display: inline-flex !important;
     }
     /* Single-pane mobile layout: editor or terminal full height (default terminal) */
-    #main-area.mobile-view-terminal #workbench-top,
-    #main-area:not(.mobile-view-editor) #workbench-top {
+    #main-area.mobile-view-terminal:not(.terminal-hidden) #workbench-top,
+    #main-area:not(.mobile-view-editor):not(.terminal-hidden) #workbench-top {
         display: none !important;
     }
-    #main-area.mobile-view-terminal #terminal-panel,
-    #main-area:not(.mobile-view-editor) #terminal-panel {
+    #main-area.mobile-view-terminal:not(.terminal-hidden) #terminal-panel,
+    #main-area:not(.mobile-view-editor):not(.terminal-hidden) #terminal-panel {
         display: flex !important;
         height: 100% !important;
         flex-grow: 1;
     }
-    #main-area.mobile-view-editor #terminal-panel {
+    #main-area.mobile-view-editor #terminal-panel,
+    #main-area.terminal-hidden #terminal-panel,
+    #terminal-panel.is-hidden {
         display: none !important;
     }
-    #main-area.mobile-view-editor #workbench-top {
+    #main-area.mobile-view-editor #workbench-top,
+    #main-area.terminal-hidden #workbench-top {
         display: flex !important;
         height: 100% !important;
         flex-grow: 1;

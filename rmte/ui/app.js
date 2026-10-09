@@ -396,7 +396,38 @@ function activateTerminalTab(id){
         }, 20);
     }
     sendJson({type: 'control', action: 'set_focus', viewer_id: myViewerId, viewer_name: myUsername, tab_id: tid});
-    sendJson({type: 'control', action: 'req_sync', tab_id: tid});
+}
+
+function focusEditorPane(){
+    if(window.innerWidth <= 768){
+        setMobileWorkbenchPane('editor');
+    }
+    if(activeEditorTab && editorTabs[activeEditorTab]){
+        const et = editorTabs[activeEditorTab];
+        if(et.cm){
+            try { et.cm.focus(); } catch(e){}
+        } else if(et.textarea){
+            try { et.textarea.focus(); } catch(e){}
+        }
+    }
+}
+
+function focusTerminalPane(){
+    if(terminalPanelHidden){
+        hideTerminalPanel(false);
+    }
+    if(terminalPanelCollapsed){
+        toggleTerminalPanel(false);
+    }
+    if(window.innerWidth <= 768){
+        setMobileWorkbenchPane('terminal');
+    }
+    if(activeTerminalTab){
+        const tid = parseInt(activeTerminalTab.slice(5));
+        if(terminals[tid] && terminals[tid].term){
+            try { terminals[tid].term.focus(); } catch(e){}
+        }
+    }
 }
 
 function refitActive(){
@@ -443,25 +474,31 @@ function initTerminal(tabId){
         fontSize: 14
     });
     t.attachCustomKeyEventHandler(e => {
-        if(e.type === 'keydown' && (e.ctrlKey || e.metaKey)) {
-            const k = e.key.toLowerCase();
-            if(k === 'c') {
-                if(t.hasSelection()){
-                    const sel = t.getSelection();
-                    if(navigator.clipboard && navigator.clipboard.writeText){
-                        navigator.clipboard.writeText(sel).catch(()=>{});
+        if(e.type === 'keydown') {
+            // Prevent Alt+ArrowUp/Down from sending escape sequences to shell PTY
+            if(e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                return false;
+            }
+            if(e.ctrlKey || e.metaKey) {
+                const k = e.key.toLowerCase();
+                if(k === 'c') {
+                    if(t.hasSelection()){
+                        const sel = t.getSelection();
+                        if(navigator.clipboard && navigator.clipboard.writeText){
+                            navigator.clipboard.writeText(sel).catch(()=>{});
+                        }
+                        return false;
+                    } else {
+                        sendBin(tabId, new Uint8Array([3]));
+                        return false;
                     }
-                    return false;
-                } else {
-                    sendBin(tabId, new Uint8Array([3]));
+                }
+                // Intercept Workbench & IDE shortcuts so xterm skips sending control bytes
+                // to PTY (e.g. Ctrl+S sends 0x13 XOFF freezing shell, Ctrl+B sends 0x02).
+                // Only intercept Ctrl+F if File Explorer is open (preserves readline forward-char in shell otherwise).
+                if(k === '`' || e.key === '~' || k === 'b' || k === 's' || (k === 'f' && fileManagerOpen)) {
                     return false;
                 }
-            }
-            // Intercept Workbench & IDE shortcuts so xterm skips sending control bytes
-            // to PTY (e.g. Ctrl+S sends 0x13 XOFF freezing shell, Ctrl+B sends 0x02)
-            // Returning false prevents xterm processing while allowing standard DOM bubbling.
-            if(k === '`' || e.key === '~' || k === 'b' || k === 's' || k === 'f') {
-                return false;
             }
         }
         return true;
@@ -1410,12 +1447,11 @@ window.addEventListener('DOMContentLoaded',async()=>{
         }
         if(e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')){
             e.preventDefault();
-            const step = e.shiftKey ? 10 : 5;
-            const currentPct = parseFloat(getComputedStyle(document.getElementById('workspace')).getPropertyValue('--terminal-panel-height')) || 35;
-            const nextPct = e.key === 'ArrowUp' ? Math.min(80, currentPct + step) : Math.max(15, currentPct - step);
-            document.getElementById('workspace').style.setProperty('--terminal-panel-height', nextPct + '%');
-            try { localStorage.setItem('rmte_terminal_height', nextPct); } catch(err) {}
-            refitActive();
+            if(e.key === 'ArrowUp'){
+                focusEditorPane();
+            } else {
+                focusTerminalPane();
+            }
         }
         if(e.key === 'Escape'){
             const jm = document.getElementById('join-modal');
