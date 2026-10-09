@@ -1120,15 +1120,23 @@ function closeSidebarDrawer(){
 }
 
 function closeAllDrawers(){
+    const fe = document.getElementById('file-explorer');
+    const sb = document.getElementById('users-sidebar');
+    if(fe) fe.classList.remove('drawer-open');
+    if(sb) sb.classList.remove('drawer-open');
+    const backdrop = document.getElementById('drawer-backdrop');
+    if(backdrop) backdrop.style.display = 'none';
+
     if(window.innerWidth <= 768){
-        const fe = document.getElementById('file-explorer');
-        if(fe) fe.classList.remove('drawer-open');
         fileManagerOpen = false;
         const b = document.getElementById('toggle-files-btn');
         if(b) b.classList.remove('active');
         closeSidebarDrawer();
+    } else {
+        if(fe) fe.style.display = fileManagerOpen ? 'flex' : 'none';
+        const resizer = document.getElementById('fe-resizer');
+        if(resizer) resizer.style.display = fileManagerOpen ? 'block' : 'none';
     }
-    updateDrawerBackdrop();
 }
 function requestDir(p){currentFilePath=p;sendJson({type:'control',action:'req_dir',path:p});}
 
@@ -1598,9 +1606,11 @@ function toggleSidebar(preferredTab){
         const isOpen = sb && sb.classList.contains('drawer-open');
         if(!isOpen){
             if(sb) sb.classList.add('drawer-open');
+            if(ws) ws.classList.remove('sidebar-collapsed');
             switchSidebarTab(preferredTab);
         } else if(currentSidebarTab === preferredTab){
             if(sb) sb.classList.remove('drawer-open');
+            if(ws) ws.classList.add('sidebar-collapsed');
             const collabBtn = document.getElementById('toggle-sidebar-btn');
             const chatBtn = document.getElementById('toggle-chat-btn');
             const actBtn = document.getElementById('toggle-activity-btn');
@@ -2012,6 +2022,12 @@ function initWorkbenchResizer() {
         } else {
             mainArea.classList.remove('mobile-view-editor', 'mobile-view-terminal');
             closeAllDrawers();
+            const fe = document.getElementById('file-explorer');
+            const resizer = document.getElementById('fe-resizer');
+            if (fe) fe.style.display = fileManagerOpen ? 'flex' : 'none';
+            if (resizer) resizer.style.display = fileManagerOpen ? 'block' : 'none';
+            const b = document.getElementById('toggle-files-btn');
+            if (b) b.classList.toggle('active', fileManagerOpen);
         }
         updateEditorLineWrapping();
         refitActive();
