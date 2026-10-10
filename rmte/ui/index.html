@@ -8,8 +8,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css" />
-    <link rel="stylesheet" href="tokens.css" />
-    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="tokens.css?v=__RMTE_VERSION__" />
+    <link rel="stylesheet" href="app.css?v=__RMTE_VERSION__" />
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
@@ -98,6 +98,7 @@
             <button id="copy-link-btn" onclick="toggleShareModal(true)" title="Share Session" aria-label="Share session"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>
             <button id="help-btn" onclick="toggleHelpModal()" title="Keyboard Shortcuts & Tips" aria-label="Help and keyboard shortcuts"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
             <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" id="github-link-btn" title="View RMTE on GitHub" aria-label="GitHub repository"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg></a>
+            <button id="fullscreen-btn" onclick="toggleAppFullscreen()" title="Toggle Fullscreen" aria-label="Toggle Fullscreen"><svg id="fullscreen-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
             <button id="disconnect-btn" onclick="disconnectSession()" title="Disconnect" aria-label="Disconnect session"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
             <button id="topbar-overflow-btn" onclick="toggleOverflowMenu()" title="More options" aria-label="More options"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="ui-icon"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg><span id="overflow-badge-top" class="topbar-badge" style="display:none;">0</span></button>
         </div>
@@ -120,6 +121,10 @@
             <button class="overflow-menu-item" onclick="handleOverflowAction('help')">
                 <span class="omi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
                 <span class="omi-text">Shortcuts & Help</span>
+            </button>
+            <button id="overflow-fullscreen-item" class="overflow-menu-item" onclick="handleOverflowAction('fullscreen')">
+                <span class="omi-icon"><svg id="overflow-fullscreen-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></span>
+                <span class="omi-text" id="overflow-fullscreen-text">Fullscreen</span>
             </button>
             <a class="overflow-menu-item" href="https://github.com/milio48/rmte" target="_blank" rel="noopener">
                 <span class="omi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg></span>
@@ -371,6 +376,7 @@
                     <tr><td><kbd>Double Click</kbd></td><td>Edit absolute path directly in Explorer breadcrumb</td></tr>
                     <tr><td><kbd>Drag & Drop</kbd></td><td>Drop files directly into Explorer to upload</td></tr>
                     <tr><td>Download Icon</td><td>Download file directly from host to local computer</td></tr>
+                    <tr><td>Fullscreen Icon</td><td>Toggle fullscreen mode (desktop & mobile)</td></tr>
                     <tr><td><kbd>Esc</kbd></td><td>Close modal or dismiss inline input</td></tr>
                 </table>
             </div>
@@ -417,7 +423,7 @@
 
     <!-- Crypto: asmcrypto fallback for HTTP (non-secure context) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/asmCrypto/2.3.2/asmcrypto.all.es5.min.js"></script>
-    <script src="crypto_shim.js"></script>
-    <script src="app.js"></script>
+    <script src="crypto_shim.js?v=__RMTE_VERSION__"></script>
+    <script src="app.js?v=__RMTE_VERSION__"></script>
 </body>
 </html>

@@ -40,15 +40,49 @@ func setupWebHandler(mux *http.ServeMux, webPath, wsPath string) {
 		_, _ = w.Write(data)
 	})
 
+	rawIndex, err := uiAssets.ReadFile("ui/index.html")
+	if err != nil {
+		panic(err)
+	}
+	processedIndex := strings.ReplaceAll(string(rawIndex), "__RMTE_VERSION__", appVersion)
+
 	fileServer := http.FileServer(http.FS(public))
+
+	serveAsset := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cleanPath := strings.TrimPrefix(r.URL.Path, strings.TrimSuffix(webPath, "/"))
+		cleanPath = strings.TrimPrefix(cleanPath, "/")
+
+		if cleanPath == "" || cleanPath == "index.html" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
+			_, _ = w.Write([]byte(processedIndex))
+			return
+		}
+
+		// Static assets: release-versioned queries (?v=...) can be cached long-term (immutable).
+		// Non-versioned requests (or dev builds) require revalidation so reverse proxies don't serve stale files.
+		if v := r.URL.Query().Get("v"); v != "" && v != "dev" {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		if webPath != "/" {
+			http.StripPrefix(strings.TrimSuffix(webPath, "/"), fileServer).ServeHTTP(w, r)
+		} else {
+			fileServer.ServeHTTP(w, r)
+		}
+	})
+
 	if webPath == "/" {
-		mux.Handle("/", fileServer)
+		mux.Handle("/", serveAsset)
 		return
 	}
 
 	// "/web/" serves the UI; "/web" redirects to "/web/" (ServeMux does this automatically
 	// for subtree patterns, but we keep it explicit for clarity).
-	mux.Handle(webPath, http.StripPrefix(strings.TrimSuffix(webPath, "/"), fileServer))
+	mux.Handle(webPath, serveAsset)
 	mux.HandleFunc(strings.TrimSuffix(webPath, "/"), func(w http.ResponseWriter, r *http.Request) {
 		target := webPath
 		if r.URL.RawQuery != "" {

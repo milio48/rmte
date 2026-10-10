@@ -570,7 +570,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     stroke: none !important;
 }
 
-#toggle-preview-btn, #toggle-sidebar-btn, #toggle-chat-btn, #toggle-activity-btn, #copy-link-btn, #help-btn, #disconnect-btn {
+#toggle-preview-btn, #toggle-sidebar-btn, #toggle-chat-btn, #toggle-activity-btn, #copy-link-btn, #help-btn, #fullscreen-btn, #disconnect-btn {
     background: transparent;
     border: none;
     color: var(--color-ink-2);
@@ -588,11 +588,11 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     border-bottom: 2px solid transparent;
     position: relative;
 }
-#toggle-preview-btn:hover, #toggle-sidebar-btn:hover, #toggle-chat-btn:hover, #toggle-activity-btn:hover, #copy-link-btn:hover, #help-btn:hover {
+#toggle-preview-btn:hover, #toggle-sidebar-btn:hover, #toggle-chat-btn:hover, #toggle-activity-btn:hover, #copy-link-btn:hover, #help-btn:hover, #fullscreen-btn:hover {
     color: var(--color-accent);
     background: var(--color-paper-3);
 }
-#toggle-preview-btn.active, #toggle-sidebar-btn.active, #toggle-chat-btn.active, #toggle-activity-btn.active {
+#toggle-preview-btn.active, #toggle-sidebar-btn.active, #toggle-chat-btn.active, #toggle-activity-btn.active, #fullscreen-btn.active {
     color: var(--color-accent);
     background: var(--color-paper-3);
     border-bottom-color: var(--color-accent);

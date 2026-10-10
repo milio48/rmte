@@ -1,4 +1,4 @@
-// RMTE v0.7.0 — Web Viewer with Split Workbench, Context Status Bar, SVG Icons & Mobile UI
+// RMTE v0.7.1 — Web Viewer with Split Workbench, Fullscreen Mode, SVG Icons & Mobile UI
 let ws, aesKey, rawAesKeyBytes = null, myUsername = '';
 let activeEditorTab = null, activeTerminalTab = 'term-0', activeContext = 'terminal';
 let terminalPanelCollapsed = false, terminalPanelMaximized = false, terminalPanelHidden = false;
@@ -2165,6 +2165,9 @@ function handleOverflowAction(action){
         case 'help':
             toggleHelpModal();
             break;
+        case 'fullscreen':
+            toggleAppFullscreen();
+            break;
         case 'disconnect':
             disconnectSession();
             break;
@@ -2318,6 +2321,108 @@ function consumeHashPassword(){
     history.replaceState(null,'',window.location.pathname+window.location.search);
     return pass;
 }
+
+// ── App Fullscreen Mode (Desktop & Mobile) ──
+function isFullscreenSupported() {
+    const doc = document;
+    const root = document.documentElement;
+    if (doc.fullscreenEnabled !== undefined) {
+        return Boolean(doc.fullscreenEnabled);
+    }
+    if (doc.webkitFullscreenEnabled !== undefined) {
+        return Boolean(doc.webkitFullscreenEnabled);
+    }
+    return Boolean(root.requestFullscreen || root.webkitRequestFullscreen);
+}
+
+function toggleAppFullscreen() {
+    if (!isFullscreenSupported()) {
+        showToast('Fullscreen mode is not supported on this device/browser');
+        return;
+    }
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const root = document.documentElement;
+        const req = root.requestFullscreen || root.webkitRequestFullscreen || root.mozRequestFullScreen || root.msRequestFullscreen;
+        if (req) {
+            try {
+                const p = req.call(root);
+                if (p && typeof p.catch === 'function') {
+                    p.catch(err => {
+                        console.warn('Fullscreen request failed:', err);
+                    });
+                }
+            } catch (err) {
+                console.warn('Fullscreen request error:', err);
+            }
+        }
+    } else {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+        if (exit) {
+            try {
+                const p = exit.call(document);
+                if (p && typeof p.catch === 'function') {
+                    p.catch(err => {
+                        console.warn('Exit fullscreen failed:', err);
+                    });
+                }
+            } catch (err) {
+                console.warn('Exit fullscreen error:', err);
+            }
+        }
+    }
+}
+
+function updateFullscreenUI(skipRefit) {
+    const supported = isFullscreenSupported();
+    const btn = document.getElementById('fullscreen-btn');
+    const ovItem = document.getElementById('overflow-fullscreen-item');
+
+    if (!supported) {
+        if (btn) btn.style.display = 'none';
+        if (ovItem) ovItem.style.display = 'none';
+        return;
+    }
+
+    const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+    const icon = document.getElementById('fullscreen-icon');
+    const ovIcon = document.getElementById('overflow-fullscreen-icon');
+    const ovText = document.getElementById('overflow-fullscreen-text');
+
+    const enterPath = 'M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3';
+    const exitPath = 'M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3';
+
+    const pData = isFs ? exitPath : enterPath;
+    const title = isFs ? 'Exit Fullscreen' : 'Toggle Fullscreen';
+
+    if (btn) {
+        btn.title = title;
+        btn.setAttribute('aria-label', title);
+        btn.classList.toggle('active', isFs);
+    }
+    if (icon) {
+        const p = icon.querySelector('path');
+        if (p) p.setAttribute('d', pData);
+    }
+    if (ovIcon) {
+        const p = ovIcon.querySelector('path');
+        if (p) p.setAttribute('d', pData);
+    }
+    if (ovText) {
+        ovText.textContent = isFs ? 'Exit Fullscreen' : 'Fullscreen';
+    }
+
+    if (!skipRefit) {
+        setTimeout(() => {
+            refitActive();
+            if (typeof activeEditorTab !== 'undefined' && activeEditorTab && editorTabs[activeEditorTab] && editorTabs[activeEditorTab].cm) {
+                try { editorTabs[activeEditorTab].cm.refresh(); } catch(e){}
+            }
+        }, 150);
+    }
+}
+
+document.addEventListener('fullscreenchange', () => updateFullscreenUI(false));
+document.addEventListener('webkitfullscreenchange', () => updateFullscreenUI(false));
 
 let windowResizeTimer = null;
 window.addEventListener('resize', () => {
@@ -2508,6 +2613,7 @@ window.addEventListener('DOMContentLoaded',async()=>{
     initWorkbenchResizer();
     initPreviewResizer();
     setActiveContext('terminal');
+    updateFullscreenUI(true);
 });
 
 function initWorkbenchResizer() {

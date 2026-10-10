@@ -644,7 +644,7 @@
                 <h2>2. Topbar Navigation & Actions</h2>
                 <div class="section-desc">Menggantikan tombol navigasi utama di topbar desktop dan drawer mobile.</div>
             </div>
-            <span class="badge">11 ICONS</span>
+            <span class="badge">12 ICONS</span>
         </div>
 
         <div class="specimen-grid" id="grid-topbar">
@@ -673,6 +673,7 @@
                 <div style="margin-left: auto; display: flex; gap: 4px;">
                     <button class="mock-btn" title="Help" id="tb-mock-help"></button>
                     <button class="mock-btn" title="GitHub" id="tb-mock-github"></button>
+                    <button class="mock-btn" title="Fullscreen" id="tb-mock-fullscreen"></button>
                     <button class="mock-btn" title="Disconnect" id="tb-mock-disconnect" style="color:var(--color-red)"></button>
                 </div>
             </div>
@@ -801,6 +802,8 @@ const SVG_REGISTRY = {
     smartphone: `<svg class="preview-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>`,
     maximize: `<svg class="preview-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`,
     x: `<svg class="preview-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+    fullscreen: `<svg class="preview-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>`,
+    fullscreenExit: `<svg class="preview-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>`,
     messageSquare: `<svg class="preview-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`
 };
 
@@ -876,6 +879,7 @@ const TOPBAR_SPECIMENS = [
     { id: 'link',         emoji: '🔗', name: 'link',            desc: 'Share Session Modal' },
     { id: 'helpCircle',   emoji: '❓', name: 'helpCircle',      desc: 'Shortcuts & Help Modal' },
     { id: 'github',       emoji: '🐙', name: 'github',          desc: 'GitHub Repo Link' },
+    { id: 'fullscreen',   emoji: '⛶',  name: 'fullscreen',      desc: 'Toggle Fullscreen Mode' },
     { id: 'logOut',       emoji: '✕',  name: 'logOut',          desc: 'Disconnect Session' },
     { id: 'moreVertical', emoji: '⋮',  name: 'moreVertical',    desc: 'Mobile Overflow Trigger' }
 ];
@@ -940,6 +944,7 @@ function populateMockups() {
     document.getElementById('tb-mock-share').innerHTML = `${SVG_REGISTRY.link}<span>Share</span>`;
     document.getElementById('tb-mock-help').innerHTML = SVG_REGISTRY.helpCircle;
     document.getElementById('tb-mock-github').innerHTML = SVG_REGISTRY.github;
+    document.getElementById('tb-mock-fullscreen').innerHTML = SVG_REGISTRY.fullscreen;
     document.getElementById('tb-mock-disconnect').innerHTML = SVG_REGISTRY.logOut;
 
     // Tabs
