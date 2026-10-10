@@ -72,6 +72,12 @@ jobs:
       - name: Display Downloaded Binaries
         run: ls -R ./binaries
 
+      - name: Generate Checksums
+        run: |
+          cd ./binaries
+          sha256sum rmte-* > checksums.txt
+          cat checksums.txt
+
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
@@ -82,6 +88,7 @@ jobs:
             ./binaries/rmte-darwin-arm64
             ./binaries/rmte-windows-amd64.exe
             ./binaries/rmte-windows-arm64.exe
+            ./binaries/checksums.txt
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false

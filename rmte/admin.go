@@ -162,15 +162,6 @@ func recordClosedSessionLocked(sess *Session, reason string) {
 	sessionHistory = append(sessionHistory, info)
 }
 
-func recordClosedSession(sess *Session, reason string) {
-	if sess == nil {
-		return
-	}
-	sess.Mutex.RLock()
-	defer sess.Mutex.RUnlock()
-	recordClosedSessionLocked(sess, reason)
-}
-
 func terminateSession(sessionID string) bool {
 	sessionMu.Lock()
 	sess, exists := sessions[sessionID]
