@@ -1,4 +1,4 @@
-# RMTE — Remote Terminal Relay & Cloud IDE (v0.7.1)
+# RMTE — Remote Terminal Relay & Cloud IDE (v0.7.2)
 
 > "I love sshx, but my endless curiosity to build it from scratch got the best of me 🥲"
 
@@ -158,7 +158,7 @@ RMTE is designed with zero frontend dependencies. All web assets in `rmte/ui/` (
 3. **Build Binary with Custom Version (`-ldflags`):**
    ```bash
    cd rmte/rmte
-   go build -ldflags "-s -w -X main.appVersion=0.7.1" -o rmte
+   go build -ldflags "-s -w -X main.appVersion=0.7.2" -o rmte
    ```
 
 </details>
@@ -208,7 +208,7 @@ Or with custom credentials:
 ```
 Output:
 ```
-RMTE v0.7.1 — Mode: standalone
+RMTE v0.7.2 — Mode: standalone
 ────────────────────────────────────────────────
 Bind:             127.0.0.1:8048
 Rmte Port:        8048

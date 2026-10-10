@@ -38,3 +38,19 @@ func killPid(pid int) error {
 	}
 	return nil
 }
+
+func isPidAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	h, err := syscall.OpenProcess(0x1000, false, uint32(pid)) // PROCESS_QUERY_LIMITED_INFORMATION
+	if err != nil {
+		return false
+	}
+	defer syscall.CloseHandle(h)
+	var exitCode uint32
+	if err := syscall.GetExitCodeProcess(h, &exitCode); err != nil {
+		return false
+	}
+	return exitCode == 259 // STILL_ACTIVE
+}

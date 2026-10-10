@@ -23,3 +23,11 @@ func killPid(pid int) error {
 	}
 	return nil
 }
+
+func isPidAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	err := syscall.Kill(pid, 0)
+	return err == nil
+}

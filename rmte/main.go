@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -237,6 +238,10 @@ func cmdServe() {
 	}
 
 	if cfg.Mode == modeRelay {
+		pidFile := "rmte-relay.pid"
+		_ = os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0644)
+		defer os.Remove(pidFile)
+
 		printBanner(bannerFromServe(&cfg, ""))
 		markDaemonReady("")
 		runServer(&cfg)

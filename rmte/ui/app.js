@@ -1,4 +1,4 @@
-// RMTE v0.7.1 — Web Viewer with Split Workbench, Fullscreen Mode, SVG Icons & Mobile UI
+// RMTE v0.7.2 — Web Viewer with Split Workbench, Fullscreen Mode, SVG Icons & Mobile UI
 let ws, aesKey, rawAesKeyBytes = null, myUsername = '';
 let activeEditorTab = null, activeTerminalTab = 'term-0', activeContext = 'terminal';
 let terminalPanelCollapsed = false, terminalPanelMaximized = false, terminalPanelHidden = false;

@@ -28,6 +28,7 @@ type SessionMeta struct {
 	WSPath      string `json:"ws_path,omitempty"`
 	AdminPath   string `json:"admin_path,omitempty"`
 	AdminPass   string `json:"admin_pass,omitempty"`
+	IsDaemon    bool   `json:"is_daemon,omitempty"`
 }
 
 // getLocalSecretKey derives an AES-256 key bound to the local machine, user, and binary path.

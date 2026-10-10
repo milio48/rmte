@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -335,8 +336,15 @@ func runHost(opts HostOptions) {
 			meta.AdminPath = serverCfg.AdminPath
 			meta.AdminPass = serverCfg.AdminPass
 		}
+		meta.IsDaemon = isDaemonChild()
 		_ = saveSessionMeta(meta)
-		defer removeSessionMeta(authResp.SessionID)
+
+		pidFile := fmt.Sprintf("rmte-%s.pid", authResp.SessionID)
+		_ = os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0644)
+		defer func() {
+			_ = os.Remove(pidFile)
+			removeSessionMeta(authResp.SessionID)
+		}()
 	}
 
 	setHostConn(conn)

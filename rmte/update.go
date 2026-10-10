@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -212,36 +213,152 @@ func cleanOldBinary() {
 	}
 }
 
+type restartTarget struct {
+	sessionID string
+	pidFile   string
+	pid       int
+	meta      *SessionMeta
+}
+
+// findRunningRMTEPids scans /proc on Linux for any other running rmte processes (PID != current)
+func findRunningRMTEPids() []int {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return nil
+	}
+	var pids []int
+	currentPid := os.Getpid()
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		pid, err := strconv.Atoi(entry.Name())
+		if err != nil || pid <= 1 || pid == currentPid {
+			continue
+		}
+		commBytes, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", pid))
+		if err != nil {
+			continue
+		}
+		comm := strings.TrimSpace(string(commBytes))
+		if comm == "rmte" {
+			pids = append(pids, pid)
+		}
+	}
+	return pids
+}
+
 // restartActiveSession searches for active sessions and relaunches them with new binary
 func restartActiveSession(exePath string) {
-	matches, err := filepath.Glob("rmte-*.pid")
-	if err != nil || len(matches) == 0 {
+	targets := make(map[string]*restartTarget)
+
+	// 1. Scan PID files
+	if matches, err := filepath.Glob("rmte-*.pid"); err == nil {
+		for _, pf := range matches {
+			data, err := os.ReadFile(pf)
+			if err != nil {
+				continue
+			}
+			pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+			if err != nil || pid <= 0 {
+				continue
+			}
+			sID := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(pf), "rmte-"), ".pid")
+			if isPidAlive(pid) {
+				targets[sID] = &restartTarget{
+					sessionID: sID,
+					pidFile:   pf,
+					pid:       pid,
+				}
+			} else {
+				_ = os.Remove(pf)
+			}
+		}
+	}
+
+	// 2. Scan meta files to attach metadata or detect sessions
+	if matches, err := filepath.Glob("rmte-*.meta"); err == nil {
+		for _, mf := range matches {
+			sID := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(mf), "rmte-"), ".meta")
+			meta, err := loadSessionMeta(sID)
+			if err != nil || meta == nil {
+				continue
+			}
+			if target, exists := targets[sID]; exists {
+				target.meta = meta
+			}
+		}
+	}
+
+	// 3. Fallback: if no PID file found, check for running rmte process on Linux
+	if len(targets) == 0 {
+		runningPids := findRunningRMTEPids()
+		if len(runningPids) > 0 {
+			var foundSessionID string
+			var foundMeta *SessionMeta
+			if matches, err := filepath.Glob("rmte-*.meta"); err == nil && len(matches) > 0 {
+				foundSessionID = strings.TrimSuffix(strings.TrimPrefix(filepath.Base(matches[0]), "rmte-"), ".meta")
+				foundMeta, _ = loadSessionMeta(foundSessionID)
+			}
+			if foundSessionID == "" {
+				foundSessionID = "default"
+			}
+			for _, p := range runningPids {
+				targets[foundSessionID] = &restartTarget{
+					sessionID: foundSessionID,
+					pid:       p,
+					meta:      foundMeta,
+				}
+				break // handle primary daemon
+			}
+		}
+	}
+
+	if len(targets) == 0 {
 		fmt.Println("No active background session PID files found to restart.")
 		return
 	}
 
-	for _, pidFile := range matches {
-		data, err := os.ReadFile(pidFile)
-		if err != nil {
-			continue
-		}
-		pidStr := strings.TrimSpace(string(data))
-		pid, err := strconv.Atoi(pidStr)
-		if err != nil || pid <= 0 {
-			continue
+	for sessionID, target := range targets {
+		fmt.Printf("Stopping previous session %q (PID %d)...\n", sessionID, target.pid)
+		_ = killPid(target.pid)
+		if target.pidFile != "" {
+			_ = os.Remove(target.pidFile)
 		}
 
-		sessionID := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(pidFile), "rmte-"), ".pid")
-		meta, metaErr := loadSessionMeta(sessionID)
+		// Wait for process to fully terminate (up to 5 seconds)
+		killDeadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(killDeadline) && isPidAlive(target.pid) {
+			time.Sleep(100 * time.Millisecond)
+		}
 
-		fmt.Printf("Stopping previous background session %q (PID %d)...\n", sessionID, pid)
-		_ = killPid(pid)
-		_ = os.Remove(pidFile)
+		meta := target.meta
+		// Check if a supervisor (e.g. startup.sh loop, systemd, docker) restarts it automatically
+		restartedBySupervisor := false
+		if meta != nil && meta.Port > 0 {
+			pollDeadline := time.Now().Add(3 * time.Second)
+			for time.Now().Before(pollDeadline) {
+				conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", meta.Port), 200*time.Millisecond)
+				if err == nil {
+					conn.Close()
+					restartedBySupervisor = true
+					break
+				}
+				time.Sleep(200 * time.Millisecond)
+			}
+		}
 
-		time.Sleep(500 * time.Millisecond)
+		if restartedBySupervisor {
+			fmt.Printf("✅ Session %q restarted by supervisor. Connected web viewers will auto-reconnect!\n", sessionID)
+			continue
+		}
 
+		// Relaunch if not supervised
 		var args []string
-		if metaErr == nil && meta != nil && (meta.Mode == modeStandalone || meta.Mode == modeHybrid) {
+		if meta != nil && (meta.Mode == modeStandalone || meta.Mode == modeHybrid) {
 			args = []string{"serve", "--mode=" + meta.Mode, "--id=" + sessionID, "-q"}
 			if meta.Password != "" {
 				args = append(args, "--pass="+meta.Password)
@@ -277,9 +394,12 @@ func restartActiveSession(exePath string) {
 				args = append(args, "--admin-pass="+meta.AdminPass)
 			}
 			fmt.Printf("Restoring %s serve session %q with original encrypted credentials & configuration...\n", meta.Mode, sessionID)
+		} else if sessionID == "relay" {
+			args = []string{"serve", "--mode=relay", "-q"}
+			fmt.Printf("Restoring relay session with new binary...\n")
 		} else {
 			args = []string{"--id=" + sessionID, "-q"}
-			if metaErr == nil && meta != nil {
+			if meta != nil {
 				if meta.Password != "" {
 					args = append(args, "--pass="+meta.Password)
 				}
