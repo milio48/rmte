@@ -2506,6 +2506,7 @@ window.addEventListener('DOMContentLoaded',async()=>{
 
     initFileExplorerResizer();
     initWorkbenchResizer();
+    initPreviewResizer();
     setActiveContext('terminal');
 });
 
@@ -2655,6 +2656,120 @@ function initWorkbenchResizer() {
             document.getElementById('workspace').style.setProperty('--terminal-panel-height', nextPct + '%');
             try { localStorage.setItem('rmte_terminal_height', nextPct); } catch(err) {}
             refitActive();
+        }
+    });
+}
+
+function initPreviewResizer() {
+    const resizer = document.getElementById('preview-resizer');
+    const wbTop = document.getElementById('workbench-top');
+    const editorWb = document.getElementById('editor-workbench');
+    const previewPanel = document.getElementById('preview-panel');
+    const shield = document.getElementById('preview-drag-shield');
+    if (!resizer || !wbTop || !editorWb || !previewPanel) return;
+
+    // Load saved split ratio from localStorage
+    try {
+        const savedRatio = localStorage.getItem('rmte_preview_split_ratio');
+        if (savedRatio) {
+            const r = parseFloat(savedRatio);
+            if (r >= 20 && r <= 80) {
+                wbTop.style.setProperty('--preview-split-ratio', r + '%');
+                resizer.setAttribute('aria-valuenow', Math.round(r));
+            }
+        }
+    } catch(e) {}
+
+    let isDragging = false;
+    let startX = 0;
+    let startRatio = 50;
+    let rafId = null;
+    let lastRatio = 50;
+
+    resizer.addEventListener('pointerdown', e => {
+        if (previewMaximized || window.innerWidth <= 768) return;
+        isDragging = true;
+        startX = e.clientX;
+        const wbRect = wbTop.getBoundingClientRect();
+        const editorRect = editorWb.getBoundingClientRect();
+        if (wbRect.width > 0) {
+            startRatio = (editorRect.width / wbRect.width) * 100;
+        }
+        try { resizer.setPointerCapture(e.pointerId); } catch(err) {}
+        resizer.classList.add('is-dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        if (shield) shield.style.display = 'block';
+        e.preventDefault();
+    });
+
+    resizer.addEventListener('pointermove', e => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const wbRect = wbTop.getBoundingClientRect();
+        if (wbRect.width <= 0) return;
+
+        const currentWidthPx = (startRatio / 100) * wbRect.width;
+        let newWidthPx = currentWidthPx + dx;
+
+        const minWidthPx = 200;
+        const maxWidthPx = wbRect.width - 240;
+
+        if (newWidthPx < minWidthPx) newWidthPx = minWidthPx;
+        if (newWidthPx > maxWidthPx) newWidthPx = maxWidthPx;
+
+        const ratio = (newWidthPx / wbRect.width) * 100;
+        lastRatio = Math.round(ratio * 10) / 10;
+
+        if (!rafId) {
+            rafId = requestAnimationFrame(() => {
+                wbTop.style.setProperty('--preview-split-ratio', lastRatio + '%');
+                rafId = null;
+            });
+        }
+    });
+
+    const endDrag = e => {
+        if (!isDragging) return;
+        isDragging = false;
+        try { resizer.releasePointerCapture(e.pointerId); } catch(err) {}
+        resizer.classList.remove('is-dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        if (shield) shield.style.display = 'none';
+        if (rafId) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        }
+        resizer.setAttribute('aria-valuenow', Math.round(lastRatio));
+        try {
+            localStorage.setItem('rmte_preview_split_ratio', lastRatio);
+        } catch(err) {}
+        setTimeout(refitActive, 50);
+    };
+
+    resizer.addEventListener('pointerup', endDrag);
+    resizer.addEventListener('pointercancel', endDrag);
+
+    // Double-click resets split to default 50%
+    resizer.addEventListener('dblclick', () => {
+        wbTop.style.setProperty('--preview-split-ratio', '50%');
+        resizer.setAttribute('aria-valuenow', 50);
+        try { localStorage.setItem('rmte_preview_split_ratio', 50); } catch(err) {}
+        setTimeout(refitActive, 50);
+    });
+
+    // Keyboard navigation (ArrowLeft / ArrowRight) when resizer is focused
+    resizer.addEventListener('keydown', e => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            const step = e.shiftKey ? 10 : 5;
+            const currentRatio = parseFloat(getComputedStyle(wbTop).getPropertyValue('--preview-split-ratio')) || 50;
+            const nextRatio = e.key === 'ArrowRight' ? Math.min(80, currentRatio + step) : Math.max(20, currentRatio - step);
+            wbTop.style.setProperty('--preview-split-ratio', nextRatio + '%');
+            resizer.setAttribute('aria-valuenow', Math.round(nextRatio));
+            try { localStorage.setItem('rmte_preview_split_ratio', nextRatio); } catch(err) {}
+            setTimeout(refitActive, 50);
         }
     });
 }
@@ -2851,13 +2966,26 @@ function toggleWebPreview(force) {
     const wbTop = document.getElementById('workbench-top');
     const maxBtn = document.getElementById('preview-maximize-btn');
 
-    if (!webPreviewOpen && previewMaximized) {
-        previewMaximized = false;
-        if (panel) panel.classList.remove('is-maximized');
-        if (mainArea) mainArea.classList.remove('preview-maximized');
-        if (maxBtn) {
-            maxBtn.innerText = '□';
-            maxBtn.title = 'Maximize / Restore Preview (Full width)';
+    if (!webPreviewOpen) {
+        if (previewMaximized) {
+            previewMaximized = false;
+            if (panel) panel.classList.remove('is-maximized');
+            if (mainArea) mainArea.classList.remove('preview-maximized');
+            if (wbTop) wbTop.classList.remove('preview-maximized');
+            if (maxBtn) {
+                maxBtn.innerHTML = svgIcon('maximize', { size: 14 });
+                maxBtn.title = 'Maximize / Restore Preview (Full width)';
+            }
+        }
+    } else {
+        // Smart adaptive check on opening:
+        // If window or workbench width < 1024px (medium / half-screen desktop),
+        // auto-maximize preview so it takes full width cleanly instead of cramming both panels!
+        const wbWidth = wbTop ? wbTop.getBoundingClientRect().width : window.innerWidth;
+        if ((window.innerWidth < 1024 || wbWidth < 960) && window.innerWidth > 768) {
+            if (!previewMaximized) {
+                togglePreviewMaximize(true);
+            }
         }
     }
 
@@ -2997,19 +3125,26 @@ function togglePreviewMobile() {
     if (btn) btn.classList.toggle('active', previewMobileMode);
 }
 
-function togglePreviewMaximize() {
+function togglePreviewMaximize(force) {
     const previewPanel = document.getElementById('preview-panel');
     const mainArea = document.getElementById('main-area');
+    const wbTop = document.getElementById('workbench-top');
     const maxBtn = document.getElementById('preview-maximize-btn');
     if (!previewPanel || !mainArea) return;
 
-    if (!previewMaximized && terminalPanelMaximized) {
+    if (typeof force === 'boolean') {
+        previewMaximized = force;
+    } else {
+        previewMaximized = !previewMaximized;
+    }
+
+    if (previewMaximized && terminalPanelMaximized) {
         toggleTerminalMaximize();
     }
 
-    previewMaximized = !previewMaximized;
     previewPanel.classList.toggle('is-maximized', previewMaximized);
     mainArea.classList.toggle('preview-maximized', previewMaximized);
+    if (wbTop) wbTop.classList.toggle('preview-maximized', previewMaximized);
 
     if (maxBtn) {
         maxBtn.innerHTML = previewMaximized ? svgIcon('minimize', { size: 14 }) : svgIcon('maximize', { size: 14 });

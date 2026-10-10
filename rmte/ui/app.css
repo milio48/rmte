@@ -2110,14 +2110,84 @@ kbd {
    MINI BROWSER PREVIEW PANEL
    ═══════════════════════════════════════ */
 
+#workbench-top {
+    --preview-split-ratio: 50%;
+}
+
+/* ── Preview Split Resizer Handle ── */
+#preview-resizer {
+    width: 6px;
+    height: 100%;
+    margin: 0 -2px;
+    background: transparent;
+    cursor: col-resize;
+    z-index: 10;
+    position: relative;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    user-select: none;
+    touch-action: none;
+}
+#preview-resizer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -4px;
+    right: -4px;
+}
+.preview-resizer-line {
+    width: 1px;
+    height: 100%;
+    background: var(--color-border);
+    transition: all var(--dur-short) var(--ease-out);
+}
+#preview-resizer:hover .preview-resizer-line,
+#preview-resizer.is-dragging .preview-resizer-line {
+    width: 2px;
+    background: var(--color-accent);
+    box-shadow: 0 0 8px var(--color-accent-glow);
+}
+#preview-resizer:focus-visible {
+    outline: none;
+}
+#preview-resizer:focus-visible .preview-resizer-line {
+    width: 2px;
+    background: var(--color-accent);
+}
+
 #preview-panel {
-    flex: 1;
+    flex: 1 1 0%;
     display: flex;
     flex-direction: column;
     width: 100%;
+    min-width: 0;
     height: 100%;
     overflow: hidden;
     background: var(--color-paper-1);
+    container-type: inline-size;
+    container-name: preview;
+}
+
+/* Split layout when both Editor and Preview are open on Desktop/Tablet */
+@media (min-width: 769px) {
+    #workbench-top.preview-active:not(.preview-maximized) #editor-workbench {
+        flex: 0 0 var(--preview-split-ratio, 50%) !important;
+        min-width: 200px !important;
+        max-width: calc(100% - 240px) !important;
+    }
+
+    #workbench-top.preview-active:not(.preview-maximized) #preview-panel {
+        flex: 1 1 0% !important;
+        min-width: 240px !important;
+        width: auto !important;
+    }
+
+    #workbench-top.preview-active:not(.preview-maximized) #preview-resizer {
+        display: flex !important;
+    }
 }
 
 #preview-panel.is-maximized {
@@ -2128,7 +2198,10 @@ kbd {
 
 #main-area.preview-maximized #editor-workbench,
 #main-area.preview-maximized #terminal-panel,
-#main-area.preview-maximized #workbench-resizer {
+#main-area.preview-maximized #workbench-resizer,
+#main-area.preview-maximized #preview-resizer,
+#workbench-top.preview-maximized #editor-workbench,
+#workbench-top.preview-maximized #preview-resizer {
     display: none !important;
 }
 
@@ -2223,6 +2296,7 @@ kbd {
     display: flex;
     align-items: center;
     gap: 4px;
+    flex-shrink: 0 !important;
 }
 
 .preview-btn {
@@ -2259,7 +2333,8 @@ kbd {
 }
 
 .preview-address-bar {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
     display: flex;
     align-items: center;
     background: #ffffff;
@@ -2272,6 +2347,7 @@ kbd {
     color: #1e1b4b;
     box-shadow: 0 1px 2px rgba(99, 102, 241, 0.06);
     transition: border-color var(--dur-short) var(--ease-out), box-shadow var(--dur-short) var(--ease-out);
+    overflow: hidden;
 }
 .preview-address-bar:focus-within {
     border-color: #6366f1;
@@ -2282,12 +2358,16 @@ kbd {
     font-size: 12px;
     margin-right: 6px;
     opacity: 0.9;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
 }
 
 .preview-address-prefix {
     color: #64748b;
     font-size: 11px;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 #preview-port-input {
@@ -2299,6 +2379,7 @@ kbd {
     font-size: 12px;
     font-weight: 700;
     width: 52px;
+    flex-shrink: 0;
     padding: 0 2px;
     -moz-appearance: textfield;
 }
@@ -2311,10 +2392,11 @@ kbd {
 .preview-address-slash {
     color: #94a3b8;
     margin: 0 2px;
+    flex-shrink: 0;
 }
 
 #preview-path-input {
-    flex: 1;
+    flex: 1 1 0%;
     background: transparent;
     border: none;
     outline: none;
@@ -2322,13 +2404,14 @@ kbd {
     font-family: var(--font-mono);
     font-size: 12px;
     padding: 0 4px;
-    min-width: 50px;
+    min-width: 20px;
 }
 #preview-path-input::placeholder {
     color: #94a3b8;
 }
 
 #preview-go-btn {
+    flex-shrink: 0;
     background: #e0d7fc;
     border: 1px solid #c7bbf7;
     border-radius: 4px;
@@ -2338,11 +2421,90 @@ kbd {
     padding: 2px 7px;
     cursor: pointer;
     transition: all var(--dur-short);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 #preview-go-btn:hover {
     background: #6366f1;
     color: #ffffff;
     border-color: #6366f1;
+}
+
+/* Fluid Container Queries for Mini Browser Preview Toolbar (Single Source of Truth) */
+@container preview (max-width: 540px) {
+    .preview-address-prefix {
+        display: none !important;
+    }
+    #preview-toolbar {
+        height: 40px;
+        padding: 0 6px;
+        gap: 6px;
+    }
+    #preview-port-input {
+        width: 44px;
+    }
+}
+
+@container preview (max-width: 420px) {
+    #preview-mobile-btn {
+        display: none !important;
+    }
+    #preview-toolbar {
+        height: 38px;
+        padding: 0 4px;
+        gap: 4px;
+    }
+    .preview-nav-group,
+    .preview-actions-group {
+        gap: 2px;
+    }
+    .preview-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 11px;
+        padding: 0;
+    }
+    .preview-address-bar {
+        height: 28px;
+        padding: 0 4px;
+        font-size: 11px;
+        gap: 2px;
+    }
+    .preview-address-icon {
+        margin-right: 2px;
+        font-size: 11px;
+    }
+    #preview-port-input {
+        width: 40px;
+        font-size: 11px;
+    }
+    #preview-path-input {
+        font-size: 11px;
+        padding: 0 2px;
+    }
+    #preview-go-btn {
+        padding: 1px 5px;
+        font-size: 11px;
+        height: 22px;
+    }
+}
+
+@container preview (max-width: 280px) {
+    .preview-address-icon {
+        display: none !important;
+    }
+    .preview-btn {
+        width: 22px;
+        height: 24px;
+        padding: 0;
+    }
+    .preview-address-bar {
+        padding: 0 2px;
+    }
+    #preview-port-input {
+        width: 36px;
+    }
 }
 
 #preview-viewport-wrap {
@@ -2724,6 +2886,9 @@ kbd {
         min-width: 0 !important;
         height: 100% !important;
     }
+    #preview-resizer {
+        display: none !important;
+    }
 
     #preview-viewport-wrap.mobile-view {
         padding: 0 !important;
@@ -2750,59 +2915,6 @@ kbd {
         display: inline-flex !important;
     }
 
-    /* Mobile-optimized Web Preview Toolbar */
-    #preview-toolbar {
-        height: 38px;
-        padding: 0 4px;
-        gap: 4px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        scrollbar-width: none;
-    }
-    #preview-toolbar::-webkit-scrollbar { display: none; }
-    .preview-nav-group,
-    .preview-actions-group {
-        gap: 2px;
-        flex-shrink: 0;
-    }
-    .preview-btn {
-        width: 26px;
-        height: 26px;
-        font-size: 11px;
-        padding: 0;
-    }
-    .preview-address-bar {
-        height: 28px;
-        padding: 0 4px;
-        font-size: 11px;
-        min-width: 0;
-        gap: 2px;
-        flex: 1 1 auto;
-    }
-    .preview-address-prefix {
-        display: none !important;
-    }
-    #preview-mobile-btn {
-        display: none !important;
-    }
-    .preview-address-icon {
-        margin-right: 2px;
-        font-size: 11px;
-    }
-    #preview-port-input {
-        width: 40px;
-        font-size: 11px;
-    }
-    #preview-path-input {
-        min-width: 20px;
-        font-size: 11px;
-        padding: 0 2px;
-    }
-    #preview-go-btn {
-        padding: 1px 5px;
-        font-size: 11px;
-        height: 22px;
-    }
 
     /* Status bar mobile compact layout */
     #sb-session,
