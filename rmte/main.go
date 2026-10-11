@@ -42,6 +42,7 @@ const (
 	modeStandalone = "standalone" // relay + local host, external hosts rejected
 	modeHybrid     = "hybrid"     // relay + local host, external hosts accepted
 	modeRelay      = "relay"      // relay only, no local PTY
+	modeShare      = "share"      // share client host connected to external relay
 )
 
 // ServeConfig holds all options for `rmte serve`.
@@ -240,7 +241,24 @@ func cmdServe() {
 	if cfg.Mode == modeRelay {
 		pidFile := "rmte-relay.pid"
 		_ = os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0644)
-		defer os.Remove(pidFile)
+		meta := SessionMeta{
+			SessionID: "relay",
+			Mode:      modeRelay,
+			PID:       os.Getpid(),
+			Port:      cfg.Port,
+			Public:    cfg.Public,
+			PublicURL: cfg.PublicURL,
+			WebPath:   cfg.WebPath,
+			WSPath:    cfg.WSPath,
+			AdminPath: cfg.AdminPath,
+			AdminPass: cfg.AdminPass,
+			IsDaemon:  isDaemonChild(),
+		}
+		_ = saveSessionMeta(meta)
+		defer func() {
+			_ = os.Remove(pidFile)
+			removeSessionMeta("relay")
+		}()
 
 		printBanner(bannerFromServe(&cfg, ""))
 		markDaemonReady("")
@@ -312,7 +330,7 @@ func runShare(args []string) {
 		PublicURL: relayURL,
 		Pass:      chosenPass,
 		Buffer:    *bufferMB,
-		Mode:      "share",
+		Mode:      modeShare,
 		Dir:       cleanDir,
 		ID:        cleanID,
 		Preview:   *webPreview && *preview,

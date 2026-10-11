@@ -220,8 +220,8 @@ type restartTarget struct {
 	meta      *SessionMeta
 }
 
-// findRunningRMTEPids scans /proc on Linux for any other running rmte processes (PID != current)
-func findRunningRMTEPids() []int {
+// findRunningRMTEPids scans /proc on Linux for any other running rmte processes matching this binary or cwd (PID != current)
+func findRunningRMTEPids(exePath string) []int {
 	if runtime.GOOS != "linux" {
 		return nil
 	}
@@ -231,6 +231,12 @@ func findRunningRMTEPids() []int {
 	}
 	var pids []int
 	currentPid := os.Getpid()
+	currentCwd, _ := os.Getwd()
+	cleanExe, _ := filepath.EvalSymlinks(exePath)
+	if cleanExe == "" {
+		cleanExe = exePath
+	}
+
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -239,12 +245,32 @@ func findRunningRMTEPids() []int {
 		if err != nil || pid <= 1 || pid == currentPid {
 			continue
 		}
-		commBytes, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", pid))
-		if err != nil {
-			continue
+
+		matched := false
+		// 1. Verify executable path via /proc/<pid>/exe
+		if targetExe, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid)); err == nil {
+			targetExeClean, _ := filepath.EvalSymlinks(targetExe)
+			if targetExeClean == cleanExe || filepath.Base(targetExe) == filepath.Base(exePath) {
+				matched = true
+			}
 		}
-		comm := strings.TrimSpace(string(commBytes))
-		if comm == "rmte" {
+
+		// 2. Fallback to /proc/<pid>/comm if exe link was inaccessible
+		if !matched {
+			if commBytes, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", pid)); err == nil {
+				if strings.TrimSpace(string(commBytes)) == "rmte" {
+					matched = true
+				}
+			}
+		}
+
+		if matched {
+			// Ensure working directory matches so we don't kill other containers/users
+			if targetCwd, err := os.Readlink(fmt.Sprintf("/proc/%d/cwd", pid)); err == nil && currentCwd != "" {
+				if targetCwd != currentCwd {
+					continue
+				}
+			}
 			pids = append(pids, pid)
 		}
 	}
@@ -263,11 +289,11 @@ func restartActiveSession(exePath string) {
 				continue
 			}
 			pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-			if err != nil || pid <= 0 {
+			if err != nil || pid <= 0 || pid == os.Getpid() {
 				continue
 			}
 			sID := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(pf), "rmte-"), ".pid")
-			if isPidAlive(pid) {
+			if isPidRMTE(pid, exePath) {
 				targets[sID] = &restartTarget{
 					sessionID: sID,
 					pidFile:   pf,
@@ -293,9 +319,9 @@ func restartActiveSession(exePath string) {
 		}
 	}
 
-	// 3. Fallback: if no PID file found, check for running rmte process on Linux
+	// 3. Fallback: if no PID file found, check for running rmte process on Linux matching exe/cwd
 	if len(targets) == 0 {
-		runningPids := findRunningRMTEPids()
+		runningPids := findRunningRMTEPids(exePath)
 		if len(runningPids) > 0 {
 			var foundSessionID string
 			var foundMeta *SessionMeta
@@ -303,16 +329,16 @@ func restartActiveSession(exePath string) {
 				foundSessionID = strings.TrimSuffix(strings.TrimPrefix(filepath.Base(matches[0]), "rmte-"), ".meta")
 				foundMeta, _ = loadSessionMeta(foundSessionID)
 			}
-			if foundSessionID == "" {
-				foundSessionID = "default"
-			}
 			for _, p := range runningPids {
-				targets[foundSessionID] = &restartTarget{
-					sessionID: foundSessionID,
+				sID := foundSessionID
+				if sID == "" {
+					sID = fmt.Sprintf("proc-%d", p)
+				}
+				targets[sID] = &restartTarget{
+					sessionID: sID,
 					pid:       p,
 					meta:      foundMeta,
 				}
-				break // handle primary daemon
 			}
 		}
 	}
@@ -336,6 +362,7 @@ func restartActiveSession(exePath string) {
 		}
 
 		meta := target.meta
+
 		// Check if a supervisor (e.g. startup.sh loop, systemd, docker) restarts it automatically
 		restartedBySupervisor := false
 		if meta != nil && meta.Port > 0 {
@@ -357,21 +384,40 @@ func restartActiveSession(exePath string) {
 		}
 
 		// Relaunch if not supervised
-		var args []string
-		if meta != nil && (meta.Mode == modeStandalone || meta.Mode == modeHybrid) {
-			args = []string{"serve", "--mode=" + meta.Mode, "--id=" + sessionID, "-q"}
-			if meta.Password != "" {
-				args = append(args, "--pass="+meta.Password)
-			}
-			if meta.Dir != "" {
-				args = append(args, "--dir="+meta.Dir)
-			}
-			if meta.Buffer > 0 {
-				args = append(args, fmt.Sprintf("--buffer=%d", meta.Buffer))
-			}
-			if meta.Preview {
-				args = append(args, "--web-preview")
-			}
+		if sessionID != "relay" && meta == nil {
+			fmt.Printf("Session %q (PID %d) stopped cleanly. Awaiting supervisor restart.\n", sessionID, target.pid)
+			continue
+		}
+
+		args := buildRestartArgs(sessionID, meta)
+		if len(args) == 0 {
+			continue
+		}
+
+		if sessionID == "relay" {
+			fmt.Printf("Restoring relay session with new binary...\n")
+		} else if meta.Mode == modeStandalone || meta.Mode == modeHybrid {
+			fmt.Printf("Restoring %s serve session %q with original encrypted credentials & configuration...\n", meta.Mode, sessionID)
+		} else {
+			fmt.Printf("Restoring share session %q with original encrypted credentials & configuration...\n", sessionID)
+		}
+
+		cmd := exec.Command(exePath, args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("Warning: failed to restart session %q: %v\n", sessionID, err)
+		} else {
+			fmt.Printf("✅ Session %q restarted. Connected web viewers will auto-reconnect!\n", sessionID)
+		}
+	}
+}
+
+// buildRestartArgs constructs the command-line arguments to relaunch a session
+func buildRestartArgs(sessionID string, meta *SessionMeta) []string {
+	if sessionID == "relay" {
+		args := []string{"serve", "--mode=relay", "-q"}
+		if meta != nil {
 			if meta.Port > 0 {
 				args = append(args, fmt.Sprintf("--port=%d", meta.Port))
 			}
@@ -393,43 +439,70 @@ func restartActiveSession(exePath string) {
 			if meta.AdminPass != "" {
 				args = append(args, "--admin-pass="+meta.AdminPass)
 			}
-			fmt.Printf("Restoring %s serve session %q with original encrypted credentials & configuration...\n", meta.Mode, sessionID)
-		} else if sessionID == "relay" {
-			args = []string{"serve", "--mode=relay", "-q"}
-			fmt.Printf("Restoring relay session with new binary...\n")
-		} else {
-			args = []string{"--id=" + sessionID, "-q"}
-			if meta != nil {
-				if meta.Password != "" {
-					args = append(args, "--pass="+meta.Password)
-				}
-				if meta.ServerRelay != "" {
-					args = append(args, "--server-relay="+meta.ServerRelay)
-				}
-				if meta.Dir != "" {
-					args = append(args, "--dir="+meta.Dir)
-				}
-				if meta.Buffer > 0 {
-					args = append(args, fmt.Sprintf("--buffer=%d", meta.Buffer))
-				}
-				if !meta.Preview {
-					args = append(args, "--web-preview=false")
-				}
-				fmt.Printf("Restoring share session %q with original encrypted credentials & configuration...\n", sessionID)
-			} else {
-				fmt.Printf("Restarting session %q with new binary...\n", sessionID)
-			}
 		}
-
-		cmd := exec.Command(exePath, args...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			fmt.Printf("Warning: failed to restart session %q: %v\n", sessionID, err)
-		} else {
-			fmt.Printf("✅ Session %q restarted. Connected web viewers will auto-reconnect!\n", sessionID)
-		}
+		return args
 	}
+
+	if meta == nil {
+		return nil
+	}
+
+	if meta.Mode == modeStandalone || meta.Mode == modeHybrid {
+		args := []string{"serve", "--mode=" + meta.Mode, "--id=" + sessionID, "-q"}
+		if meta.Password != "" {
+			args = append(args, "--pass="+meta.Password)
+		}
+		if meta.Dir != "" {
+			args = append(args, "--dir="+meta.Dir)
+		}
+		if meta.Buffer > 0 {
+			args = append(args, fmt.Sprintf("--buffer=%d", meta.Buffer))
+		}
+		if meta.Preview {
+			args = append(args, "--web-preview")
+		}
+		if meta.Port > 0 {
+			args = append(args, fmt.Sprintf("--port=%d", meta.Port))
+		}
+		if meta.Public {
+			args = append(args, "--public")
+		}
+		if meta.PublicURL != "" {
+			args = append(args, "--public-url="+meta.PublicURL)
+		}
+		if meta.WebPath != "" {
+			args = append(args, "--web-path="+meta.WebPath)
+		}
+		if meta.WSPath != "" {
+			args = append(args, "--ws-path="+meta.WSPath)
+		}
+		if meta.AdminPath != "" {
+			args = append(args, "--admin-path="+meta.AdminPath)
+		}
+		if meta.AdminPass != "" {
+			args = append(args, "--admin-pass="+meta.AdminPass)
+		}
+		return args
+	}
+
+	// Share session (host connected to external relay)
+	args := []string{"--id=" + sessionID, "-q"}
+	if meta.Password != "" {
+		args = append(args, "--pass="+meta.Password)
+	}
+	if meta.ServerRelay != "" {
+		args = append(args, "--server-relay="+meta.ServerRelay)
+	}
+	if meta.Dir != "" {
+		args = append(args, "--dir="+meta.Dir)
+	}
+	if meta.Buffer > 0 {
+		args = append(args, fmt.Sprintf("--buffer=%d", meta.Buffer))
+	}
+	if !meta.Preview {
+		args = append(args, "--web-preview=false")
+	}
+	return args
 }
 
 // compareVersions compares two semver strings like "0.5.0" and "0.5.1"

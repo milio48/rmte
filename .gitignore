@@ -4,4 +4,6 @@ rmte/rmte
 *.exe
 *.old
 *.pid
-*.meta
+*.meta
+.kilo/
+

@@ -5,7 +5,9 @@ package main
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -53,4 +55,22 @@ func isPidAlive(pid int) bool {
 		return false
 	}
 	return exitCode == 259 // STILL_ACTIVE
+}
+
+func isPidRMTE(pid int, exePath string) bool {
+	if pid <= 0 || !isPidAlive(pid) {
+		return false
+	}
+	out, err := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/FO", "CSV", "/NH").Output()
+	if err == nil {
+		s := strings.ToLower(string(out))
+		expected := strings.ToLower(filepath.Base(exePath))
+		if !strings.HasSuffix(expected, ".exe") {
+			expected += ".exe"
+		}
+		if !strings.Contains(s, fmt.Sprintf("%q", expected)) && !strings.Contains(s, `"rmte.exe"`) && !strings.Contains(s, `"rmte.test.exe"`) {
+			return false
+		}
+	}
+	return true
 }

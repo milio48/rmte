@@ -316,36 +316,34 @@ func runHost(opts HostOptions) {
 
 	// Signal parent if running in background daemon mode
 	markDaemonReady(authResp.SessionID)
-	if isDaemonChild() {
-		meta := SessionMeta{
-			SessionID:   authResp.SessionID,
-			Password:    opts.Pass,
-			ServerRelay: opts.DialURL,
-			Dir:         hostWorkDir,
-			Buffer:      opts.Buffer,
-			Preview:     opts.Preview,
-			PID:         os.Getpid(),
-			Mode:        opts.Mode,
-		}
-		if serverCfg != nil {
-			meta.Port = serverCfg.Port
-			meta.Public = serverCfg.Public
-			meta.PublicURL = serverCfg.PublicURL
-			meta.WebPath = serverCfg.WebPath
-			meta.WSPath = serverCfg.WSPath
-			meta.AdminPath = serverCfg.AdminPath
-			meta.AdminPass = serverCfg.AdminPass
-		}
-		meta.IsDaemon = isDaemonChild()
-		_ = saveSessionMeta(meta)
-
-		pidFile := fmt.Sprintf("rmte-%s.pid", authResp.SessionID)
-		_ = os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0644)
-		defer func() {
-			_ = os.Remove(pidFile)
-			removeSessionMeta(authResp.SessionID)
-		}()
+	meta := SessionMeta{
+		SessionID:   authResp.SessionID,
+		Password:    opts.Pass,
+		ServerRelay: opts.DialURL,
+		Dir:         hostWorkDir,
+		Buffer:      opts.Buffer,
+		Preview:     opts.Preview,
+		PID:         os.Getpid(),
+		Mode:        opts.Mode,
+		IsDaemon:    isDaemonChild(),
 	}
+	if serverCfg != nil {
+		meta.Port = serverCfg.Port
+		meta.Public = serverCfg.Public
+		meta.PublicURL = serverCfg.PublicURL
+		meta.WebPath = serverCfg.WebPath
+		meta.WSPath = serverCfg.WSPath
+		meta.AdminPath = serverCfg.AdminPath
+		meta.AdminPass = serverCfg.AdminPass
+	}
+	_ = saveSessionMeta(meta)
+
+	pidFile := fmt.Sprintf("rmte-%s.pid", authResp.SessionID)
+	_ = os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0644)
+	defer func() {
+		_ = os.Remove(pidFile)
+		removeSessionMeta(authResp.SessionID)
+	}()
 
 	setHostConn(conn)
 
