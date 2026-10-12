@@ -173,6 +173,13 @@ if [ "$DO_RUN" -eq 1 ]; then
   if [ "$QUIET_MODE" -eq 0 ]; then
     printf "${BLUE}==>${NC} Launching RMTE...\n\n"
   fi
+  if [ -d "/system/bin" ] || [ -n "${ANDROID_ROOT:-}" ]; then
+    if ! "${TARGET_FILE}" -v >/dev/null 2>&1; then
+      printf "${YELLOW}Warning: Cannot execute %s on this filesystem.${NC}\n" "${TARGET_FILE}"
+      printf "${YELLOW}Tip (Android): The current folder may be mounted 'noexec' (e.g. /sdcard) or blocked by Android permissions.\n"
+      printf "Please run RMTE inside Termux (~ / \$HOME) or from an executable directory.${NC}\n\n"
+    fi
+  fi
   if [ -n "${EXTRA_ARGS}" ]; then
     # shellcheck disable=SC2086
     exec "${TARGET_FILE}" ${EXTRA_ARGS}
@@ -181,4 +188,10 @@ if [ "$DO_RUN" -eq 1 ]; then
   fi
 else
   printf "\nRun '${GREEN}%s help${NC}' or '${GREEN}%s${NC}' to get started!\n" "${TARGET_FILE}" "${TARGET_FILE}"
+  if [ -d "/system/bin" ] || [ -n "${ANDROID_ROOT:-}" ]; then
+    if ! "${TARGET_FILE}" -v >/dev/null 2>&1; then
+      printf "\n${YELLOW}Tip (Android): If you see 'Permission denied' when running %s,\n" "${TARGET_FILE}"
+      printf "the current folder may be mounted 'noexec' (e.g. /sdcard). Run inside Termux (~ / \$HOME).${NC}\n"
+    fi
+  fi
 fi

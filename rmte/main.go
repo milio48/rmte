@@ -22,6 +22,7 @@ var (
 
 func init() {
 	setupDNSFallback()
+	setupTLSConfig(false)
 
 	if appVersion == "dev" {
 		if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
@@ -92,6 +93,7 @@ type ServeConfig struct {
 	InternalToken string // used by the embedded host in standalone mode
 	AdminPath     string // HTTP path for Admin Dashboard (e.g. /admin or /admin-rmte)
 	AdminPass     string // Password for Admin Dashboard (disabled if empty)
+	Insecure      bool   // Skip TLS certificate verification
 }
 
 var origArgs []string
@@ -170,7 +172,13 @@ func cmdServe() {
 	flag.StringVar(&cfg.AdminPath, "path-admin", "/admin", "Alias for --admin-path")
 	flag.StringVar(&cfg.AdminPass, "admin-pass", "", "Password for Relay Admin Dashboard (disabled if empty)")
 	flag.StringVar(&cfg.AdminPass, "password-admin", "", "Alias for --admin-pass")
+	flag.BoolVar(&cfg.Insecure, "insecure", false, "Skip TLS certificate verification")
+	flag.BoolVar(&cfg.Insecure, "skip-tls-verify", false, "Alias for --insecure")
 	flag.Parse()
+
+	if cfg.Insecure {
+		setupTLSConfig(true)
+	}
 
 	if cfg.Quiet && !isDaemonChild() {
 		runAsDaemon()
@@ -312,9 +320,15 @@ func runShare(args []string) {
 	preview := fs.Bool("preview", true, "Alias for --web-preview")
 	quiet := fs.Bool("quiet", false, "Run in background (detached) and print connection info with PID")
 	q := fs.Bool("q", false, "Alias for --quiet")
+	insecure := fs.Bool("insecure", false, "Skip TLS certificate verification")
+	skipTLS := fs.Bool("skip-tls-verify", false, "Alias for --insecure")
 
 	if len(args) > 0 {
 		_ = fs.Parse(args)
+	}
+
+	if *insecure || *skipTLS {
+		setupTLSConfig(true)
 	}
 
 	if (*quiet || *q) && !isDaemonChild() {
@@ -378,7 +392,12 @@ func cmdJoin() {
 	sessionID := flag.String("id", "", "Session ID to join")
 	pass := flag.String("pass", "", "Password for E2EE")
 	name := flag.String("name", "", "Display name of the viewer")
+	insecure := flag.Bool("insecure", false, "Skip TLS certificate verification")
+	skipTLS := flag.Bool("skip-tls-verify", false, "Alias for --insecure")
 	flag.Parse()
+	if *insecure || *skipTLS {
+		setupTLSConfig(true)
+	}
 	if *sessionID == "" || *pass == "" {
 		fatalf("Error: --id and --pass are required")
 	}

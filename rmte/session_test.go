@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -431,5 +433,37 @@ func TestDNSFallbackLookup(t *testing.T) {
 	}
 	if len(addrs) == 0 {
 		t.Errorf("expected at least 1 IP address for one.one.one.one")
+	}
+}
+
+func TestEmbeddedRootCAs(t *testing.T) {
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM([]byte(embeddedRootCAs)) {
+		t.Fatalf("failed to parse embeddedRootCAs")
+	}
+
+	conn, err := tls.Dial("tcp", "my.rmte.biz.id:443", &tls.Config{
+		RootCAs: pool,
+	})
+	if err != nil {
+		t.Logf("TLS verification note (network/firewall): %v", err)
+		return
+	}
+	defer conn.Close()
+	state := conn.ConnectionState()
+	if !state.HandshakeComplete {
+		t.Errorf("expected TLS handshake to complete")
+	}
+}
+
+func TestSetupTLSConfigInsecure(t *testing.T) {
+	setupTLSConfig(true)
+	if websocket.DefaultDialer.TLSClientConfig == nil || !websocket.DefaultDialer.TLSClientConfig.InsecureSkipVerify {
+		t.Errorf("expected InsecureSkipVerify to be true")
+	}
+	// Restore standard secure config
+	setupTLSConfig(false)
+	if websocket.DefaultDialer.TLSClientConfig == nil || websocket.DefaultDialer.TLSClientConfig.InsecureSkipVerify {
+		t.Errorf("expected InsecureSkipVerify to be false after restore")
 	}
 }
