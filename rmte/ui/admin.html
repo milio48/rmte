@@ -497,7 +497,7 @@
             <div class="metric-card">
                 <span class="metric-label">Active Sessions</span>
                 <span class="metric-val" id="metric-sessions">0</span>
-                <span class="metric-sub">Registered hosts on relay</span>
+                <span class="metric-sub" id="metric-lifetime-sessions">All-time: 0 sessions</span>
             </div>
             <div class="metric-card">
                 <span class="metric-label">Connected Viewers</span>
@@ -508,6 +508,11 @@
                 <span class="metric-label">Relay Uptime</span>
                 <span class="metric-val" id="metric-uptime">0s</span>
                 <span class="metric-sub" id="metric-version">RMTE Relay</span>
+            </div>
+            <div class="metric-card">
+                <span class="metric-label">All-time Bandwidth</span>
+                <span class="metric-val" id="metric-lifetime-bandwidth">0 B</span>
+                <span class="metric-sub" id="metric-lifetime-sub">0 B Rx / 0 B Tx</span>
             </div>
             <div class="metric-card">
                 <span class="metric-label">Banned Hosts</span>
@@ -757,6 +762,23 @@
             document.getElementById('metric-uptime').textContent = data.relay_uptime || '0s';
             document.getElementById('metric-version').textContent = 'RMTE v' + (data.server_version || '0.5');
             document.getElementById('metric-banned').textContent = (data.banned_ips || []).length;
+
+            if (data.cumulative) {
+                const cum = data.cumulative;
+                const totalBandwidth = (cum.total_bytes_rx || 0) + (cum.total_bytes_tx || 0);
+                const elLifetimeSessions = document.getElementById('metric-lifetime-sessions');
+                if (elLifetimeSessions) {
+                    elLifetimeSessions.textContent = `All-time: ${cum.total_sessions || 0} sessions`;
+                }
+                const elLifetimeBandwidth = document.getElementById('metric-lifetime-bandwidth');
+                if (elLifetimeBandwidth) {
+                    elLifetimeBandwidth.textContent = formatBytes(totalBandwidth);
+                }
+                const elLifetimeSub = document.getElementById('metric-lifetime-sub');
+                if (elLifetimeSub) {
+                    elLifetimeSub.textContent = `${formatBytes(cum.total_bytes_rx || 0)} Rx / ${formatBytes(cum.total_bytes_tx || 0)} Tx`;
+                }
+            }
 
             document.getElementById('active-count-badge').textContent = (data.active_sessions || []).length;
             document.getElementById('history-count-badge').textContent = (data.history || []).length;

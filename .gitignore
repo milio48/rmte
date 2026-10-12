@@ -5,5 +5,8 @@ rmte/rmte
 *.old
 *.pid
 *.meta
+rmte-*.json
+rmte-*.tmp
+rmte-*.bak
 .kilo/
 

@@ -806,12 +806,13 @@ func sanitizePath(reqPath string) (string, error) {
 	return absPath, nil
 }
 
-// isInternalRmteFile returns true for internal runtime artifacts (rmte-*.meta, rmte-*.pid, rmte-*.log)
+// isInternalRmteFile returns true for internal runtime artifacts (rmte-*.meta, rmte-*.pid, rmte-*.log, rmte-*.json, rmte-*.tmp, rmte-*.bak)
 // It performs case-insensitive matching to protect against case-folding filesystem attacks (e.g. Windows).
 func isInternalRmteFile(pathOrName string) bool {
 	base := strings.ToLower(filepath.Base(pathOrName))
 	if strings.HasPrefix(base, "rmte-") {
-		if strings.HasSuffix(base, ".meta") || strings.HasSuffix(base, ".pid") || strings.HasSuffix(base, ".log") {
+		if strings.HasSuffix(base, ".meta") || strings.HasSuffix(base, ".pid") || strings.HasSuffix(base, ".log") ||
+			strings.HasSuffix(base, ".json") || strings.HasSuffix(base, ".tmp") || strings.HasSuffix(base, ".bak") {
 			return true
 		}
 	}

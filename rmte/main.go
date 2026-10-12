@@ -239,10 +239,14 @@ func cmdServe() {
 	}
 
 	if cfg.Mode == modeRelay {
-		pidFile := "rmte-relay.pid"
+		instanceID := "relay"
+		if cfg.ID != "" {
+			instanceID = cfg.ID
+		}
+		pidFile := fmt.Sprintf("rmte-%s.pid", instanceID)
 		_ = os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0644)
 		meta := SessionMeta{
-			SessionID: "relay",
+			SessionID: instanceID,
 			Mode:      modeRelay,
 			PID:       os.Getpid(),
 			Port:      cfg.Port,
@@ -257,7 +261,7 @@ func cmdServe() {
 		_ = saveSessionMeta(meta)
 		defer func() {
 			_ = os.Remove(pidFile)
-			removeSessionMeta("relay")
+			removeSessionMeta(instanceID)
 		}()
 
 		printBanner(bannerFromServe(&cfg, ""))

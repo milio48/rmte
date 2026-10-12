@@ -1,15 +1,19 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -58,6 +62,10 @@ var (
 
 func runServer(cfg *ServeConfig) {
 	serverCfg = cfg
+
+	// Initialize persistent admin storage (loads banned IPs and history)
+	initAdminStorage(cfg.ID)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc(cfg.WSPath, handleWS)
 	mux.HandleFunc(cfg.WSPath+"-proxy", handleWSProxy)
@@ -78,7 +86,28 @@ func runServer(cfg *ServeConfig) {
 	if cfg.AdminPass != "" {
 		fmt.Printf("Relay Admin Dashboard enabled at %s\n", cfg.AdminPath)
 	}
-	log.Fatal(http.ListenAndServe(addr, mux))
+
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
+	// Capture termination signals (SIGINT, SIGTERM) for graceful shutdown & disk flush
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		// Save current state snapshot before exiting
+		saveAdminState()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_ = srv.Shutdown(ctx)
+		cancel()
+		os.Exit(0)
+	}()
+
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("Server error: %v", err)
+	}
 }
 
 func handleWS(w http.ResponseWriter, r *http.Request) {
@@ -281,18 +310,17 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 
 			sess.ReconnectTimer = time.AfterFunc(hostReconnectGracePeriod, func() {
 				sessionMu.Lock()
-				defer sessionMu.Unlock()
-
 				curSess, exists := sessions[sessionID]
 				if !exists || curSess != sess {
+					sessionMu.Unlock()
 					return
 				}
 
 				sess.Mutex.Lock()
-				defer sess.Mutex.Unlock()
-
+				closed := false
 				if sess.Host == nil {
 					recordClosedSessionLocked(sess, "Host reconnect timeout expired")
+					closed = true
 					sess.SmuxMu.Lock()
 					if sess.SmuxSession != nil {
 						sess.SmuxSession.Close()
@@ -312,6 +340,12 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 					}
 					delete(sessions, sessionID)
 					fmt.Printf("Host reconnect timeout (%v) expired. Session %s closed.\n", hostReconnectGracePeriod, sessionID)
+				}
+				sess.Mutex.Unlock()
+				sessionMu.Unlock()
+
+				if closed {
+					saveAdminState()
 				}
 			})
 			sess.Mutex.Unlock()

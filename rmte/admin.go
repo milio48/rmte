@@ -49,13 +49,14 @@ type ActiveSessionDTO struct {
 
 // AdminStatsResponse is the dashboard payload.
 type AdminStatsResponse struct {
-	ServerVersion string               `json:"server_version"`
-	RelayUptime   string               `json:"relay_uptime"`
-	TotalSessions int                  `json:"total_sessions"`
-	TotalViewers  int                  `json:"total_viewers"`
-	ActiveSessions []ActiveSessionDTO  `json:"active_sessions"`
-	History       []SessionHistoryInfo `json:"history"`
-	BannedIPs     []BannedIPInfo       `json:"banned_ips"`
+	ServerVersion  string               `json:"server_version"`
+	RelayUptime    string               `json:"relay_uptime"`
+	TotalSessions  int                  `json:"total_sessions"`
+	TotalViewers   int                  `json:"total_viewers"`
+	ActiveSessions []ActiveSessionDTO   `json:"active_sessions"`
+	Cumulative     CumulativeStats      `json:"cumulative"`
+	History        []SessionHistoryInfo `json:"history"`
+	BannedIPs      []BannedIPInfo       `json:"banned_ips"`
 }
 
 var (
@@ -111,18 +112,20 @@ func banIP(ip, reason string) {
 		return
 	}
 	bannedMu.Lock()
-	defer bannedMu.Unlock()
 	bannedIPs[ip] = BannedIPInfo{
 		IP:       ip,
 		Reason:   reason,
 		BannedAt: time.Now(),
 	}
+	bannedMu.Unlock()
+	saveAdminState()
 }
 
 func unbanIP(ip string) {
 	bannedMu.Lock()
-	defer bannedMu.Unlock()
 	delete(bannedIPs, ip)
+	bannedMu.Unlock()
+	saveAdminState()
 }
 
 func getBannedIPList() []BannedIPInfo {
@@ -143,23 +146,30 @@ func recordClosedSessionLocked(sess *Session, reason string) {
 	defer historyMu.Unlock()
 
 	dur := time.Since(sess.CreatedAt).Round(time.Second)
+	rx := atomic.LoadUint64(&sess.BytesRx)
+	tx := atomic.LoadUint64(&sess.BytesTx)
+	fileBytes := atomic.LoadUint64(&sess.FileBytes)
+
 	info := SessionHistoryInfo{
 		SessionID: sess.ID,
 		HostIP:    sess.HostIP,
 		CreatedAt: sess.CreatedAt,
 		ClosedAt:  time.Now(),
 		Duration:  dur.String(),
-		BytesRx:   atomic.LoadUint64(&sess.BytesRx),
-		BytesTx:   atomic.LoadUint64(&sess.BytesTx),
-		FileBytes: atomic.LoadUint64(&sess.FileBytes),
+		BytesRx:   rx,
+		BytesTx:   tx,
+		FileBytes: fileBytes,
 		Reason:    reason,
 	}
 
-	// Keep max 100 historical entries (FIFO)
-	if len(sessionHistory) >= 100 {
+	// Keep max historical entries (FIFO)
+	if len(sessionHistory) >= maxPersistedHistory {
 		sessionHistory = sessionHistory[1:]
 	}
 	sessionHistory = append(sessionHistory, info)
+
+	// Record to cumulative lifetime counters
+	recordSessionClosedStats(rx, tx, fileBytes)
 }
 
 func terminateSession(sessionID string) bool {
@@ -194,6 +204,9 @@ func terminateSession(sessionID string) bool {
 		_ = sess.SmuxSession.Close()
 	}
 	sess.SmuxMu.Unlock()
+
+	// Persist changes outside of all locks
+	saveAdminState()
 
 	return true
 }
@@ -344,6 +357,7 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 			TotalSessions:  len(activeDTOs),
 			TotalViewers:   totalViewers,
 			ActiveSessions: activeDTOs,
+			Cumulative:     getCumulativeStats(),
 			History:        histCopy,
 			BannedIPs:      getBannedIPList(),
 		}

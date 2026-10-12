@@ -415,9 +415,12 @@ func restartActiveSession(exePath string) {
 
 // buildRestartArgs constructs the command-line arguments to relaunch a session
 func buildRestartArgs(sessionID string, meta *SessionMeta) []string {
-	if sessionID == "relay" {
+	if sessionID == "relay" || (meta != nil && meta.Mode == modeRelay) {
 		args := []string{"serve", "--mode=relay", "-q"}
 		if meta != nil {
+			if meta.SessionID != "" && meta.SessionID != "relay" {
+				args = append(args, "--id="+meta.SessionID)
+			}
 			if meta.Port > 0 {
 				args = append(args, fmt.Sprintf("--port=%d", meta.Port))
 			}
