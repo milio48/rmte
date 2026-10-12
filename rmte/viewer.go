@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -16,13 +18,26 @@ import (
 	"golang.org/x/term"
 )
 
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]|\x1bO[A-Za-z]|\x1b.`)
+
+func stripAnsiEscapes(s string) string {
+	return ansiRegex.ReplaceAllString(s, "")
+}
+
+func cleanupTerminalModes() {
+	// Disable focus reporting (?1004l), bracketed paste (?2004l), mouse tracking (?1000-1006l), and show cursor (?25h)
+	os.Stdout.WriteString("\x1b[?1004l\x1b[?2004l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?25h")
+}
+
 func runViewer(serverURL, sessionID, password, displayName string) {
+	cleanupTerminalModes()
+	stdinReader := bufio.NewReader(os.Stdin)
+
 	myDispName := displayName
 	if myDispName == "" {
 		fmt.Print("Enter your display name: ")
-		var name string
-		fmt.Scanln(&name)
-		myDispName = strings.TrimSpace(name)
+		name, _ := stdinReader.ReadString('\n')
+		myDispName = stripAnsiEscapes(strings.TrimSpace(name))
 		if myDispName == "" {
 			myDispName = generateViewerID()
 		}
@@ -155,9 +170,9 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 						inChatModeMu.RUnlock()
 
 						if chatting {
-							fmt.Printf("[%s] %s: %s\n", ctrl.Time, ctrl.Sender, ctrl.Message)
+							fmt.Printf("\r\x1b[K[%s] %s: %s\nChat > ", ctrl.Time, ctrl.Sender, ctrl.Message)
 						} else if !joined {
-							fmt.Printf("\n[Chat] %s: %s\n> ", ctrl.Sender, ctrl.Message)
+							fmt.Printf("\r\x1b[K\n[Chat] %s: %s\n> ", ctrl.Sender, ctrl.Message)
 						}
 					} else if ctrl.Action == "tab_created" {
 						tabsMu.Lock()
@@ -249,6 +264,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 	}
 
 	// Main loop for TUI menu
+	cleanupTerminalModes()
 	for {
 		fmt.Println("\n--- RMTE MENU ---")
 		fmt.Printf("Current Tab: %d\n", currentTab)
@@ -258,8 +274,11 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 		fmt.Println("Commands: [j] Join Tab, [n] New Tab, [s] Switch Tab, [d] Delete Tab, [c] Chat, [q] Quit")
 		fmt.Print("> ")
 
-		var cmd string
-		fmt.Scanln(&cmd)
+		line, err := stdinReader.ReadString('\n')
+		if err != nil {
+			return
+		}
+		cmd := strings.ToLower(stripAnsiEscapes(strings.TrimSpace(line)))
 
 		switch cmd {
 		case "j":
@@ -287,6 +306,17 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 			isJoinedMu.Lock()
 			isJoined = false
 			isJoinedMu.Unlock()
+
+			// Recreate reader after raw mode to guarantee no stale buffered bytes
+			stdinReader = bufio.NewReader(os.Stdin)
+
+			// Send unfocus presence to relay so other participants know we exited the tab
+			conn.WriteJSON(map[string]interface{}{
+				"type":        "control",
+				"action":      "unfocus",
+				"viewer_id":   viewerID,
+				"viewer_name": myDispName,
+			})
 		case "n":
 			fmt.Println("Requesting new tab...")
 			conn.WriteJSON(map[string]interface{}{
@@ -297,8 +327,13 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 			time.Sleep(200 * time.Millisecond)
 		case "s":
 			fmt.Print("Enter Tab ID: ")
-			var id int
-			fmt.Scanln(&id)
+			line, _ := stdinReader.ReadString('\n')
+			idStr := stripAnsiEscapes(strings.TrimSpace(line))
+			id, err := strconv.Atoi(idStr)
+			if err != nil || id < 0 || id > 254 {
+				fmt.Println("Invalid Tab ID (must be 0-254).")
+				continue
+			}
 			currentTab = byte(id)
 			// Update presence set_focus for new tab
 			conn.WriteJSON(map[string]interface{}{
@@ -310,14 +345,20 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 			})
 		case "d":
 			fmt.Print("Enter Tab ID to Delete: ")
-			var id int
-			fmt.Scanln(&id)
+			line, _ := stdinReader.ReadString('\n')
+			idStr := stripAnsiEscapes(strings.TrimSpace(line))
+			id, err := strconv.Atoi(idStr)
+			if err != nil || id < 0 || id > 254 {
+				fmt.Println("Invalid Tab ID (must be 0-254).")
+				continue
+			}
 			conn.WriteJSON(map[string]interface{}{
 				"type":   "control",
 				"action": "delete_tab",
 				"tab_id": id,
 			})
 		case "c":
+			cleanupTerminalModes()
 			inChatModeMu.Lock()
 			inChatMode = true
 			inChatModeMu.Unlock()
@@ -337,14 +378,13 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 			chatHistoryMu.Unlock()
 			fmt.Println("-------------------------------------------------------")
 
-			scanner := bufio.NewScanner(os.Stdin)
 			for {
 				fmt.Print("Chat > ")
-				if !scanner.Scan() {
+				line, err := stdinReader.ReadString('\n')
+				if err != nil {
 					break
 				}
-				msgInput := scanner.Text()
-				msgInput = strings.TrimSpace(msgInput)
+				msgInput := stripAnsiEscapes(strings.TrimSpace(line))
 				if msgInput == "" || msgInput == "/exit" {
 					break
 				}
@@ -362,6 +402,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 			inChatModeMu.Lock()
 			inChatMode = false
 			inChatModeMu.Unlock()
+			cleanupTerminalModes()
 			fmt.Println("\nExited chat room.")
 		case "q":
 			return
@@ -381,7 +422,10 @@ func enterRawTerminal(ws *SafeConn, tabID byte) {
 		fmt.Println("Failed to enter raw mode:", err)
 		return
 	}
-	defer term.Restore(fd, oldState)
+	defer func() {
+		term.Restore(fd, oldState)
+		cleanupTerminalModes()
+	}()
 
 	// Send terminal size
 	w, h, err := term.GetSize(fd)

@@ -33,6 +33,7 @@ func startPlatformTab(id byte, ws *SafeConn) (*TabSession, error) {
 				ReadCloser:  cpty,
 				WriteCloser: cpty,
 				IsPipe:      false,
+				Pid:         cpty.Pid(),
 				Resizer: func(cols, rows int) error {
 					return cpty.Resize(cols, rows)
 				},

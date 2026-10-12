@@ -8,14 +8,19 @@ import (
 )
 
 // interruptTabProcess stops running child processes of the tab process on Windows.
-// When cmd.exe is run with pipes, child commands (such as python, ping, npm, etc.)
-// do not receive SIGINT from writing to stdin. Finding and terminating child processes
+// When cmd.exe is run with ConPTY or pipes, child commands (such as python, ping, npm, etc.)
+// do not receive SIGINT from writing byte 0x03 to stdin. Finding and terminating child processes
 // allows the tab to return cleanly to the shell prompt on Ctrl+C.
 func interruptTabProcess(tab *TabSession) {
-	if tab == nil || tab.Cmd == nil || tab.Cmd.Process == nil {
+	if tab == nil {
 		return
 	}
-	parentPID := uint32(tab.Cmd.Process.Pid)
+	var parentPID uint32
+	if tab.Pid > 0 {
+		parentPID = uint32(tab.Pid)
+	} else if tab.Cmd != nil && tab.Cmd.Process != nil {
+		parentPID = uint32(tab.Cmd.Process.Pid)
+	}
 	if parentPID == 0 {
 		return
 	}

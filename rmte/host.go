@@ -45,6 +45,7 @@ func (c *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time
 
 type TabSession struct {
 	Cmd         *exec.Cmd
+	Pid         int
 	ReadCloser  io.ReadCloser
 	WriteCloser io.WriteCloser
 	IsPipe      bool
@@ -92,6 +93,7 @@ type PendingSave struct {
 }
 
 const dataChannelTabID byte = 255
+const lobbyTabID byte = 255 // Sentinel Tab ID representing users in Menu / Lobby (unfocused)
 
 var (
 	tabs   = make(map[byte]*TabSession)
@@ -450,6 +452,14 @@ func runHost(opts HostOptions) {
 					}
 				} else {
 					tab.WriteCloser.Write(plaintext)
+					if runtime.GOOS == "windows" {
+						for _, b := range plaintext {
+							if b == '\x03' {
+								go interruptTabProcess(tab)
+								break
+							}
+						}
+					}
 				}
 			}
 		} else if mt == websocket.TextMessage {
@@ -580,6 +590,33 @@ func runHost(opts HostOptions) {
 						"action":      "events_history",
 						"target_conn": targetConn,
 						"events":      evts,
+					})
+				case "unfocus":
+					viewerID, _ := ctrl["viewer_id"].(string)
+					viewerName, _ := ctrl["viewer_name"].(string)
+					presenceMutex.Lock()
+					if p, ok := presenceMap[viewerID]; ok {
+						p.TabID = lobbyTabID
+						presenceMap[viewerID] = p
+					} else if viewerID != "" {
+						if viewerName == "" {
+							viewerName = viewerID
+						}
+						presenceMap[viewerID] = ViewersPresence{
+							ViewerName: viewerName,
+							TabID:      lobbyTabID,
+						}
+					}
+					tabsPresence := make(map[string][]string)
+					for _, p := range presenceMap {
+						tabKey := fmt.Sprintf("%d", p.TabID)
+						tabsPresence[tabKey] = append(tabsPresence[tabKey], p.ViewerName)
+					}
+					presenceMutex.Unlock()
+					conn.WriteJSON(map[string]interface{}{
+						"type":   "control",
+						"action": "presence",
+						"tabs":   tabsPresence,
 					})
 				case "viewer_disconnected":
 					viewerID, _ := ctrl["viewer_id"].(string)

@@ -1,4 +1,4 @@
-// RMTE v0.7.3 — Web Viewer with Split Workbench, Fullscreen Mode, SVG Icons & Mobile UI
+// RMTE v0.7.4 — Web Viewer with Split Workbench, Fullscreen Mode, SVG Icons, Light Mode & Mobile UI
 let ws, aesKey, rawAesKeyBytes = null, myUsername = '';
 let activeEditorTab = null, activeTerminalTab = 'term-0', activeContext = 'terminal';
 let terminalPanelCollapsed = false, terminalPanelMaximized = false, terminalPanelHidden = false;
@@ -2038,7 +2038,8 @@ function updatePresence(tabs){
     const selfName = (myUsername || '').trim();
     Object.keys(tabs||{}).forEach(tid=>(tabs[tid]||[]).forEach(name=>{
         const trimmed = (name || '').trim();
-        const i=document.createElement('div');i.className='user-item';i.innerHTML=`<span class="dot"></span><span class="user-name">${esc(trimmed)}</span><span class="user-tab-badge">Tab ${tid}</span>`;list.appendChild(i);
+        const tabLabel = tid === '255' ? 'Lobby' : 'Tab ' + tid;
+        const i=document.createElement('div');i.className='user-item';i.innerHTML=`<span class="dot"></span><span class="user-name">${esc(trimmed)}</span><span class="user-tab-badge">${tabLabel}</span>`;list.appendChild(i);
         if(trimmed && selfName && trimmed !== selfName) peers.add(trimmed);
     }));
     const collabBadge = document.getElementById('collab-badge-top');
