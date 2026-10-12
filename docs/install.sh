@@ -138,8 +138,10 @@ if command -v curl >/dev/null 2>&1; then
 elif command -v wget >/dev/null 2>&1; then
   if [ "$QUIET_MODE" -eq 1 ]; then
     wget -q "${DOWNLOAD_URL}" -O "${TEMP_FILE}"
-  else
+  elif wget --help 2>&1 | grep -q -- '--show-progress'; then
     wget -q --show-progress "${DOWNLOAD_URL}" -O "${TEMP_FILE}"
+  else
+    wget "${DOWNLOAD_URL}" -O "${TEMP_FILE}"
   fi
 else
   printf "${RED}Error: curl or wget is required to download rmte.${NC}\n" >&2

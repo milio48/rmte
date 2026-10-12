@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"flag"
 	"fmt"
@@ -20,12 +21,38 @@ var (
 )
 
 func init() {
+	setupDNSFallback()
+
 	if appVersion == "dev" {
 		if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
 			appVersion = strings.TrimPrefix(bi.Main.Version, "v")
 		}
 	} else {
 		appVersion = strings.TrimPrefix(appVersion, "v")
+	}
+}
+
+// setupDNSFallback ensures reliable DNS resolution on environments like Android, Termux,
+// or minimal containers where /etc/resolv.conf is missing or erroneously points to loopback [::1]:53.
+func setupDNSFallback() {
+	defaultDialer := &net.Dialer{Timeout: 5 * time.Second}
+	net.DefaultResolver = &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			isLoopback := strings.Contains(address, "[::1]") || strings.Contains(address, "127.0.0.1")
+			if !isLoopback {
+				conn, err := defaultDialer.DialContext(ctx, network, address)
+				if err == nil {
+					return conn, nil
+				}
+			}
+			// Fallback to public DNS: Cloudflare (1.1.1.1:53) then Google (8.8.8.8:53)
+			conn, err := defaultDialer.DialContext(ctx, "udp", "1.1.1.1:53")
+			if err == nil {
+				return conn, nil
+			}
+			return defaultDialer.DialContext(ctx, "udp", "8.8.8.8:53")
+		},
 	}
 }
 

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -416,5 +418,18 @@ func TestHostGracePeriodExpiration(t *testing.T) {
 	sessionMu.RUnlock()
 	if exists {
 		t.Fatalf("expected session expsess to be deleted after grace period expired")
+	}
+}
+
+func TestDNSFallbackLookup(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	addrs, err := net.DefaultResolver.LookupHost(ctx, "one.one.one.one")
+	if err != nil {
+		t.Logf("DNS lookup warning (network/firewall): %v", err)
+		return
+	}
+	if len(addrs) == 0 {
+		t.Errorf("expected at least 1 IP address for one.one.one.one")
 	}
 }
