@@ -108,7 +108,8 @@ func isIPBanned(ip string) bool {
 }
 
 func banIP(ip, reason string) {
-	if ip == "" {
+	ip = strings.TrimSpace(ip)
+	if ip == "" || ip == "127.0.0.1" || ip == "::1" || ip == "localhost" {
 		return
 	}
 	bannedMu.Lock()
@@ -351,13 +352,22 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 		copy(histCopy, sessionHistory)
 		historyMu.RUnlock()
 
+		cumStats := getCumulativeStats()
+		// Add active sessions' live metrics so All-time is always comprehensive & real-time
+		cumStats.TotalSessions += uint64(len(activeDTOs))
+		for _, a := range activeDTOs {
+			cumStats.TotalBytesRx += a.BytesRx
+			cumStats.TotalBytesTx += a.BytesTx
+			cumStats.TotalFileBytes += a.FileBytes
+		}
+
 		resp := AdminStatsResponse{
 			ServerVersion:  appVersion,
 			RelayUptime:    time.Since(serverStartTime).Round(time.Second).String(),
 			TotalSessions:  len(activeDTOs),
 			TotalViewers:   totalViewers,
 			ActiveSessions: activeDTOs,
-			Cumulative:     getCumulativeStats(),
+			Cumulative:     cumStats,
 			History:        histCopy,
 			BannedIPs:      getBannedIPList(),
 		}

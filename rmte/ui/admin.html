@@ -153,8 +153,14 @@
         /* Metrics Grid */
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 16px;
+        }
+
+        @media (min-width: 1024px) {
+            .metrics-grid {
+                grid-template-columns: repeat(5, 1fr);
+            }
         }
 
         .metric-card {
@@ -798,10 +804,15 @@
                         `<span class="badge-pill badge-heavy" title="High file consumption">⚠️ ${formatBytes(s.file_bytes)}</span>` : 
                         `<span>${formatBytes(s.file_bytes)}</span>`;
 
+                    const isLocal = s.host_ip === '127.0.0.1' || s.host_ip === '::1' || s.host_ip === 'localhost';
+                    const banBtn = isLocal ? 
+                        `<button class="btn-action" disabled title="Cannot ban loopback / local host" style="opacity:0.4; cursor:not-allowed;">Local</button>` : 
+                        `<button class="btn-action btn-danger" data-action="ban" data-id="${escapeHtml(s.id)}" data-ip="${escapeHtml(s.host_ip)}">Ban IP</button>`;
+
                     return `
                         <tr>
                             <td><span class="code-cell">${escapeHtml(s.id)}</span></td>
-                            <td><span class="ip-cell">${escapeHtml(s.host_ip || 'unknown')}</span></td>
+                            <td><span class="ip-cell">${escapeHtml(s.host_ip || 'unknown')}${isLocal ? ' <small style="color:var(--text-muted);">(Local)</small>' : ''}</span></td>
                             <td><strong>${s.viewers_count}</strong></td>
                             <td>${escapeHtml(s.uptime)}</td>
                             <td>${formatBytes(s.bytes_rx)} / ${formatBytes(s.bytes_tx)}</td>
@@ -810,7 +821,7 @@
                             <td>
                                 <div class="actions-group">
                                     <button class="btn-action btn-danger" data-action="terminate" data-id="${escapeHtml(s.id)}">Terminate</button>
-                                    <button class="btn-action btn-danger" data-action="ban" data-id="${escapeHtml(s.id)}" data-ip="${escapeHtml(s.host_ip)}">Ban IP</button>
+                                    ${banBtn}
                                 </div>
                             </td>
                         </tr>
