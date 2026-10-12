@@ -584,6 +584,57 @@ function clearSessionAutoconnect(sid){
     sessionStorage.setItem('rmte_sess_' + sid, JSON.stringify(creds));
 }
 
+// ===== THEME MANAGEMENT =====
+function getSavedTheme(){
+    try{
+        const t = localStorage.getItem('rmte_theme');
+        if(t === 'light' || t === 'dark') return t;
+    }catch(e){}
+    return 'dark';
+}
+
+function applyTheme(theme){
+    const isLight = theme === 'light';
+    document.documentElement.setAttribute('data-theme', isLight ? 'light' : 'dark');
+    try{ localStorage.setItem('rmte_theme', isLight ? 'light' : 'dark'); }catch(e){}
+
+    const sunSvg = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+    const moonSvg = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+
+    const btn = document.getElementById('theme-toggle-btn');
+    const icon = document.getElementById('theme-toggle-icon');
+    if(btn) btn.title = isLight ? 'Switch to Dark Theme' : 'Switch to Light Theme';
+    if(icon) icon.innerHTML = isLight ? moonSvg : sunSvg;
+
+    const loginIcon = document.getElementById('login-theme-icon');
+    const loginText = document.getElementById('login-theme-text');
+    if(loginIcon) loginIcon.innerHTML = isLight ? moonSvg : sunSvg;
+    if(loginText) loginText.textContent = isLight ? 'Dark' : 'Light';
+
+    const ovIcon = document.getElementById('overflow-theme-icon');
+    const ovText = document.getElementById('overflow-theme-text');
+    if(ovIcon) ovIcon.innerHTML = isLight ? moonSvg : sunSvg;
+    if(ovText) ovText.textContent = isLight ? 'Theme: Light' : 'Theme: Dark';
+
+    if(typeof editorTabs !== 'undefined'){
+        const cmTheme = isLight ? 'default' : 'material-darker';
+        for(const id in editorTabs){
+            const tab = editorTabs[id];
+            if(tab && tab.cm){
+                try{ tab.cm.setOption('theme', cmTheme); }catch(e){}
+            }
+        }
+    }
+}
+
+function toggleTheme(){
+    const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    applyTheme(current === 'light' ? 'dark' : 'light');
+}
+
+// Early theme setup to avoid FOUC
+applyTheme(getSavedTheme());
+
 // ===== CONNECTION =====
 async function connect() {
     const server=document.getElementById('server').value, sessionId=document.getElementById('sessionId').value;
@@ -1301,7 +1352,7 @@ function openEditorTab(path, text){
                 cmInstance = CodeMirror(cont, {
                     value: text,
                     mode: getCodeMirrorMode(path),
-                    theme: 'material-darker',
+                    theme: document.documentElement.getAttribute('data-theme') === 'light' ? 'default' : 'material-darker',
                     lineNumbers: true,
                     indentUnit: 4,
                     tabSize: 4,
@@ -2165,6 +2216,9 @@ function handleOverflowAction(action){
         case 'help':
             toggleHelpModal();
             break;
+        case 'theme':
+            toggleTheme();
+            break;
         case 'fullscreen':
             toggleAppFullscreen();
             break;
@@ -2433,6 +2487,7 @@ window.addEventListener('resize', () => {
     }, 100);
 });
 window.addEventListener('DOMContentLoaded',async()=>{
+    applyTheme(getSavedTheme());
     // URL params take priority (sharable link: ?server=...&session=...)
     const params=new URLSearchParams(window.location.search);
     const paramServer=params.get('server');

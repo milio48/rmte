@@ -60,4 +60,61 @@
     --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
     --dur-short:   180ms;
     --dur-med:     280ms;
+
+    /* ── Theme-aware shadows & overlays ── */
+    --shadow-heavy:      oklch(0% 0 0 / 0.7);
+    --shadow-accent:     oklch(70% 0.14 240 / 0.08);
+    --shadow-modal:      oklch(0% 0 0 / 0.5);
+    --overlay-bg:        oklch(10% 0.01 260 / 0.7);
+
+    /* ── Login brand gradient ── */
+    --brand-grad-1:      oklch(35% 0.08 240 / 0.3);
+    --brand-grad-2:      oklch(40% 0.06 300 / 0.15);
+    --brand-grad-3:      oklch(14% 0.02 260);
+    --brand-grad-4:      oklch(10% 0.015 260);
+    --brand-grid:        oklch(100% 0 0 / 0.03);
+
+    /* ── Scrollbar ── */
+    --scrollbar-thumb:   oklch(50% 0.01 260 / 0.2);
+    --scrollbar-hover:   oklch(50% 0.01 260 / 0.35);
+}
+
+/* ── Light Theme ── */
+[data-theme="light"] {
+    /* ── Colour ── */
+    --color-paper:       oklch(97% 0.005 260);
+    --color-paper-2:     oklch(94% 0.008 260);
+    --color-paper-3:     oklch(90% 0.01 260);
+    --color-paper-4:     oklch(86% 0.012 260);
+    --color-ink:         oklch(18% 0.015 260);
+    --color-ink-2:       oklch(40% 0.015 260);
+    --color-ink-muted:   oklch(60% 0.01 260);
+    --color-accent:      oklch(50% 0.18 240);
+    --color-accent-dim:  oklch(50% 0.18 240 / 0.1);
+    --color-accent-glow: oklch(50% 0.18 240 / 0.18);
+    --color-accent-ink:  oklch(100% 0 0);
+    --color-focus:       oklch(55% 0.18 240);
+    --color-green:       oklch(52% 0.17 155);
+    --color-orange:      oklch(58% 0.16 70);
+    --color-red:         oklch(55% 0.22 25);
+    --color-purple:      oklch(55% 0.18 300);
+    --color-border:      oklch(75% 0.01 260 / 0.5);
+    --color-border-active: oklch(50% 0.18 240 / 0.4);
+
+    /* ── Theme-aware shadows & overlays ── */
+    --shadow-heavy:      oklch(0% 0 0 / 0.12);
+    --shadow-accent:     oklch(50% 0.18 240 / 0.06);
+    --shadow-modal:      oklch(0% 0 0 / 0.2);
+    --overlay-bg:        oklch(0% 0 0 / 0.3);
+
+    /* ── Login brand gradient ── */
+    --brand-grad-1:      oklch(85% 0.06 240 / 0.4);
+    --brand-grad-2:      oklch(88% 0.04 300 / 0.25);
+    --brand-grad-3:      oklch(95% 0.01 260);
+    --brand-grad-4:      oklch(92% 0.015 260);
+    --brand-grid:        oklch(0% 0 0 / 0.04);
+
+    /* ── Scrollbar ── */
+    --scrollbar-thumb:   oklch(50% 0.01 260 / 0.15);
+    --scrollbar-hover:   oklch(50% 0.01 260 / 0.3);
 }

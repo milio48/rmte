@@ -58,17 +58,17 @@ body {
     overflow: hidden;
     border: 1px solid var(--color-border);
     box-shadow:
-        0 32px 100px -20px oklch(0% 0 0 / 0.7),
-        0 0 80px -30px oklch(70% 0.14 240 / 0.08);
+        0 32px 100px -20px var(--shadow-heavy),
+        0 0 80px -30px var(--shadow-accent);
 }
 
 /* ── Left panel: brand identity ── */
 .setup-brand {
     flex: 0 0 42%;
     background:
-        radial-gradient(ellipse 80% 60% at 30% 80%, oklch(35% 0.08 240 / 0.3), transparent),
-        radial-gradient(ellipse 60% 50% at 70% 20%, oklch(40% 0.06 300 / 0.15), transparent),
-        linear-gradient(160deg, oklch(14% 0.02 260), oklch(10% 0.015 260));
+        radial-gradient(ellipse 80% 60% at 30% 80%, var(--brand-grad-1), transparent),
+        radial-gradient(ellipse 60% 50% at 70% 20%, var(--brand-grad-2), transparent),
+        linear-gradient(160deg, var(--brand-grad-3), var(--brand-grad-4));
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -83,8 +83,8 @@ body {
     position: absolute;
     inset: 0;
     background-image:
-        linear-gradient(oklch(100% 0 0 / 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, oklch(100% 0 0 / 0.03) 1px, transparent 1px);
+        linear-gradient(var(--brand-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--brand-grid) 1px, transparent 1px);
     background-size: 40px 40px;
     pointer-events: none;
 }
@@ -570,7 +570,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     stroke: none !important;
 }
 
-#toggle-preview-btn, #toggle-sidebar-btn, #toggle-chat-btn, #toggle-activity-btn, #copy-link-btn, #help-btn, #fullscreen-btn, #disconnect-btn {
+#toggle-preview-btn, #toggle-sidebar-btn, #toggle-chat-btn, #toggle-activity-btn, #copy-link-btn, #theme-toggle-btn, #help-btn, #fullscreen-btn, #disconnect-btn {
     background: transparent;
     border: none;
     color: var(--color-ink-2);
@@ -588,7 +588,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     border-bottom: 2px solid transparent;
     position: relative;
 }
-#toggle-preview-btn:hover, #toggle-sidebar-btn:hover, #toggle-chat-btn:hover, #toggle-activity-btn:hover, #copy-link-btn:hover, #help-btn:hover, #fullscreen-btn:hover {
+#toggle-preview-btn:hover, #toggle-sidebar-btn:hover, #toggle-chat-btn:hover, #toggle-activity-btn:hover, #copy-link-btn:hover, #theme-toggle-btn:hover, #help-btn:hover, #fullscreen-btn:hover {
     color: var(--color-accent);
     background: var(--color-paper-3);
 }
@@ -1200,7 +1200,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     margin: 0;
     transition: all var(--dur-short) var(--ease-out);
 }
-.fe-item-actions button:hover { color: var(--color-ink); background: oklch(100% 0 0 / 0.04); }
+.fe-item-actions button:hover { color: var(--color-ink); background: var(--color-paper-4); }
 .fe-item-actions .fe-delete:hover { color: var(--color-red); }
 
 /* ═══════════════════════════════════════
@@ -1849,10 +1849,10 @@ button.sb-interactive.active {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-    background: oklch(50% 0.01 260 / 0.2);
+    background: var(--scrollbar-thumb);
     border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover { background: oklch(50% 0.01 260 / 0.35); }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 
 /* ═══════════════════════════════════════
    FOCUS VISIBILITY (a11y)
@@ -1901,7 +1901,7 @@ button.sb-interactive.active {
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: oklch(10% 0.01 260 / 0.7);
+    background: var(--overlay-bg);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -1912,7 +1912,7 @@ button.sb-interactive.active {
     background: var(--color-paper-2);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    box-shadow: 0 16px 40px oklch(0% 0 0 / 0.5);
+    box-shadow: 0 16px 40px var(--shadow-modal);
     width: 90%;
     max-width: 520px;
     overflow: hidden;
@@ -2166,7 +2166,7 @@ kbd {
     min-width: 0;
     height: 100%;
     overflow: hidden;
-    background: var(--color-paper-1);
+    background: var(--color-paper);
     container-type: inline-size;
     container-name: preview;
 }
@@ -2906,6 +2906,7 @@ kbd {
     #toggle-sidebar-btn,
     #toggle-activity-btn,
     #copy-link-btn,
+    #theme-toggle-btn,
     #help-btn,
     #github-link-btn,
     #disconnect-btn {
@@ -2928,5 +2929,53 @@ kbd {
     }
 }
 
+/* ═══════════════════════════════════════
+   LIGHT THEME INTEGRATION
+   ═══════════════════════════════════════ */
+[data-theme="light"] {
+    color-scheme: light;
+}
 
+/* CodeMirror Light Theme Overrides */
+[data-theme="light"] .CodeMirror {
+    background: var(--color-paper);
+    color: var(--color-ink);
+}
+[data-theme="light"] .CodeMirror-gutters {
+    background: var(--color-paper-2);
+    border-right: 1px solid var(--color-border);
+}
+[data-theme="light"] .CodeMirror-linenumber {
+    color: var(--color-ink-muted);
+}
+[data-theme="light"] .CodeMirror-cursor {
+    border-left: 2px solid var(--color-accent);
+}
+[data-theme="light"] .CodeMirror-selected {
+    background: oklch(50% 0.18 240 / 0.15) !important;
+}
+[data-theme="light"] .CodeMirror-line::selection,
+[data-theme="light"] .CodeMirror-line > span::selection,
+[data-theme="light"] .CodeMirror-line > span > span::selection {
+    background: oklch(50% 0.18 240 / 0.15) !important;
+}
+[data-theme="light"] .editor-textarea {
+    background: var(--color-paper);
+    color: var(--color-ink);
+}
 
+/* Chat bubble styling for self in Light Mode */
+[data-theme="light"] .chat-msg.self .chat-msg-bubble {
+    background: var(--color-accent-dim);
+    border-color: var(--color-accent-glow);
+    color: var(--color-ink);
+}
+
+/* Setup login panel enhancements */
+[data-theme="light"] .setup-brand {
+    border-right: 1px solid var(--color-border);
+}
+[data-theme="light"] .brand-dot {
+    background: var(--color-green);
+    box-shadow: 0 0 8px oklch(52% 0.17 155 / 0.4);
+}
