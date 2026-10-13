@@ -1,4 +1,4 @@
-// RMTE v0.7.8 — Web Viewer with Split Workbench, Fullscreen Mode, SVG Icons, Light Mode & Mobile UI
+// RMTE v0.7.9 — Web Viewer with Split Workbench, Fullscreen Mode, SVG Icons, Light Mode & Mobile UI
 let ws, aesKey, rawAesKeyBytes = null, myUsername = '';
 let activeEditorTab = null, activeTerminalTab = 'term-0', activeContext = 'terminal';
 let terminalPanelCollapsed = false, terminalPanelMaximized = false, terminalPanelHidden = false;
@@ -668,7 +668,15 @@ async function connect() {
         };
         ws.onerror=()=>{
             _log.err('WS error');
-            if(!isConnected){showError('Connection failed');btn.innerText='Establish Connection';btn.disabled=false;}
+            if(!isConnected){
+                const isWss = (server||'').toLowerCase().startsWith('wss://');
+                const msg = isWss
+                    ? 'Connection failed. If using a self-signed WSS relay, open the server URL in a browser tab first to accept the certificate.'
+                    : 'Connection failed. Please verify server address and network.';
+                showError(msg);
+                btn.innerText='Establish Connection';
+                btn.disabled=false;
+            }
         };
         ws.onmessage=async e=>{try{typeof e.data==='string'?await onJson(JSON.parse(e.data)):await onBinary(new Uint8Array(e.data));}catch(err){_log.err('msg handler',err);}};
     } catch(e){_log.err('connect',e);showError(e.message);btn.innerText='Establish Connection';btn.disabled=false;}

@@ -239,6 +239,12 @@ body {
     letter-spacing: 0.06em;
     color: var(--color-ink-muted);
 }
+.field-hint {
+    font-size: 11px;
+    color: var(--color-ink-muted);
+    line-height: 1.35;
+    margin-top: 2px;
+}
 
 #setup-error {
     background: oklch(68% 0.19 25 / 0.08);

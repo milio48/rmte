@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -72,7 +73,9 @@ func setupTLSConfig(insecure bool) {
 	}
 
 	// 3. Embedded trusted root CAs (Let's Encrypt ISRG Root X1/X2, Google Trust Services R1/R2, DigiCert)
-	pool.AppendCertsFromPEM([]byte(embeddedRootCAs))
+	if !pool.AppendCertsFromPEM([]byte(embeddedRootCAs)) {
+		log.Println("[TLS] Warning: failed to parse embedded root CA bundle")
+	}
 
 	tlsConfig := &tls.Config{
 		RootCAs: pool,

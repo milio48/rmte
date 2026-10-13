@@ -1,4 +1,4 @@
-# RMTE — Remote Terminal Relay & Cloud IDE (v0.7.8)
+# RMTE — Remote Terminal Relay & Cloud IDE (v0.7.9)
 
 > "I love sshx, but my endless curiosity to build it from scratch got the best of me 🥲"
 
@@ -208,7 +208,7 @@ Or with custom credentials:
 ```
 Output:
 ```
-RMTE v0.7.8 — Mode: standalone
+RMTE v0.7.9 — Mode: standalone
 ────────────────────────────────────────────────
 Bind:             127.0.0.1:8048
 Rmte Port:        8048
@@ -323,6 +323,7 @@ Run `rmte` without subcommands to share directly to `my.rmte.biz.id`:
 | `--web-preview` | `true` | Embedded Web Browser Preview reverse proxy (`--preview` alias) |
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 | `--server-relay`, `--server` | `wss://my.rmte.biz.id/ws-rmte` | Relay WebSocket URL |
+| `--insecure`, `--skip-tls-verify` | `false` | Skip TLS certificate verification (process-wide, for self-signed relays; also disables TLS checks on update downloads) |
 
 ### `rmte share`
 Connect a host to a relay server (defaults to public relay):
@@ -335,6 +336,7 @@ Connect a host to a relay server (defaults to public relay):
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
 | `--web-preview` | `true` | Embedded Web Browser Preview reverse proxy (`--preview` alias) |
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
+| `--insecure`, `--skip-tls-verify` | `false` | Skip TLS certificate verification (process-wide, for self-signed relays; also disables TLS checks on update downloads) |
 
 ### `rmte serve`
 | Flag | Default | Description |
@@ -355,6 +357,7 @@ Connect a host to a relay server (defaults to public relay):
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 | `--admin-path`, `--path-admin` | `/admin` | HTTP path for Relay Admin Dashboard |
 | `--admin-pass`, `--password-admin` | `""` | Password for Relay Admin Dashboard (disabled if empty) |
+| `--insecure`, `--skip-tls-verify` | `false` | Skip TLS certificate verification (process-wide) |
 
 ### `rmte join`
 | Flag | Default | Description |
@@ -363,6 +366,7 @@ Connect a host to a relay server (defaults to public relay):
 | `--id` | *required* | Session ID |
 | `--pass` | *required* | E2EE password |
 | `--name` | *prompt* | Display name |
+| `--insecure`, `--skip-tls-verify` | `false` | Skip TLS certificate verification (process-wide, for self-signed relays) |
 
 ### `rmte stop`
 Stop a background session running in quiet mode (`-q`):

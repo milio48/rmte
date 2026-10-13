@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -439,20 +439,40 @@ func TestDNSFallbackLookup(t *testing.T) {
 func TestEmbeddedRootCAs(t *testing.T) {
 	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM([]byte(embeddedRootCAs)) {
-		t.Fatalf("failed to parse embeddedRootCAs")
+		t.Fatalf("failed to parse embeddedRootCAs into x509.CertPool")
 	}
 
-	conn, err := tls.Dial("tcp", "my.rmte.biz.id:443", &tls.Config{
-		RootCAs: pool,
-	})
-	if err != nil {
-		t.Logf("TLS verification note (network/firewall): %v", err)
-		return
+	// Hermetically verify every embedded certificate block without external network egress
+	rest := []byte(embeddedRootCAs)
+	var certCount int
+	now := time.Now()
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			t.Fatalf("failed to parse certificate %d: %v", certCount, err)
+		}
+		certCount++
+		if !cert.IsCA {
+			t.Errorf("expected cert %q to be CA", cert.Subject.CommonName)
+		}
+		if now.Before(cert.NotBefore) || now.After(cert.NotAfter) {
+			t.Errorf("cert %q is not currently valid (%v to %v)", cert.Subject.CommonName, cert.NotBefore, cert.NotAfter)
+		}
+		// Verify root certificate self-signature hermetically
+		if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
+			t.Errorf("cert %q failed self-signature check: %v", cert.Subject.CommonName, err)
+		}
 	}
-	defer conn.Close()
-	state := conn.ConnectionState()
-	if !state.HandshakeComplete {
-		t.Errorf("expected TLS handshake to complete")
+	if certCount < 6 {
+		t.Errorf("expected at least 6 embedded root CAs, parsed %d", certCount)
 	}
 }
 
