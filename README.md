@@ -1,4 +1,4 @@
-# RMTE — Remote Terminal Relay & Cloud IDE (v0.7.10)
+# RMTE — Remote Terminal Relay & Cloud IDE (v0.7.11)
 
 > "I love sshx, but my endless curiosity to build it from scratch got the best of me 🥲"
 
@@ -208,7 +208,7 @@ Or with custom credentials:
 ```
 Output:
 ```
-RMTE v0.7.10 — Mode: standalone
+RMTE v0.7.11 — Mode: standalone
 ────────────────────────────────────────────────
 Bind:             127.0.0.1:8048
 Rmte Port:        8048

@@ -33,20 +33,51 @@ func init() {
 	}
 }
 
+// shouldBypassPhantomDNS determines if address is Go's hardcoded defaultNS phantom
+// ("127.0.0.1" or "::1") caused by missing or empty nameserver configuration in /etc/resolv.conf.
+func shouldBypassPhantomDNS(address string, hasSystemResolvConf bool) bool {
+	host, _, splitErr := net.SplitHostPort(address)
+	isPhantomHost := splitErr == nil && (host == "127.0.0.1" || host == "::1")
+	return isPhantomHost && !hasSystemResolvConf
+}
+
+// hasConfiguredNameservers checks if the given resolv.conf path exists and contains
+// at least one valid "nameserver <IP>" directive (avoiding phantoms in minimal/empty containers).
+func hasConfiguredNameservers(resolvPath string) bool {
+	data, err := os.ReadFile(resolvPath)
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "nameserver ") || strings.HasPrefix(line, "nameserver\t") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 && net.ParseIP(fields[1]) != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // setupDNSFallback ensures reliable DNS resolution on environments like Android, Termux,
-// or minimal containers where /etc/resolv.conf is missing or erroneously points to an unreachable loopback [::1]:53.
+// or minimal containers where /etc/resolv.conf is missing/empty and Go defaults to unreachable [::1]:53 or 127.0.0.1:53.
 func setupDNSFallback() {
 	defaultDialer := &net.Dialer{Timeout: 3 * time.Second}
+	hasSystemResolv := hasConfiguredNameservers("/etc/resolv.conf")
+
 	net.DefaultResolver = &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			// 1. Always attempt system-configured resolver first (preserves local dnsmasq, systemd-resolved, VPN split-DNS)
-			conn, err := defaultDialer.DialContext(ctx, network, address)
-			if err == nil {
-				return conn, nil
+			if !shouldBypassPhantomDNS(address, hasSystemResolv) {
+				conn, err := defaultDialer.DialContext(ctx, network, address)
+				if err == nil {
+					return conn, nil
+				}
 			}
-			// 2. Only fallback to public DNS if system resolver genuinely failed (e.g. Android/Termux connection refused)
-			conn, err = defaultDialer.DialContext(ctx, "udp", "1.1.1.1:53")
+
+			// Fallback to trusted public DNS: Cloudflare (1.1.1.1:53) then Google (8.8.8.8:53)
+			conn, err := defaultDialer.DialContext(ctx, "udp", "1.1.1.1:53")
 			if err == nil {
 				return conn, nil
 			}
