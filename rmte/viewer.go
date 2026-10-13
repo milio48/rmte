@@ -12,11 +12,68 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"golang.org/x/term"
 )
+
+func backoffDelay(attempt int) time.Duration {
+	d := time.Duration(attempt) * time.Second
+	if d > 5*time.Second {
+		return 5 * time.Second
+	}
+	return d
+}
+
+func dialAndAuthViewer(serverURL, sessionID, password, viewerID, displayName string) (*SafeConn, error) {
+	u, err := url.Parse(serverURL)
+	if err != nil {
+		return nil, err
+	}
+
+	rawConn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	conn := &SafeConn{Conn: rawConn}
+
+	auth := map[string]string{
+		"type":             "auth",
+		"role":             "viewer",
+		"session_id":       sessionID,
+		"viewer_id":        viewerID,
+		"viewer_name":      displayName,
+		"auth_token":       generateAuthToken(password),
+		"protocol_version": protocolVersion,
+		"client":           "cli",
+	}
+	_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	if err := conn.WriteJSON(auth); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	_ = conn.SetWriteDeadline(time.Time{})
+
+	var authSuccess struct {
+		Type     string `json:"type"`
+		ViewerID string `json:"viewer_id"`
+		Message  string `json:"message"`
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	if err := conn.ReadJSON(&authSuccess); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	_ = conn.SetReadDeadline(time.Time{})
+	if authSuccess.Type != "auth_success" {
+		_ = conn.Close()
+		return nil, fmt.Errorf("relay rejected viewer: %s", authSuccess.Message)
+	}
+
+	return conn, nil
+}
 
 var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]|\x1bO[A-Za-z]|\x1b.`)
 
@@ -110,6 +167,21 @@ func isExitKeySequence(buf []byte) bool {
 	return false
 }
 
+var (
+	activeTerminalRawState   *term.State
+	activeTerminalRawStateMu sync.Mutex
+)
+
+func restoreActiveTerminalRawMode() {
+	activeTerminalRawStateMu.Lock()
+	if activeTerminalRawState != nil {
+		_ = term.Restore(int(os.Stdin.Fd()), activeTerminalRawState)
+		activeTerminalRawState = nil
+	}
+	activeTerminalRawStateMu.Unlock()
+	cleanupTerminalModes()
+}
+
 func cleanupTerminalModes() {
 	// Disable win32-input-mode (?9001l), focus reporting (?1004l), bracketed paste (?2004l),
 	// mouse tracking (?1000-1006l), and show cursor (?25h)
@@ -130,49 +202,19 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 		}
 	}
 
-	u, err := url.Parse(serverURL)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	rawConn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	if err != nil {
-		log.Fatal("Dial error:", err)
-	}
-	conn := &SafeConn{Conn: rawConn}
-	defer conn.Close()
-
 	if err := setupCrypto(password); err != nil {
 		log.Fatal(err)
 	}
 
 	viewerID := generateViewerID()
-	auth := map[string]string{
-		"type":             "auth",
-		"role":             "viewer",
-		"session_id":       sessionID,
-		"viewer_id":        viewerID,
-		"viewer_name":      myDispName,
-		"auth_token":       generateAuthToken(password),
-		"protocol_version": protocolVersion,
-		"client":           "cli",
+	conn, err := dialAndAuthViewer(serverURL, sessionID, password, viewerID, myDispName)
+	if err != nil {
+		fatalf("Connection failed: %v", err)
 	}
-	conn.WriteJSON(auth)
+	vc := NewViewerConn(conn)
+	defer vc.Close()
 
-	// Wait for auth success
-	var authSuccess struct {
-		Type     string `json:"type"`
-		ViewerID string `json:"viewer_id"`
-		Message  string `json:"message"`
-	}
-	if err := conn.ReadJSON(&authSuccess); err != nil {
-		log.Fatal("Auth failed: ", err)
-	}
-	if authSuccess.Type != "auth_success" {
-		fatalf("Relay rejected viewer: %s", authSuccess.Message)
-	}
-
-	fmt.Printf("Connected as %s\n", authSuccess.ViewerID)
+	fmt.Printf("Connected as %s\n", viewerID)
 
 	var chatHistory []map[string]interface{}
 	var chatHistoryMu sync.Mutex
@@ -181,25 +223,123 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 
 	tabsSynced := make(chan bool, 1)
 
+	// Announce initial presence in lobby so host and all viewers know we connected immediately
+	_ = vc.WriteJSON(map[string]interface{}{
+		"type":        "control",
+		"action":      "unfocus",
+		"viewer_id":   viewerID,
+		"viewer_name": myDispName,
+	})
+
 	// Sync tabs
-	conn.WriteJSON(map[string]interface{}{
+	_ = vc.WriteJSON(map[string]interface{}{
 		"type":   "control",
 		"action": "get_tabs",
 	})
 
-	var currentTab byte = 0
+	var currentTab atomic.Uint32
+	currentTab.Store(0)
 	var tabs []byte = []byte{0}
 	var tabsMu sync.Mutex
-	var isJoined bool = false
-	var isJoinedMu sync.RWMutex
+	var isJoined atomic.Bool
+	var isQuitting atomic.Bool
 
 	// Goroutine to handle incoming messages
 	go func() {
 		for {
-			mt, data, err := conn.ReadMessage()
+			activeRaw := vc.Get()
+			if activeRaw == nil {
+				if isQuitting.Load() {
+					return
+				}
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+
+			mt, data, err := activeRaw.ReadMessage()
 			if err != nil {
-				fmt.Println("\nDisconnected from server.")
-				os.Exit(0)
+				if isQuitting.Load() {
+					return
+				}
+
+				joined := isJoined.Load()
+				curTab := byte(currentTab.Load())
+				fmt.Print("\r\x1b[K\n[Connection lost. Reconnecting to server...]\n")
+
+				reconnectStart := time.Now()
+				attempt := 0
+				var newConn *SafeConn
+				for {
+					if isQuitting.Load() {
+						return
+					}
+					if time.Since(reconnectStart) >= 60*time.Second {
+						fmt.Println("\n[Failed to reconnect within 60s. Exiting.]")
+						restoreActiveTerminalRawMode()
+						os.Exit(1)
+					}
+
+					attempt++
+					delay := backoffDelay(attempt)
+					time.Sleep(delay)
+
+					elapsed := int(time.Since(reconnectStart).Seconds())
+					fmt.Printf("\r\x1b[K[Reconnecting attempt %d (elapsed %ds/60s)...]", attempt, elapsed)
+					nc, rerr := dialAndAuthViewer(serverURL, sessionID, password, viewerID, myDispName)
+					if rerr == nil {
+						newConn = nc
+						break
+					}
+				}
+
+				vc.Swap(newConn)
+				fmt.Println("\r\x1b[K[Reconnected successfully!]")
+
+				if joined {
+					_ = vc.WriteJSON(map[string]interface{}{
+						"type":        "control",
+						"action":      "set_focus",
+						"viewer_id":   viewerID,
+						"viewer_name": myDispName,
+						"tab_id":      curTab,
+					})
+					_ = vc.WriteJSON(map[string]interface{}{
+						"type":   "control",
+						"action": "req_sync",
+						"tab_id": curTab,
+					})
+					fd := int(os.Stdin.Fd())
+					w, h, err := term.GetSize(fd)
+					if err == nil && w > 0 && h > 0 {
+						_ = vc.WriteJSON(map[string]interface{}{
+							"type":   "control",
+							"action": "resize",
+							"tab_id": curTab,
+							"cols":   w,
+							"rows":   h,
+						})
+					}
+				} else {
+					_ = vc.WriteJSON(map[string]interface{}{
+						"type":        "control",
+						"action":      "unfocus",
+						"viewer_id":   viewerID,
+						"viewer_name": myDispName,
+					})
+					_ = vc.WriteJSON(map[string]interface{}{
+						"type":   "control",
+						"action": "get_tabs",
+					})
+					inChatModeMu.RLock()
+					chatting := inChatMode
+					inChatModeMu.RUnlock()
+					if chatting {
+						fmt.Print("Chat > ")
+					} else {
+						fmt.Print("> ")
+					}
+				}
+				continue
 			}
 
 			if mt == websocket.BinaryMessage {
@@ -212,11 +352,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 					continue
 				}
 
-				isJoinedMu.RLock()
-				j := isJoined
-				isJoinedMu.RUnlock()
-
-				if tabID == currentTab && j {
+				if tabID == byte(currentTab.Load()) && isJoined.Load() {
 					str := string(plaintext)
 					str = sanitizeTerminalOutput(str)
 					str = strings.ReplaceAll(str, "\r\n", "\n")
@@ -249,9 +385,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 						})
 						chatHistoryMu.Unlock()
 
-						isJoinedMu.RLock()
-						joined := isJoined
-						isJoinedMu.RUnlock()
+						joined := isJoined.Load()
 
 						inChatModeMu.RLock()
 						chatting := inChatMode
@@ -273,10 +407,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 						}
 						if !exists {
 							tabs = append(tabs, ctrl.TabID)
-							isJoinedMu.RLock()
-							joined := isJoined
-							isJoinedMu.RUnlock()
-							if !joined {
+							if !isJoined.Load() {
 								fmt.Printf("\n[System: Tab %d Created! Press Enter to refresh.]\n> ", ctrl.TabID)
 							}
 						}
@@ -291,18 +422,15 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 						}
 						tabs = newTabs
 
-						if currentTab == ctrl.TabID {
+						if byte(currentTab.Load()) == ctrl.TabID {
 							if len(tabs) > 0 {
-								currentTab = tabs[0]
+								currentTab.Store(uint32(tabs[0]))
 							} else {
-								currentTab = 0
+								currentTab.Store(0)
 							}
 						}
 
-						isJoinedMu.RLock()
-						joined := isJoined
-						isJoinedMu.RUnlock()
-						if !joined {
+						if !isJoined.Load() {
 							fmt.Printf("\n[System: Tab %d Deleted! Press Enter to refresh.]\n> ", ctrl.TabID)
 						}
 						tabsMu.Unlock()
@@ -327,11 +455,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 							if err != nil {
 								fmt.Fprintln(os.Stderr, "\n[E2EE Error: Sync data decryption failed. Please check if --pass matches the host's password exactly!]")
 							} else {
-								isJoinedMu.RLock()
-								j := isJoined
-								isJoinedMu.RUnlock()
-
-								if tabID == currentTab && j {
+								if tabID == byte(currentTab.Load()) && isJoined.Load() {
 									str := string(plaintext)
 									str = sanitizeTerminalOutput(str)
 									str = strings.ReplaceAll(str, "\r\n", "\n")
@@ -355,8 +479,9 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 	// Main loop for TUI menu
 	cleanupTerminalModes()
 	for {
+		curTab := byte(currentTab.Load())
 		fmt.Println("\n--- RMTE MENU ---")
-		fmt.Printf("Current Tab: %d\n", currentTab)
+		fmt.Printf("Current Tab: %d\n", curTab)
 		tabsMu.Lock()
 		fmt.Println("Available Tabs:", tabs)
 		tabsMu.Unlock()
@@ -368,39 +493,36 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 			return
 		}
 		cmd := strings.ToLower(stripAnsiEscapes(strings.TrimSpace(line)))
+		curTab = byte(currentTab.Load())
 
 		switch cmd {
 		case "j":
-			fmt.Printf("Joining Tab %d... (Press Ctrl+Q or Ctrl+] to exit back to menu)\n", currentTab)
+			fmt.Printf("Joining Tab %d... (Press Ctrl+Q or Ctrl+] to exit back to menu)\n", curTab)
 			// Send presence set_focus first
-			conn.WriteJSON(map[string]interface{}{
+			_ = vc.WriteJSON(map[string]interface{}{
 				"type":        "control",
 				"action":      "set_focus",
 				"viewer_id":   viewerID,
 				"viewer_name": myDispName,
-				"tab_id":      currentTab,
+				"tab_id":      curTab,
 			})
 			// Request sync for current tab
-			conn.WriteJSON(map[string]interface{}{
+			_ = vc.WriteJSON(map[string]interface{}{
 				"type":   "control",
 				"action": "req_sync",
-				"tab_id": currentTab,
+				"tab_id": curTab,
 			})
-			isJoinedMu.Lock()
-			isJoined = true
-			isJoinedMu.Unlock()
+			isJoined.Store(true)
 
-			enterRawTerminal(conn, currentTab)
+			enterRawTerminal(vc, curTab)
 
-			isJoinedMu.Lock()
-			isJoined = false
-			isJoinedMu.Unlock()
+			isJoined.Store(false)
 
 			// Recreate reader after raw mode to guarantee no stale buffered bytes
 			stdinReader = bufio.NewReader(os.Stdin)
 
 			// Send unfocus presence to relay so other participants know we exited the tab
-			conn.WriteJSON(map[string]interface{}{
+			_ = vc.WriteJSON(map[string]interface{}{
 				"type":        "control",
 				"action":      "unfocus",
 				"viewer_id":   viewerID,
@@ -408,7 +530,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 			})
 		case "n":
 			fmt.Println("Requesting new tab...")
-			conn.WriteJSON(map[string]interface{}{
+			_ = vc.WriteJSON(map[string]interface{}{
 				"type":   "control",
 				"action": "request_new_tab",
 			})
@@ -423,14 +545,14 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 				fmt.Println("Invalid Tab ID (must be 0-254).")
 				continue
 			}
-			currentTab = byte(id)
+			currentTab.Store(uint32(id))
 			// Update presence set_focus for new tab
-			conn.WriteJSON(map[string]interface{}{
+			_ = vc.WriteJSON(map[string]interface{}{
 				"type":        "control",
 				"action":      "set_focus",
 				"viewer_id":   viewerID,
 				"viewer_name": myDispName,
-				"tab_id":      currentTab,
+				"tab_id":      byte(id),
 			})
 		case "d":
 			fmt.Print("Enter Tab ID to Delete: ")
@@ -441,7 +563,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 				fmt.Println("Invalid Tab ID (must be 0-254).")
 				continue
 			}
-			conn.WriteJSON(map[string]interface{}{
+			_ = vc.WriteJSON(map[string]interface{}{
 				"type":   "control",
 				"action": "delete_tab",
 				"tab_id": id,
@@ -479,7 +601,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 				}
 
 				// Send message via websocket
-				conn.WriteJSON(map[string]interface{}{
+				_ = vc.WriteJSON(map[string]interface{}{
 					"type":    "control",
 					"action":  "chat",
 					"sender":  myDispName,
@@ -494,12 +616,14 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 			cleanupTerminalModes()
 			fmt.Println("\nExited chat room.")
 		case "q":
+			isQuitting.Store(true)
+			_ = vc.Close()
 			return
 		}
 	}
 }
 
-func enterRawTerminal(ws *SafeConn, tabID byte) {
+func enterRawTerminal(vc *ViewerConn, tabID byte) {
 	fd := int(os.Stdin.Fd())
 	if !term.IsTerminal(fd) {
 		fmt.Println("Not a terminal")
@@ -511,18 +635,24 @@ func enterRawTerminal(ws *SafeConn, tabID byte) {
 		fmt.Println("Failed to enter raw mode:", err)
 		return
 	}
+	activeTerminalRawStateMu.Lock()
+	activeTerminalRawState = oldState
+	activeTerminalRawStateMu.Unlock()
+
 	defer func() {
-		term.Restore(fd, oldState)
-		cleanupTerminalModes()
+		restoreActiveTerminalRawMode()
 	}()
 
 	// Ensure local terminal is not in win32-input-mode
 	cleanupTerminalModes()
 
+	watcher := startResizeWatcher(vc, tabID, fd)
+	defer watcher.Stop()
+
 	// Send terminal size
 	w, h, err := term.GetSize(fd)
-	if err == nil {
-		ws.WriteJSON(map[string]interface{}{
+	if err == nil && w > 0 && h > 0 {
+		_ = vc.WriteJSON(map[string]interface{}{
 			"type":   "control",
 			"action": "resize",
 			"tab_id": tabID,
@@ -544,7 +674,7 @@ func enterRawTerminal(ws *SafeConn, tabID byte) {
 
 		payload, err := encryptBinary(tabID, buf[:n])
 		if err == nil {
-			ws.WriteMessage(websocket.BinaryMessage, payload)
+			_ = vc.WriteMessage(websocket.BinaryMessage, payload)
 		}
 	}
 }

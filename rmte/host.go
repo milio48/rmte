@@ -482,6 +482,16 @@ func runHost(opts HostOptions) {
 						"action": "tabs_list",
 						"tabs":   activeTabs,
 					})
+
+					presenceMutex.Lock()
+					tabsPresence := buildTabsPresence(presenceMap)
+					presenceMutex.Unlock()
+
+					conn.WriteJSON(map[string]interface{}{
+						"type":   "control",
+						"action": "presence",
+						"tabs":   tabsPresence,
+					})
 				case "request_new_tab":
 					newID := nextTabID
 					nextTabID++
@@ -549,29 +559,15 @@ func runHost(opts HostOptions) {
 				case "set_focus":
 					viewerID, _ := ctrl["viewer_id"].(string)
 					viewerName, _ := ctrl["viewer_name"].(string)
-					if viewerName == "" {
-						viewerName = viewerID
-					}
 					tabIDFloat, _ := ctrl["tab_id"].(float64)
 					tabID := byte(tabIDFloat)
 
 					presenceMutex.Lock()
-					_, existed := presenceMap[viewerID]
-					presenceMap[viewerID] = ViewersPresence{
-						ViewerName: viewerName,
-						TabID:      tabID,
-					}
-
-					// Build tab -> users map
-					tabsPresence := make(map[string][]string)
-					for _, p := range presenceMap {
-						tabKey := fmt.Sprintf("%d", p.TabID)
-						tabsPresence[tabKey] = append(tabsPresence[tabKey], p.ViewerName)
-					}
+					tabsPresence, eventName, eventUser, shouldLog := applyPresenceTransition(presenceMap, "set_focus", viewerID, viewerName, tabID)
 					presenceMutex.Unlock()
 
-					if !existed {
-						logEvent(conn, "CONNECT", viewerName, fmt.Sprintf("User %s joined", viewerName))
+					if shouldLog {
+						logEvent(conn, eventName, eventUser, fmt.Sprintf("User %s joined", eventUser))
 					}
 
 					conn.WriteJSON(map[string]interface{}{
@@ -594,25 +590,15 @@ func runHost(opts HostOptions) {
 				case "unfocus":
 					viewerID, _ := ctrl["viewer_id"].(string)
 					viewerName, _ := ctrl["viewer_name"].(string)
+
 					presenceMutex.Lock()
-					if p, ok := presenceMap[viewerID]; ok {
-						p.TabID = lobbyTabID
-						presenceMap[viewerID] = p
-					} else if viewerID != "" {
-						if viewerName == "" {
-							viewerName = viewerID
-						}
-						presenceMap[viewerID] = ViewersPresence{
-							ViewerName: viewerName,
-							TabID:      lobbyTabID,
-						}
-					}
-					tabsPresence := make(map[string][]string)
-					for _, p := range presenceMap {
-						tabKey := fmt.Sprintf("%d", p.TabID)
-						tabsPresence[tabKey] = append(tabsPresence[tabKey], p.ViewerName)
-					}
+					tabsPresence, eventName, eventUser, shouldLog := applyPresenceTransition(presenceMap, "unfocus", viewerID, viewerName, lobbyTabID)
 					presenceMutex.Unlock()
+
+					if shouldLog {
+						logEvent(conn, eventName, eventUser, fmt.Sprintf("User %s joined", eventUser))
+					}
+
 					conn.WriteJSON(map[string]interface{}{
 						"type":   "control",
 						"action": "presence",
@@ -620,19 +606,13 @@ func runHost(opts HostOptions) {
 					})
 				case "viewer_disconnected":
 					viewerID, _ := ctrl["viewer_id"].(string)
-					presenceMutex.Lock()
-					prev, existed := presenceMap[viewerID]
-					delete(presenceMap, viewerID)
 
-					tabsPresence := make(map[string][]string)
-					for _, p := range presenceMap {
-						tabKey := fmt.Sprintf("%d", p.TabID)
-						tabsPresence[tabKey] = append(tabsPresence[tabKey], p.ViewerName)
-					}
+					presenceMutex.Lock()
+					tabsPresence, eventName, eventUser, shouldLog := applyPresenceTransition(presenceMap, "viewer_disconnected", viewerID, "", 0)
 					presenceMutex.Unlock()
 
-					if existed {
-						logEvent(conn, "DISCONNECT", prev.ViewerName, fmt.Sprintf("User %s disconnected", prev.ViewerName))
+					if shouldLog {
+						logEvent(conn, eventName, eventUser, fmt.Sprintf("User %s disconnected", eventUser))
 					}
 
 					conn.WriteJSON(map[string]interface{}{
@@ -1416,4 +1396,63 @@ func buildShareLink(serverURL, webPath, sessionID, pass string) string {
 		link += "#" + url.Values{"pass": {pass}}.Encode()
 	}
 	return link
+}
+
+func buildTabsPresence(pMap map[string]ViewersPresence) map[string][]string {
+	tabsPresence := make(map[string][]string)
+	for _, p := range pMap {
+		tabKey := fmt.Sprintf("%d", p.TabID)
+		tabsPresence[tabKey] = append(tabsPresence[tabKey], p.ViewerName)
+	}
+	return tabsPresence
+}
+
+func applyPresenceTransition(
+	pMap map[string]ViewersPresence,
+	action, viewerID, viewerName string,
+	tabID byte,
+) (tabsPresence map[string][]string, eventName string, eventUser string, shouldLog bool) {
+	if viewerID == "" {
+		return buildTabsPresence(pMap), "", "", false
+	}
+	if viewerName == "" {
+		viewerName = viewerID
+	}
+
+	switch action {
+	case "set_focus":
+		_, existed := pMap[viewerID]
+		pMap[viewerID] = ViewersPresence{
+			ViewerName: viewerName,
+			TabID:      tabID,
+		}
+		if !existed && viewerID != "" {
+			eventName = "CONNECT"
+			eventUser = viewerName
+			shouldLog = true
+		}
+	case "unfocus":
+		if p, ok := pMap[viewerID]; ok {
+			p.TabID = lobbyTabID
+			pMap[viewerID] = p
+		} else if viewerID != "" {
+			pMap[viewerID] = ViewersPresence{
+				ViewerName: viewerName,
+				TabID:      lobbyTabID,
+			}
+			eventName = "CONNECT"
+			eventUser = viewerName
+			shouldLog = true
+		}
+	case "viewer_disconnected":
+		prev, existed := pMap[viewerID]
+		delete(pMap, viewerID)
+		if existed {
+			eventName = "DISCONNECT"
+			eventUser = prev.ViewerName
+			shouldLog = true
+		}
+	}
+
+	return buildTabsPresence(pMap), eventName, eventUser, shouldLog
 }

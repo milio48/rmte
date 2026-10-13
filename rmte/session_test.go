@@ -690,3 +690,166 @@ func TestIsExitKeySequence(t *testing.T) {
 	}
 }
 
+func TestPresenceLobbyInitialAndFocus(t *testing.T) {
+	serverCfg = &ServeConfig{
+		Mode:    modeHybrid,
+		Port:    0,
+		WebPath: "/",
+		WSPath:  "/ws-rmte",
+	}
+
+	sessionMu.Lock()
+	sessions = make(map[string]*Session)
+	sessionMu.Unlock()
+
+	s := httptest.NewServer(http.HandlerFunc(handleWS))
+	defer s.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(s.URL, "http")
+	dialer := websocket.DefaultDialer
+
+	// 1. Host connects
+	hostWS, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("host dial failed: %v", err)
+	}
+	defer hostWS.Close()
+
+	token := generateAuthToken("prespass")
+	authHost := map[string]interface{}{
+		"type":             "auth",
+		"role":             "host",
+		"session_id":       "presbox",
+		"auth_token":       token,
+		"protocol_version": protocolVersion,
+	}
+	if err := hostWS.WriteJSON(authHost); err != nil {
+		t.Fatalf("host auth write failed: %v", err)
+	}
+	var hostAuthResp map[string]interface{}
+	if err := hostWS.ReadJSON(&hostAuthResp); err != nil || hostAuthResp["type"] != "auth_success" {
+		t.Fatalf("host auth failed: %v, resp: %+v", err, hostAuthResp)
+	}
+
+	// 2. Viewer connects
+	viewerWS, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("viewer dial failed: %v", err)
+	}
+	defer viewerWS.Close()
+
+	authViewer := map[string]interface{}{
+		"type":             "auth",
+		"role":             "viewer",
+		"session_id":       "presbox",
+		"auth_token":       token,
+		"viewer_id":        "v-test-1",
+		"viewer_name":      "fzclitui",
+		"protocol_version": protocolVersion,
+	}
+	if err := viewerWS.WriteJSON(authViewer); err != nil {
+		t.Fatalf("viewer auth write failed: %v", err)
+	}
+	var viewerAuthResp map[string]interface{}
+	if err := viewerWS.ReadJSON(&viewerAuthResp); err != nil || viewerAuthResp["type"] != "auth_success" {
+		t.Fatalf("viewer auth failed: %v, resp: %+v", err, viewerAuthResp)
+	}
+	// Consume chat_history
+	var chatHistoryResp map[string]interface{}
+	if err := viewerWS.ReadJSON(&chatHistoryResp); err != nil {
+		t.Fatalf("viewer read chat history failed: %v", err)
+	}
+
+	// 3. Viewer sends initial unfocus (announcing presence in Lobby before joining any tab)
+	unfocusMsg := map[string]interface{}{
+		"type":        "control",
+		"action":      "unfocus",
+		"viewer_id":   "v-test-1",
+		"viewer_name": "fzclitui",
+	}
+	if err := viewerWS.WriteJSON(unfocusMsg); err != nil {
+		t.Fatalf("viewer write unfocus failed: %v", err)
+	}
+
+	// Host reads the unfocus control message and handles it like host.go does
+	var hostCtrl map[string]interface{}
+	_ = hostWS.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if err := hostWS.ReadJSON(&hostCtrl); err != nil {
+		t.Fatalf("host read unfocus control message failed: %v", err)
+	}
+	if hostCtrl["action"] != "unfocus" {
+		t.Fatalf("expected host to receive unfocus, got: %+v", hostCtrl)
+	}
+
+	// Host responds with presence broadcast having Lobby (255)
+	presenceBroad := map[string]interface{}{
+		"type":   "control",
+		"action": "presence",
+		"tabs": map[string][]string{
+			"255": {"fzclitui"},
+		},
+	}
+	if err := hostWS.WriteJSON(presenceBroad); err != nil {
+		t.Fatalf("host broadcast presence failed: %v", err)
+	}
+
+	// Viewer receives presence broadcast with Lobby (255)
+	var viewerPres map[string]interface{}
+	_ = viewerWS.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if err := viewerWS.ReadJSON(&viewerPres); err != nil {
+		t.Fatalf("viewer read presence broadcast failed: %v", err)
+	}
+	if viewerPres["action"] != "presence" {
+		t.Fatalf("expected presence action, got: %+v", viewerPres)
+	}
+	tabs, ok := viewerPres["tabs"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected tabs map in presence, got: %+v", viewerPres["tabs"])
+	}
+	lobbyUsers, ok := tabs["255"].([]interface{})
+	if !ok || len(lobbyUsers) != 1 || lobbyUsers[0] != "fzclitui" {
+		t.Fatalf("expected fzclitui in Lobby (255), got: %+v", tabs["255"])
+	}
+
+	// 4. Viewer now joins Tab 0 (set_focus)
+	setFocusMsg := map[string]interface{}{
+		"type":        "control",
+		"action":      "set_focus",
+		"viewer_id":   "v-test-1",
+		"viewer_name": "fzclitui",
+		"tab_id":      0,
+	}
+	if err := viewerWS.WriteJSON(setFocusMsg); err != nil {
+		t.Fatalf("viewer write set_focus failed: %v", err)
+	}
+
+	if err := hostWS.ReadJSON(&hostCtrl); err != nil {
+		t.Fatalf("host read set_focus failed: %v", err)
+	}
+	if hostCtrl["action"] != "set_focus" {
+		t.Fatalf("expected host to receive set_focus, got: %+v", hostCtrl)
+	}
+
+	// Host broadcasts updated presence on Tab 0
+	presenceTab0 := map[string]interface{}{
+		"type":   "control",
+		"action": "presence",
+		"tabs": map[string][]string{
+			"0": {"fzclitui"},
+		},
+	}
+	if err := hostWS.WriteJSON(presenceTab0); err != nil {
+		t.Fatalf("host broadcast presence tab 0 failed: %v", err)
+	}
+
+	if err := viewerWS.ReadJSON(&viewerPres); err != nil {
+		t.Fatalf("viewer read presence tab 0 failed: %v", err)
+	}
+	tabs0, _ := viewerPres["tabs"].(map[string]interface{})
+	tab0Users, _ := tabs0["0"].([]interface{})
+	if len(tab0Users) != 1 || tab0Users[0] != "fzclitui" {
+		t.Fatalf("expected fzclitui on Tab 0, got: %+v", tabs0["0"])
+	}
+}
+
+

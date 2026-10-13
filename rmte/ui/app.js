@@ -1,4 +1,4 @@
-// RMTE v0.7.11 — Web Viewer with Split Workbench, Fullscreen Mode, SVG Icons, Light Mode & Mobile UI
+// RMTE v0.7.12 — Web Viewer with Split Workbench, Fullscreen Mode, SVG Icons, Light Mode & Mobile UI
 let ws, aesKey, rawAesKeyBytes = null, myUsername = '';
 let activeEditorTab = null, activeTerminalTab = 'term-0', activeContext = 'terminal';
 let terminalPanelCollapsed = false, terminalPanelMaximized = false, terminalPanelHidden = false;
@@ -57,6 +57,8 @@ function isBinaryFile(path){
 }
 
 function isTextFile(path){
+    const ext = getFileExt(path);
+    if(ext === 'svg') return true;
     if(isImageFile(path)) return false;
     if(isBinaryFile(path)) return false;
     return true; // Plaintext, LICENSE, Makefile, Dockerfile, configs, etc.
@@ -757,6 +759,7 @@ async function onJson(msg) {
         const s=document.getElementById('sb-connection');if(s){s.innerText='● Connected';s.style.color='#3fb950';}
         // Reset any file-op state left over from a previous connection.
         waitingForFileData=false;pendingFileBytes=null;pendingEditorPath=null;pendingDownload=false;pendingDownloadName=null;fileOpBusy=false;uploadActive=false;currentTransferId=0;
+        sendJson({type:'control',action:'unfocus',viewer_id:myViewerId,viewer_name:myUsername});
         sendJson({type:'control',action:'get_tabs'});
         sendJson({type:'control',action:'get_events'});
         processUploadQueue();
@@ -1312,7 +1315,7 @@ function checkDirty(id){
     if(tabEl) tabEl.classList.toggle('dirty', isDirty);
 }
 
-function openEditorTab(path, text){
+function openEditorTab(path, text, forceText = false){
     const id = 'file:' + path;
     if(editorTabs[id]){
         if(editorTabs[id].cm){
@@ -1332,7 +1335,7 @@ function openEditorTab(path, text){
         for(let i=0; i<len; i++) if(str.charCodeAt(i) === 0) return true;
         return false;
     })(text);
-    const isText = !hasBinary && isTextFile(path);
+    const isText = forceText || (!hasBinary && isTextFile(path));
     // Container in editor-container-wrap
     const cont = document.createElement('div');
     cont.id = 'content-' + CSS.escape(id);
@@ -1410,7 +1413,23 @@ function openEditorTab(path, text){
     } else {
         const bp = document.createElement('div');
         bp.className = 'binary-preview';
-        bp.innerHTML = `<span class="bp-icon">${fileIcon(path)}</span><span class="bp-msg">Binary file — cannot preview</span><span class="bp-msg" style="font-size:11px;color:#484f58">${fmtSize(text.length)} · ${path}</span>`;
+        bp.innerHTML = `<span class="bp-icon">${fileIcon(path)}</span><span class="bp-msg">Binary file — cannot preview</span><span class="bp-msg" style="font-size:11px;color:var(--color-ink-3,#8b949e)">${fmtSize(text.length)} · ${esc(path)}</span>`;
+
+        const openAnywayBtn = document.createElement('button');
+        openAnywayBtn.className = 'editor-btn-secondary';
+        openAnywayBtn.style.marginTop = '8px';
+        openAnywayBtn.innerHTML = `${svgIcon('langText', { size: 14 })}<span>Open as Text Anyway</span>`;
+        openAnywayBtn.title = 'Force open this file in text editor';
+        openAnywayBtn.onclick = async () => {
+            if(text && text.length > 2 * 1024 * 1024){
+                const ok = await uiConfirm(`This file is large (${fmtSize(text.length)}). Opening it in CodeMirror may slow down or freeze your browser. Continue?`, { title: 'Large File Warning', okText: 'Open Anyway', danger: false });
+                if(!ok) return;
+            }
+            await closeEditorTab(id);
+            openEditorTab(path, text, true);
+        };
+        bp.appendChild(openAnywayBtn);
+
         cont.appendChild(bp);
         editorTabs[id] = {path, cm: null, textarea: null, original: null};
     }
@@ -1478,17 +1497,21 @@ function openImageTab(path, blobUrl, sizeBytes, rawBytes){
     const actions = document.createElement('div');
     actions.className = 'image-bar-actions';
 
-    if(isSvg && rawBytes){
-        const editSvgBtn = document.createElement('button');
-        editSvgBtn.className = 'editor-btn-secondary';
-        editSvgBtn.innerHTML = `${svgIcon('palette', { size: 14 })}<span>Edit as Code</span>`;
-        editSvgBtn.title = 'Edit SVG code in editor';
-        editSvgBtn.onclick = async () => {
+    if(rawBytes){
+        const textBtn = document.createElement('button');
+        textBtn.className = 'editor-btn-secondary';
+        textBtn.innerHTML = `${svgIcon(isSvg ? 'palette' : 'langText', { size: 14 })}<span>${isSvg ? 'Edit as Code' : 'Open as Text'}</span>`;
+        textBtn.title = isSvg ? 'Edit SVG code in editor' : 'Open file in text editor';
+        textBtn.onclick = async () => {
+            if(rawBytes && rawBytes.length > 2 * 1024 * 1024){
+                const ok = await uiConfirm(`This file is large (${fmtSize(rawBytes.length)}). Opening it in CodeMirror may slow down or freeze your browser. Continue?`, { title: 'Large File Warning', okText: 'Open Anyway', danger: false });
+                if(!ok) return;
+            }
             const txt = new TextDecoder().decode(rawBytes);
             await closeEditorTab(id);
-            openEditorTab(path, txt);
+            openEditorTab(path, txt, true);
         };
-        actions.appendChild(editSvgBtn);
+        actions.appendChild(textBtn);
     }
 
     const dlBtn = document.createElement('button');
@@ -1528,8 +1551,34 @@ function openImageTab(path, blobUrl, sizeBytes, rawBytes){
         }
     };
     img.onerror = () => {
+        img.style.display = 'none';
         const dimEl = document.getElementById('img-dim-' + CSS.escape(id));
         if(dimEl) dimEl.innerText = 'Image load failed';
+        if(rawBytes && !viewport.querySelector('.img-error-fallback')){
+            const fb = document.createElement('div');
+            fb.className = 'img-error-fallback';
+            fb.style.display = 'flex';
+            fb.style.flexDirection = 'column';
+            fb.style.alignItems = 'center';
+            fb.style.gap = '10px';
+            fb.style.padding = '20px';
+            fb.style.color = 'var(--color-ink-2)';
+            fb.innerHTML = `<span style="font-size:13px;opacity:0.8">Image failed to decode (may be plaintext or corrupted).</span>`;
+            const fbBtn = document.createElement('button');
+            fbBtn.className = 'editor-btn-secondary';
+            fbBtn.innerHTML = `${svgIcon('langText', { size: 14 })}<span>Open as Text Anyway</span>`;
+            fbBtn.onclick = async () => {
+                if(rawBytes && rawBytes.length > 2 * 1024 * 1024){
+                    const ok = await uiConfirm(`This file is large (${fmtSize(rawBytes.length)}). Opening it in CodeMirror may slow down or freeze your browser. Continue?`, { title: 'Large File Warning', okText: 'Open Anyway', danger: false });
+                    if(!ok) return;
+                }
+                const txt = new TextDecoder().decode(rawBytes);
+                await closeEditorTab(id);
+                openEditorTab(path, txt, true);
+            };
+            fb.appendChild(fbBtn);
+            viewport.appendChild(fb);
+        }
         if(editorTabs[id] && activeEditorTab === id && activeContext === 'media'){
             updateMediaStatus(editorTabs[id]);
         }

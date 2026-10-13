@@ -2,6 +2,7 @@ ignored/
 *.log
 rmte/rmte
 *.exe
+*.exe~
 *.old
 *.pid
 *.meta
