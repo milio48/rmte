@@ -487,3 +487,73 @@ func TestSetupTLSConfigInsecure(t *testing.T) {
 		t.Errorf("expected InsecureSkipVerify to be false after restore")
 	}
 }
+
+func TestSanitizeTerminalOutput(t *testing.T) {
+	// Reset carry buffer before test
+	sanitizerCarryMu.Lock()
+	sanitizerCarry = ""
+	sanitizerCarryMu.Unlock()
+
+	cases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"No sequences", "hello world", "hello world"},
+		{"Win32 input mode enable suppressed", "\x1b[?9001hHello\x1b[?9001h", "Hello"},
+		{"Mixed ANSI colors kept", "\x1b[?9001h\x1b[32mOK\x1b[0m", "\x1b[32mOK\x1b[0m"},
+	}
+
+	for _, tc := range cases {
+		got := sanitizeTerminalOutput(tc.input)
+		if got != tc.expected {
+			t.Errorf("%s: got %q, want %q", tc.name, got, tc.expected)
+		}
+	}
+
+	// Test chunked sequence split across two frames
+	sanitizerCarryMu.Lock()
+	sanitizerCarry = ""
+	sanitizerCarryMu.Unlock()
+
+	chunk1 := "Banner: \x1b[?90"
+	chunk2 := "01hWelcome!"
+	res1 := sanitizeTerminalOutput(chunk1)
+	res2 := sanitizeTerminalOutput(chunk2)
+	if res1+res2 != "Banner: Welcome!" {
+		t.Errorf("chunked sanitization failed: got %q + %q, want 'Banner: Welcome!'", res1, res2)
+	}
+}
+
+func TestIsExitKeySequence(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    []byte
+		expected bool
+	}{
+		{"Raw Ctrl+Q", []byte{17}, true},
+		{"Raw Ctrl+]", []byte{29}, true},
+		{"Raw normal 'a'", []byte{'a'}, false},
+		{"Raw normal 'q'", []byte{'q'}, false},
+		{"Raw normal ']'", []byte{']'}, false},
+		{"Raw Ctrl+C", []byte{3}, false},
+		{"CSI-u Ctrl+]", []byte("\x1b[93;5u"), true},
+		{"CSI-u Ctrl+Q", []byte("\x1b[113;5u"), true},
+		{"Win32 Ctrl+Q (Uc=17, Vk=81, LeftCtrl)", []byte("\x1b[81;16;17;1;8;1_"), true},
+		{"Win32 Ctrl+] (Uc=29)", []byte("\x1b[221;27;29;1;8;1_"), true},
+		{"Win32 Ctrl+] (Uc=93, Vk=221, LeftCtrl)", []byte("\x1b[221;27;93;1;8;1_"), true},
+		{"Win32 Ctrl+] (Uc=0, Vk=221, RightCtrl)", []byte("\x1b[221;27;0;1;4;1_"), true},
+		{"Win32 Ctrl+] KeyUp (kd=0)", []byte("\x1b[221;27;29;0;8;1_"), false},
+		{"Win32 normal ']' (no ctrl)", []byte("\x1b[221;27;93;1;0;1_"), false},
+		{"Win32 normal 'q' (no ctrl)", []byte("\x1b[81;16;113;1;0;1_"), false},
+		{"Win32 Ctrl+C", []byte("\x1b[67;46;3;1;8;1_"), false},
+	}
+
+	for _, tc := range cases {
+		got := isExitKeySequence(tc.input)
+		if got != tc.expected {
+			t.Errorf("%s: got %v, want %v", tc.name, got, tc.expected)
+		}
+	}
+}
+

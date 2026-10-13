@@ -20,13 +20,100 @@ import (
 
 var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]|\x1bO[A-Za-z]|\x1b.`)
 
+// win32InputRegex matches Windows Terminal / ConPTY win32-input-mode sequences:
+// \x1b[Vk;Sc;Uc;Kd;Cs;Rc_
+var win32InputRegex = regexp.MustCompile(`\x1b\[(\d+);(\d+);(\d+);(\d+);(\d+);(\d+)_`)
+
 func stripAnsiEscapes(s string) string {
 	return ansiRegex.ReplaceAllString(s, "")
 }
 
+var (
+	sanitizerCarryMu sync.Mutex
+	sanitizerCarry   string
+)
+
+func sanitizeTerminalOutput(s string) string {
+	// Suppress private escape sequence \x1b[?9001h (win32-input-mode enable).
+	// ConPTY on Windows hosts emits this sequence by default. If forwarded to a
+	// Windows client terminal (e.g. Windows Terminal), the local terminal switches
+	// to win32-input-mode, serializing key presses into \x1b[Vk;Sc;Uc;Kd;Cs;Rc_
+	// which breaks raw ASCII byte reading (including Ctrl+] / 0x1D) and corrupts TUI menus.
+	sanitizerCarryMu.Lock()
+	defer sanitizerCarryMu.Unlock()
+
+	combined := sanitizerCarry + s
+	sanitizerCarry = ""
+
+	// Strip any complete sequence
+	combined = strings.ReplaceAll(combined, "\x1b[?9001h", "")
+
+	// Chunk-fragmentation defense: preserve trailing partial prefix for next frame
+	target := "\x1b[?9001h"
+	for i := len(target) - 1; i >= 1; i-- {
+		if strings.HasSuffix(combined, target[:i]) {
+			sanitizerCarry = target[:i]
+			combined = combined[:len(combined)-i]
+			break
+		}
+	}
+	return combined
+}
+
+func isExitKeySequence(buf []byte) bool {
+	// 1. Raw ASCII control keys:
+	// ASCII 17 (0x11) = Ctrl+Q (guaranteed letter-based C0 code across all Windows/Unix terminals)
+	// ASCII 29 (0x1D) = Ctrl+] (traditional Telnet/RMTE escape shortcut)
+	for _, b := range buf {
+		if b == 17 || b == 29 {
+			return true
+		}
+	}
+
+	// 2. Extended escape sequences (CSI-u / modifyOtherKeys):
+	// \x1b[113;5u = Ctrl+Q (113 = 'q', 5 = Ctrl)
+	// \x1b[93;5u  = Ctrl+] (93 = ']', 5 = Ctrl)
+	str := string(buf)
+	if strings.Contains(str, "\x1b[113;5u") || strings.Contains(str, "\x1b[93;5u") {
+		return true
+	}
+
+	// 3. Windows win32-input-mode escape sequences:
+	// Format: \x1b[Vk;Sc;Uc;Kd;Cs;Rc_
+	// Vk: Virtual Key Code (81 for 'Q', 221 for VK_OEM_6 ']')
+	// Uc: Unicode character (17 for Ctrl+Q, 29 for Ctrl+])
+	// Kd: 1 for KeyDown, 0 for KeyUp
+	// Cs: Control keys bitmask (0x0004 Right Ctrl, 0x0008 Left Ctrl)
+	if strings.Contains(str, "\x1b[") && strings.Contains(str, "_") {
+		matches := win32InputRegex.FindAllStringSubmatch(str, -1)
+		for _, m := range matches {
+			if len(m) == 7 {
+				vk, _ := strconv.Atoi(m[1])
+				uc, _ := strconv.Atoi(m[3])
+				kd, _ := strconv.Atoi(m[4])
+				cs, _ := strconv.Atoi(m[5])
+
+				// Only consider key-down events (kd == 1)
+				if kd == 1 {
+					isCtrl := (cs & 0x0C) != 0
+					if uc == 17 || uc == 29 {
+						return true
+					}
+					if isCtrl && (vk == 81 || vk == 221) {
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	return false
+}
+
 func cleanupTerminalModes() {
-	// Disable focus reporting (?1004l), bracketed paste (?2004l), mouse tracking (?1000-1006l), and show cursor (?25h)
-	os.Stdout.WriteString("\x1b[?1004l\x1b[?2004l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?25h")
+	// Disable win32-input-mode (?9001l), focus reporting (?1004l), bracketed paste (?2004l),
+	// mouse tracking (?1000-1006l), and show cursor (?25h)
+	os.Stdout.WriteString("\x1b[?9001l\x1b[?1004l\x1b[?2004l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?25h")
 }
 
 func runViewer(serverURL, sessionID, password, displayName string) {
@@ -131,6 +218,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 
 				if tabID == currentTab && j {
 					str := string(plaintext)
+					str = sanitizeTerminalOutput(str)
 					str = strings.ReplaceAll(str, "\r\n", "\n")
 					str = strings.ReplaceAll(str, "\n", "\r\n")
 					os.Stdout.Write([]byte(str))
@@ -245,6 +333,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 
 								if tabID == currentTab && j {
 									str := string(plaintext)
+									str = sanitizeTerminalOutput(str)
 									str = strings.ReplaceAll(str, "\r\n", "\n")
 									str = strings.ReplaceAll(str, "\n", "\r\n")
 									os.Stdout.Write([]byte(str))
@@ -282,7 +371,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 
 		switch cmd {
 		case "j":
-			fmt.Printf("Joining Tab %d... (Press Ctrl+] to exit back to menu)\n", currentTab)
+			fmt.Printf("Joining Tab %d... (Press Ctrl+Q or Ctrl+] to exit back to menu)\n", currentTab)
 			// Send presence set_focus first
 			conn.WriteJSON(map[string]interface{}{
 				"type":        "control",
@@ -427,6 +516,9 @@ func enterRawTerminal(ws *SafeConn, tabID byte) {
 		cleanupTerminalModes()
 	}()
 
+	// Ensure local terminal is not in win32-input-mode
+	cleanupTerminalModes()
+
 	// Send terminal size
 	w, h, err := term.GetSize(fd)
 	if err == nil {
@@ -446,11 +538,8 @@ func enterRawTerminal(ws *SafeConn, tabID byte) {
 			break
 		}
 
-		for i := 0; i < n; i++ {
-			// ESCAPE KEY: Ctrl+] (ASCII 29)
-			if buf[i] == 29 {
-				return
-			}
+		if isExitKeySequence(buf[:n]) {
+			return
 		}
 
 		payload, err := encryptBinary(tabID, buf[:n])
