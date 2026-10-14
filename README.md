@@ -21,6 +21,11 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
 <details>
 <summary><h3>✨ Key Features (click to expand)</h3></summary>
 
+* **AI Agent Gateway & Model Context Protocol (MCP) (`🤖`):**
+  * Direct zero-dependency **Model Context Protocol (MCP)** integration over stdio (`rmte mcp`) enabling local AI coding agents (Claude Desktop, Cursor, Claude Code, Antigravity) to work directly inside remote locked-down hosts/containers.
+  * 7 powerful AI tools built-in: `rmte_exec` (synchronous execution in persistent isolated `[AI]` tab or dedicated background tabs), `rmte_read_file`, `rmte_write_file`, `rmte_upload_file`, `rmte_download_file`, `rmte_list_files`, `rmte_get_info`.
+  * **Headless CLI Execution (`rmte exec`)**: Execute remote commands from local shell scripts and receive exact exit codes and clean stdout/stderr over E2EE.
+  * **Read-Only Human Spectator Protection**: Live visual feedback of AI commands in the Web IDE without allowing human spectators to disrupt the AI's PTY.
 * **Embedded Web Browser Preview (`🌐`):**
   * Built-in mini-browser directly inside the Web IDE tab bar, allowing developers to test local web apps (Vite, Next.js, React, Bun, Python, Dufs, Go, etc.) without leaving RMTE.
   * **Relay-Assisted Reverse Proxy**: Proxies any local port via path `/p/<session>/<port>/` over the single relay port with **zero external DNS dependency** (runs on plain raw IP).
@@ -175,14 +180,14 @@ RMTE is designed with zero frontend dependencies. All web assets in `rmte/ui/` (
 
 ## ⚖️ Commands & Modes
 
-| | `serve --mode=standalone` *(default)* | `serve --mode=hybrid` | `serve --mode=relay` | `share` | `join` |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| Opens a port | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Local shell/files (Host) | ✅ | ✅ | ❌ | ✅ | ❌ |
-| Accepts external hosts (`share`) | ❌ | ✅ | ✅ | — | — |
-| Prints Session ID + links | ✅ | ✅ | ❌ | ✅ | — |
-| Uses `--pass` / `--buffer` / `--dir` / `--id` | ✅ | ✅ | ❌ | ✅ | `--pass` / `--id` |
-| Role | Relay + Host | Relay + Host | Relay | Host | Client (TUI) |
+| | `serve --mode=standalone` *(default)* | `serve --mode=hybrid` | `serve --mode=relay` | `share` | `join` | `exec` | `mcp` |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Opens a port | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Local shell/files (Host) | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Accepts external hosts (`share`) | ❌ | ✅ | ✅ | — | — | — | — |
+| Prints Session ID + links | ✅ | ✅ | ❌ | ✅ | — | — | — |
+| Uses `--pass` / `--buffer` / `--dir` / `--id` | ✅ | ✅ | ❌ | ✅ | `--pass` / `--id` | `--pass` / `--id` | `--pass` / `--id` |
+| Role | Relay + Host | Relay + Host | Relay | Host | Client (TUI) | Client (Headless Exec) | Client (AI MCP Server) |
 
 ---
 
@@ -295,6 +300,60 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 2. Toggle the folder icon `📁` in the tab bar to access the workspace editor.
 3. Double-click the breadcrumb to input any absolute path directly.
 
+### 🤖 AI Agent Integration (MCP & Headless CLI Exec)
+You can connect local AI coding agents (Claude Desktop, Cursor, Claude Code, Antigravity) to execute commands, read/write files, and transfer data inside remote host environments over secure E2EE with zero open inbound ports!
+
+#### 1. Enable on Remote Host:
+Start the host session with `--allow-exec`:
+```bash
+./rmte share --allow-exec
+# or for self-hosted standalone:
+./rmte serve --allow-exec
+```
+
+#### 2. Headless CLI Execution (`rmte exec`):
+Run remote commands from local shell scripts and propagate exit codes:
+```bash
+./rmte exec --id="session_id" --pass="secret" -- "uname -a"
+
+# Launch long-running commands in a dedicated background tab:
+./rmte exec --id="session_id" --pass="secret" --bg --tab-name="DevServer" -- "npm run dev"
+```
+
+#### 3. Model Context Protocol (MCP) Setup:
+Configure your local AI coding assistant to communicate with RMTE via stdio:
+
+**Claude Desktop Configuration (`claude_desktop_config.json`):**
+```json
+{
+  "mcpServers": {
+    "rmte": {
+      "command": "rmte",
+      "args": [
+        "mcp",
+        "--server-relay=wss://my.rmte.biz.id/ws-rmte",
+        "--id=<session_id>",
+        "--pass=<password>"
+      ]
+    }
+  }
+}
+```
+
+**Cursor MCP Configuration:**
+Add a new stdio MCP server:
+- Name: `rmte`
+- Command: `rmte mcp --server-relay=wss://my.rmte.biz.id/ws-rmte --id=<session_id> --pass=<password>`
+
+**Available MCP Tools:**
+* `rmte_exec`: Run shell commands in the persistent `[AI]` tab or in dedicated background tabs.
+* `rmte_read_file`: Read UTF-8 text from remote host files.
+* `rmte_write_file`: Write or overwrite text files on the remote host.
+* `rmte_upload_file`: Upload local files from your machine to the remote host.
+* `rmte_download_file`: Download remote files to your local machine.
+* `rmte_list_files`: List directory contents on the remote host.
+* `rmte_get_info`: Inspect remote host environment metadata (OS, architecture, hostname, working directory, PID, active tabs).
+
 ### 🛡️ Relay Admin Dashboard
 Self-hosting your own relay server (`standalone`, `hybrid`, or `relay`)? You can enable the real-time web administration dashboard by specifying `--admin-pass`:
 ```bash
@@ -321,6 +380,7 @@ Run `rmte` without subcommands to share directly to `my.rmte.biz.id`:
 | `--dir` | `""` | Initial working directory for File Explorer and terminal |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
 | `--web-preview` | `true` | Embedded Web Browser Preview reverse proxy (`--preview` alias) |
+| `--allow-exec` | `false` | Allow remote command execution via MCP or CLI exec (`--enable-ai` alias) |
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 | `--server-relay`, `--server` | `wss://my.rmte.biz.id/ws-rmte` | Relay WebSocket URL |
 | `--insecure`, `--skip-tls-verify` | `false` | Skip TLS certificate verification (process-wide, for self-signed relays; also disables TLS checks on update downloads) |
@@ -335,6 +395,7 @@ Connect a host to a relay server (defaults to public relay):
 | `--dir` | `""` | Initial working directory for File Explorer and terminal |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
 | `--web-preview` | `true` | Embedded Web Browser Preview reverse proxy (`--preview` alias) |
+| `--allow-exec` | `false` | Allow remote command execution via MCP or CLI exec (`--enable-ai` alias) |
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 | `--insecure`, `--skip-tls-verify` | `false` | Skip TLS certificate verification (process-wide, for self-signed relays; also disables TLS checks on update downloads) |
 
@@ -354,6 +415,7 @@ Connect a host to a relay server (defaults to public relay):
 | `--no-web` | `false` | Don't serve the Web UI |
 | `--no-cli` | `false` | Reject CLI clients (soft restriction: clients self-declare) |
 | `--web-preview` | `false` | Enable Embedded Web Browser Preview reverse proxy (`--preview` alias) |
+| `--allow-exec` | `false` | Allow remote command execution via MCP or CLI exec (`--enable-ai` alias) |
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 | `--admin-path`, `--path-admin` | `/admin` | HTTP path for Relay Admin Dashboard |
 | `--admin-pass`, `--password-admin` | `""` | Password for Relay Admin Dashboard (disabled if empty) |
@@ -367,6 +429,26 @@ Connect a host to a relay server (defaults to public relay):
 | `--pass` | *required* | E2EE password |
 | `--name` | *prompt* | Display name |
 | `--insecure`, `--skip-tls-verify` | `false` | Skip TLS certificate verification (process-wide, for self-signed relays) |
+
+### `rmte exec`
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--server-relay` | `wss://my.rmte.biz.id/ws-rmte` | Relay WebSocket URL (defaults to public relay) |
+| `--id` | *required* | Session ID |
+| `--pass` | *required* | E2EE password |
+| `--timeout` | `60` | Execution timeout in seconds |
+| `--bg`, `--background` | `false` | Run command in a dedicated background tab |
+| `--name` | `rmte-exec` | Client display name |
+| `--insecure` | `false` | Skip TLS certificate verification |
+
+### `rmte mcp`
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--server-relay` | `wss://my.rmte.biz.id/ws-rmte` | Relay WebSocket URL (defaults to public relay) |
+| `--id` | *required* | Session ID |
+| `--pass` | *required* | E2EE password |
+| `--name` | `Claude-MCP` | Client display name |
+| `--insecure` | `false` | Skip TLS certificate verification |
 
 ### `rmte stop`
 Stop a background session running in quiet mode (`-q`):

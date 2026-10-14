@@ -44,13 +44,17 @@ func (c *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time
 }
 
 type TabSession struct {
-	Cmd         *exec.Cmd
-	Pid         int
-	ReadCloser  io.ReadCloser
-	WriteCloser io.WriteCloser
-	IsPipe      bool
-	Buffer      []byte
-	Mutex       sync.Mutex
+	Title         string
+	IsAI          bool
+	AIOutputChan  chan []byte
+	AIProcessDone chan struct{}
+	Cmd           *exec.Cmd
+	Pid           int
+	ReadCloser    io.ReadCloser
+	WriteCloser   io.WriteCloser
+	IsPipe        bool
+	Buffer        []byte
+	Mutex         sync.Mutex
 
 	// LineBuffer for Windows Pipe mode to emulate PTY backspace
 	LineBuffer []byte
@@ -64,6 +68,13 @@ func (t *TabSession) Close() {
 		return
 	}
 	t.closeOnce.Do(func() {
+		if t.IsAI && t.AIProcessDone != nil {
+			select {
+			case <-t.AIProcessDone:
+			default:
+				close(t.AIProcessDone)
+			}
+		}
 		if t.CloseFn != nil {
 			t.CloseFn()
 		} else {
@@ -83,6 +94,7 @@ func (t *TabSession) Close() {
 type ViewersPresence struct {
 	ViewerName string
 	TabID      byte
+	IsBot      bool
 }
 
 // File manager state for Tab 255 data channel
@@ -150,7 +162,25 @@ type HostOptions struct {
 	Dir           string       // initial working directory
 	ID            string       // custom session ID (optional)
 	Preview       bool         // enable Embedded Web Browser Preview reverse proxy
+	AllowExec     bool         // allow remote command execution via MCP or CLI exec
 	Serve         *ServeConfig // non-nil when embedded in `serve`
+}
+
+var (
+	currentHostOptionsMu sync.RWMutex
+	currentHostOptions   HostOptions
+)
+
+func getHostOptions() HostOptions {
+	currentHostOptionsMu.RLock()
+	defer currentHostOptionsMu.RUnlock()
+	return currentHostOptions
+}
+
+func setHostOptions(opts HostOptions) {
+	currentHostOptionsMu.Lock()
+	currentHostOptions = opts
+	currentHostOptionsMu.Unlock()
 }
 
 func initEventLog(sessionID string) {
@@ -211,6 +241,7 @@ func logEvent(conn *SafeConn, eventType, user, message string) {
 }
 
 func runHost(opts HostOptions) {
+	setHostOptions(opts)
 	maxBufferSize = opts.Buffer * 1024 * 1024
 
 	// Set working directory as sandbox root
@@ -298,6 +329,7 @@ func runHost(opts HostOptions) {
 			NoWeb:         authResp.NoWeb,
 			NoCLI:         authResp.NoCLI,
 			Preview:       opts.Preview,
+			AllowExec:     opts.AllowExec,
 			Dir:           opts.Dir,
 		}
 	}
@@ -399,6 +431,9 @@ func runHost(opts HostOptions) {
 			tabsMu.RUnlock()
 
 			if ok {
+				if tab.IsAI {
+					continue
+				}
 				if tab.IsPipe && runtime.GOOS == "windows" {
 					// Emulate PTY line buffering for Windows pipe fallback
 					for _, b := range plaintext {
@@ -470,8 +505,14 @@ func runHost(opts HostOptions) {
 				case "get_tabs":
 					tabsMu.RLock()
 					activeTabs := make([]int, 0)
-					for id := range tabs {
+					tabTitles := make(map[string]string)
+					for id, tab := range tabs {
 						activeTabs = append(activeTabs, int(id))
+						if tab.Title != "" {
+							tabTitles[strconv.Itoa(int(id))] = tab.Title
+						} else {
+							tabTitles[strconv.Itoa(int(id))] = fmt.Sprintf("Terminal %d", id)
+						}
 					}
 					tabsMu.RUnlock()
 
@@ -481,26 +522,34 @@ func runHost(opts HostOptions) {
 						"type":   "control",
 						"action": "tabs_list",
 						"tabs":   activeTabs,
+						"titles": tabTitles,
 					})
 
 					presenceMutex.Lock()
 					tabsPresence := buildTabsPresence(presenceMap)
+					botViewers := buildBotViewers(presenceMap)
 					presenceMutex.Unlock()
 
 					conn.WriteJSON(map[string]interface{}{
-						"type":   "control",
-						"action": "presence",
-						"tabs":   tabsPresence,
+						"type":        "control",
+						"action":      "presence",
+						"tabs":        tabsPresence,
+						"bot_viewers": botViewers,
 					})
 				case "request_new_tab":
 					newID := nextTabID
 					nextTabID++
-					createTab(newID, conn)
-					logEvent(conn, "NEW_TAB", "system", fmt.Sprintf("Terminal Tab %d created", newID))
+					title, _ := ctrl["title"].(string)
+					if title == "" {
+						title = fmt.Sprintf("Terminal %d", newID)
+					}
+					createTabWithTitle(newID, conn, title, false)
+					logEvent(conn, "NEW_TAB", "system", fmt.Sprintf("Terminal Tab %d (%s) created", newID, title))
 					conn.WriteJSON(map[string]interface{}{
 						"type":   "control",
 						"action": "tab_created",
 						"tab_id": newID,
+						"title":  title,
 					})
 				case "resize":
 					tabIDFloat, _ := ctrl["tab_id"].(float64)
@@ -561,9 +610,10 @@ func runHost(opts HostOptions) {
 					viewerName, _ := ctrl["viewer_name"].(string)
 					tabIDFloat, _ := ctrl["tab_id"].(float64)
 					tabID := byte(tabIDFloat)
+					isBot, _ := ctrl["is_bot"].(bool)
 
 					presenceMutex.Lock()
-					tabsPresence, eventName, eventUser, shouldLog := applyPresenceTransition(presenceMap, "set_focus", viewerID, viewerName, tabID)
+					tabsPresence, botViewers, eventName, eventUser, shouldLog := applyPresenceTransitionWithBot(presenceMap, "set_focus", viewerID, viewerName, tabID, isBot)
 					presenceMutex.Unlock()
 
 					if shouldLog {
@@ -571,9 +621,10 @@ func runHost(opts HostOptions) {
 					}
 
 					conn.WriteJSON(map[string]interface{}{
-						"type":   "control",
-						"action": "presence",
-						"tabs":   tabsPresence,
+						"type":        "control",
+						"action":      "presence",
+						"tabs":        tabsPresence,
+						"bot_viewers": botViewers,
 					})
 				case "get_events":
 					targetConn, _ := ctrl["target_conn"].(string)
@@ -590,9 +641,10 @@ func runHost(opts HostOptions) {
 				case "unfocus":
 					viewerID, _ := ctrl["viewer_id"].(string)
 					viewerName, _ := ctrl["viewer_name"].(string)
+					isBot, _ := ctrl["is_bot"].(bool)
 
 					presenceMutex.Lock()
-					tabsPresence, eventName, eventUser, shouldLog := applyPresenceTransition(presenceMap, "unfocus", viewerID, viewerName, lobbyTabID)
+					tabsPresence, botViewers, eventName, eventUser, shouldLog := applyPresenceTransitionWithBot(presenceMap, "unfocus", viewerID, viewerName, lobbyTabID, isBot)
 					presenceMutex.Unlock()
 
 					if shouldLog {
@@ -600,15 +652,16 @@ func runHost(opts HostOptions) {
 					}
 
 					conn.WriteJSON(map[string]interface{}{
-						"type":   "control",
-						"action": "presence",
-						"tabs":   tabsPresence,
+						"type":        "control",
+						"action":      "presence",
+						"tabs":        tabsPresence,
+						"bot_viewers": botViewers,
 					})
 				case "viewer_disconnected":
 					viewerID, _ := ctrl["viewer_id"].(string)
 
 					presenceMutex.Lock()
-					tabsPresence, eventName, eventUser, shouldLog := applyPresenceTransition(presenceMap, "viewer_disconnected", viewerID, "", 0)
+					tabsPresence, botViewers, eventName, eventUser, shouldLog := applyPresenceTransitionWithBot(presenceMap, "viewer_disconnected", viewerID, "", 0, false)
 					presenceMutex.Unlock()
 
 					if shouldLog {
@@ -616,9 +669,10 @@ func runHost(opts HostOptions) {
 					}
 
 					conn.WriteJSON(map[string]interface{}{
-						"type":   "control",
-						"action": "presence",
-						"tabs":   tabsPresence,
+						"type":        "control",
+						"action":      "presence",
+						"tabs":        tabsPresence,
+						"bot_viewers": botViewers,
 					})
 				case "chat":
 					// Broadcast to all viewers
@@ -665,6 +719,13 @@ func runHost(opts HostOptions) {
 					reqPath, _ := ctrl["path"].(string)
 					targetConn, _ := ctrl["target_conn"].(string)
 					handleDeleteFile(reqPath, targetConn, conn)
+
+				case "ai_exec":
+					handleAIExec(ctrl, conn)
+
+				case "ai_get_info":
+					targetConn, _ := ctrl["target_conn"].(string)
+					handleAIGetInfo(targetConn, conn)
 				}
 			}
 		}
@@ -1065,9 +1126,20 @@ func handleDataChannelWrite(transferID uint32, plaintext []byte, conn *SafeConn)
 // ===== TERMINAL TAB MANAGEMENT =====
 
 func createTab(id byte, ws *SafeConn) {
-	tab, err := startPlatformTab(id, ws)
+	createTabWithTitle(id, ws, fmt.Sprintf("Terminal %d", id), false)
+}
+
+func createTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) {
+	tab, err := startPlatformTabWithTitle(id, ws, title, isAI)
 	if err != nil || tab == nil {
 		return
+	}
+
+	tab.Title = title
+	tab.IsAI = isAI
+	if isAI {
+		tab.AIOutputChan = make(chan []byte, 100)
+		tab.AIProcessDone = make(chan struct{})
 	}
 
 	tabsMu.Lock()
@@ -1090,6 +1162,13 @@ func createTab(id byte, ws *SafeConn) {
 			}
 			tab.Mutex.Unlock()
 
+			if tab.IsAI && tab.AIOutputChan != nil {
+				select {
+				case tab.AIOutputChan <- append([]byte(nil), data...):
+				default:
+				}
+			}
+
 			payload, err := encryptBinary(id, data)
 			if err == nil {
 				c := getHostConn()
@@ -1098,11 +1177,18 @@ func createTab(id byte, ws *SafeConn) {
 				}
 			}
 		}
+		if tab.IsAI && tab.AIProcessDone != nil {
+			close(tab.AIProcessDone)
+		}
 		tab.Close()
 	}()
 }
 
 func runWithPipes(id byte, c *exec.Cmd, ws *SafeConn) {
+	runWithPipesWithTitle(id, c, ws, fmt.Sprintf("Terminal %d", id), false)
+}
+
+func runWithPipesWithTitle(id byte, c *exec.Cmd, ws *SafeConn, title string, isAI bool) {
 	stdin, _ := c.StdinPipe()
 
 	// Create a pipe to merge stdout and stderr
@@ -1116,6 +1202,8 @@ func runWithPipes(id byte, c *exec.Cmd, ws *SafeConn) {
 	}
 
 	tab := &TabSession{
+		Title:       title,
+		IsAI:        isAI,
 		Cmd:         c,
 		ReadCloser:  pr,
 		WriteCloser: stdin,
@@ -1129,6 +1217,10 @@ func runWithPipes(id byte, c *exec.Cmd, ws *SafeConn) {
 			}
 			return nil
 		},
+	}
+	if isAI {
+		tab.AIOutputChan = make(chan []byte, 100)
+		tab.AIProcessDone = make(chan struct{})
 	}
 
 	tabsMu.Lock()
@@ -1153,6 +1245,13 @@ func runWithPipes(id byte, c *exec.Cmd, ws *SafeConn) {
 			}
 			tab.Mutex.Unlock()
 
+			if tab.IsAI && tab.AIOutputChan != nil {
+				select {
+				case tab.AIOutputChan <- append([]byte(nil), data...):
+				default:
+				}
+			}
+
 			payload, err := encryptBinary(id, data)
 			if err == nil {
 				c := getHostConn()
@@ -1160,6 +1259,9 @@ func runWithPipes(id byte, c *exec.Cmd, ws *SafeConn) {
 					_ = c.WriteMessage(websocket.BinaryMessage, payload)
 				}
 			}
+		}
+		if tab.IsAI && tab.AIProcessDone != nil {
+			close(tab.AIProcessDone)
 		}
 		c.Wait()
 	}()
@@ -1407,13 +1509,25 @@ func buildTabsPresence(pMap map[string]ViewersPresence) map[string][]string {
 	return tabsPresence
 }
 
-func applyPresenceTransition(
+func buildBotViewers(pMap map[string]ViewersPresence) []string {
+	bots := make([]string, 0)
+	for _, p := range pMap {
+		if p.IsBot {
+			bots = append(bots, p.ViewerName)
+		}
+	}
+	sort.Strings(bots)
+	return bots
+}
+
+func applyPresenceTransitionWithBot(
 	pMap map[string]ViewersPresence,
 	action, viewerID, viewerName string,
 	tabID byte,
-) (tabsPresence map[string][]string, eventName string, eventUser string, shouldLog bool) {
+	isBot bool,
+) (tabsPresence map[string][]string, botViewers []string, eventName string, eventUser string, shouldLog bool) {
 	if viewerID == "" {
-		return buildTabsPresence(pMap), "", "", false
+		return buildTabsPresence(pMap), buildBotViewers(pMap), "", "", false
 	}
 	if viewerName == "" {
 		viewerName = viewerID
@@ -1421,10 +1535,15 @@ func applyPresenceTransition(
 
 	switch action {
 	case "set_focus":
-		_, existed := pMap[viewerID]
+		prev, existed := pMap[viewerID]
+		botFlag := isBot
+		if existed && !isBot {
+			botFlag = prev.IsBot
+		}
 		pMap[viewerID] = ViewersPresence{
 			ViewerName: viewerName,
 			TabID:      tabID,
+			IsBot:      botFlag,
 		}
 		if !existed && viewerID != "" {
 			eventName = "CONNECT"
@@ -1434,11 +1553,15 @@ func applyPresenceTransition(
 	case "unfocus":
 		if p, ok := pMap[viewerID]; ok {
 			p.TabID = lobbyTabID
+			if isBot {
+				p.IsBot = true
+			}
 			pMap[viewerID] = p
 		} else if viewerID != "" {
 			pMap[viewerID] = ViewersPresence{
 				ViewerName: viewerName,
 				TabID:      lobbyTabID,
+				IsBot:      isBot,
 			}
 			eventName = "CONNECT"
 			eventUser = viewerName
@@ -1454,5 +1577,14 @@ func applyPresenceTransition(
 		}
 	}
 
-	return buildTabsPresence(pMap), eventName, eventUser, shouldLog
+	return buildTabsPresence(pMap), buildBotViewers(pMap), eventName, eventUser, shouldLog
+}
+
+func applyPresenceTransition(
+	pMap map[string]ViewersPresence,
+	action, viewerID, viewerName string,
+	tabID byte,
+) (tabsPresence map[string][]string, eventName string, eventUser string, shouldLog bool) {
+	tabs, _, eventName, eventUser, shouldLog := applyPresenceTransitionWithBot(pMap, action, viewerID, viewerName, tabID, false)
+	return tabs, eventName, eventUser, shouldLog
 }

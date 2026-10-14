@@ -88,6 +88,7 @@ type BannerInfo struct {
 	NoWeb         bool
 	NoCLI         bool
 	Preview       bool
+	AllowExec     bool
 	Dir           string
 }
 
@@ -112,6 +113,7 @@ func bannerFromServe(cfg *ServeConfig, sessionID string) BannerInfo {
 		NoWeb:         cfg.NoWeb,
 		NoCLI:         cfg.NoCLI,
 		Preview:       cfg.Preview,
+		AllowExec:     cfg.AllowExec,
 		Dir:           cfg.Dir,
 	}
 }
@@ -187,6 +189,12 @@ func printBanner(b BannerInfo) {
 		}
 		if !b.NoCLI {
 			fmt.Fprintf(&sb, "\nJoin CLI / TUI Version:\n  rmte join --server-relay=\"%s\" --id=\"%s\" --pass=\"%s\"\n",
+				b.RelayURL, b.SessionID, passDisplay)
+		}
+		if b.AllowExec {
+			fmt.Fprintf(&sb, "\nAI Agent (MCP Config for Claude Desktop / Cursor):\n  {\"command\":\"rmte\",\"args\":[\"mcp\",\"--server-relay=%s\",\"--id=%s\",\"--pass=%s\"]}\n",
+				b.RelayURL, b.SessionID, passDisplay)
+			fmt.Fprintf(&sb, "\nHeadless CLI Exec:\n  rmte exec --server-relay=\"%s\" --id=\"%s\" --pass=\"%s\" -- \"<command>\"\n",
 				b.RelayURL, b.SessionID, passDisplay)
 		}
 		if b.Mode == modeHybrid {

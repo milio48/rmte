@@ -9,9 +9,20 @@ import (
 	"os/exec"
 
 	"github.com/creack/pty"
+	"golang.org/x/term"
 )
 
+func disablePTYEcho(f *os.File) {
+	if f != nil {
+		_, _ = term.MakeRaw(int(f.Fd()))
+	}
+}
+
 func startPlatformTab(id byte, ws *SafeConn) (*TabSession, error) {
+	return startPlatformTabWithTitle(id, ws, fmt.Sprintf("Terminal %d", id), false)
+}
+
+func startPlatformTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) (*TabSession, error) {
 	shell := "bash"
 	if os.Getenv("SHELL") != "" {
 		shell = os.Getenv("SHELL")
@@ -28,7 +39,13 @@ func startPlatformTab(id byte, ws *SafeConn) (*TabSession, error) {
 		return nil, fmt.Errorf("pty.Start failed: %w", err)
 	}
 
+	if isAI {
+		disablePTYEcho(f)
+	}
+
 	tab := &TabSession{
+		Title:       title,
+		IsAI:        isAI,
 		Cmd:         c,
 		ReadCloser:  f,
 		WriteCloser: f,

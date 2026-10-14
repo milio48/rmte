@@ -116,6 +116,7 @@ type ServeConfig struct {
 	NoWeb         bool
 	NoCLI         bool
 	Preview       bool   // enable Embedded Web Browser Preview reverse proxy
+	AllowExec     bool   // allow remote command execution via MCP or CLI exec
 	Quiet         bool   // run in background (daemon) and print startup banner + PID
 	Dir           string // initial working directory for host
 	ID            string // custom session ID for host (optional)
@@ -163,6 +164,10 @@ func main() {
 		runShare(os.Args)
 	case "join":
 		cmdJoin()
+	case "exec":
+		cmdExec()
+	case "mcp":
+		cmdMCP()
 	case "stop":
 		cmdStop()
 	case "update", "upgrade":
@@ -195,6 +200,8 @@ func cmdServe() {
 	flag.BoolVar(&cfg.NoCLI, "no-cli", false, "Reject CLI clients (soft restriction)")
 	flag.BoolVar(&cfg.Preview, "web-preview", false, "Enable Embedded Web Browser Preview reverse proxy")
 	flag.BoolVar(&cfg.Preview, "preview", false, "Alias for --web-preview")
+	flag.BoolVar(&cfg.AllowExec, "allow-exec", false, "Allow remote command execution via MCP or CLI exec")
+	flag.BoolVar(&cfg.AllowExec, "enable-ai", false, "Alias for --allow-exec")
 	flag.BoolVar(&cfg.Quiet, "quiet", false, "Run in background (detached) and print connection info with PID")
 	flag.BoolVar(&cfg.Quiet, "q", false, "Alias for --quiet")
 	flag.StringVar(&cfg.AdminPath, "admin-path", "/admin", "HTTP path for Relay Admin Dashboard")
@@ -347,6 +354,8 @@ func runShare(args []string) {
 	dir := fs.String("dir", "", "Initial working directory for File Explorer and terminal")
 	webPreview := fs.Bool("web-preview", true, "Enable Embedded Web Browser Preview reverse proxy")
 	preview := fs.Bool("preview", true, "Alias for --web-preview")
+	allowExec := fs.Bool("allow-exec", false, "Allow remote command execution via MCP or CLI exec")
+	enableAI := fs.Bool("enable-ai", false, "Alias for --allow-exec")
 	quiet := fs.Bool("quiet", false, "Run in background (detached) and print connection info with PID")
 	q := fs.Bool("q", false, "Alias for --quiet")
 	insecure := fs.Bool("insecure", false, "Skip TLS certificate verification")
@@ -408,6 +417,7 @@ func runShare(args []string) {
 		Dir:       cleanDir,
 		ID:        cleanID,
 		Preview:   *webPreview && *preview,
+		AllowExec: *allowExec || *enableAI,
 	}
 	if opts.Pass == "" {
 		opts.Pass = generatePassword(12)
@@ -431,6 +441,74 @@ func cmdJoin() {
 		fatalf("Error: --id and --pass are required")
 	}
 	runViewer(*server, *sessionID, *pass, *name)
+}
+
+func cmdExec() {
+	fs := flag.NewFlagSet("exec", flag.ExitOnError)
+	server := fs.String("server-relay", defaultPublicRelay, "Relay server WebSocket URL")
+	serverAlias := fs.String("server", "", "Alias for --server-relay")
+	sessionID := fs.String("id", "", "Target session ID")
+	pass := fs.String("pass", "", "Session password for E2EE")
+	password := fs.String("password", "", "Alias for --pass")
+	name := fs.String("name", "rmte-exec", "Client name")
+	timeout := fs.Int("timeout", 60, "Execution timeout in seconds")
+	background := fs.Bool("background", false, "Run command in a dedicated background tab")
+	bg := fs.Bool("bg", false, "Alias for --background")
+	insecure := fs.Bool("insecure", false, "Skip TLS certificate verification")
+	skipTLS := fs.Bool("skip-tls-verify", false, "Alias for --insecure")
+
+	_ = fs.Parse(os.Args[1:])
+
+	relayURL := *server
+	if *serverAlias != "" {
+		relayURL = *serverAlias
+	}
+	chosenPass := *pass
+	if *password != "" {
+		chosenPass = *password
+	}
+
+	if *sessionID == "" || chosenPass == "" {
+		fatalf("Error: --id and --pass are required for rmte exec")
+	}
+
+	cmdArgs := fs.Args()
+	if len(cmdArgs) == 0 {
+		fatalf("Error: command argument is required (e.g. rmte exec --id=... --pass=... -- ls -la)")
+	}
+	cmdStr := strings.Join(cmdArgs, " ")
+
+	exitCode := runExec(relayURL, *sessionID, chosenPass, *name, cmdStr, *timeout, *background || *bg, *insecure || *skipTLS)
+	os.Exit(exitCode)
+}
+
+func cmdMCP() {
+	fs := flag.NewFlagSet("mcp", flag.ExitOnError)
+	server := fs.String("server-relay", defaultPublicRelay, "Relay server WebSocket URL")
+	serverAlias := fs.String("server", "", "Alias for --server-relay")
+	sessionID := fs.String("id", "", "Target session ID")
+	pass := fs.String("pass", "", "Session password for E2EE")
+	password := fs.String("password", "", "Alias for --pass")
+	name := fs.String("name", "Claude-MCP", "Client name")
+	insecure := fs.Bool("insecure", false, "Skip TLS certificate verification")
+	skipTLS := fs.Bool("skip-tls-verify", false, "Alias for --insecure")
+
+	_ = fs.Parse(os.Args[1:])
+
+	relayURL := *server
+	if *serverAlias != "" {
+		relayURL = *serverAlias
+	}
+	chosenPass := *pass
+	if *password != "" {
+		chosenPass = *password
+	}
+
+	if *sessionID == "" || chosenPass == "" {
+		fatalf("Error: --id and --pass are required for rmte mcp")
+	}
+
+	runMCP(relayURL, *sessionID, chosenPass, *name, *insecure || *skipTLS)
 }
 
 // runServeAndShare starts the relay server, waits for it to be ready,
@@ -461,6 +539,7 @@ func runServeAndShare(cfg *ServeConfig) {
 		Dir:           cfg.Dir,
 		ID:            cfg.ID,
 		Preview:       cfg.Preview,
+		AllowExec:     cfg.AllowExec,
 		Serve:         cfg,
 	})
 }
@@ -512,16 +591,19 @@ Instant Sharing:
   rmte -q                               Run detached in background (prints share link & PID)
   rmte --id="mysession" --pass="secret" Custom session ID and password
   rmte --dir="/path" --buffer=2         Custom workspace directory and memory limit
+  rmte --allow-exec                     Enable AI agent execution (MCP & CLI exec)
 
 Usage:
-  rmte       [--pass="secret"] [--id="mysession"] [--dir="path"] [--buffer=1] [-q]
-  rmte share [--server-relay="%s"] [--pass="secret"] [--id="mysession"] [--buffer=1] [--dir="path"] [-q]
+  rmte       [--pass="secret"] [--id="mysession"] [--dir="path"] [--buffer=1] [--allow-exec] [-q]
+  rmte share [--server-relay="%s"] [--pass="secret"] [--id="mysession"] [--buffer=1] [--dir="path"] [--allow-exec] [-q]
   rmte serve [--mode=standalone|hybrid|relay] [--port=%d] [--pass="secret"] [--id="mysession"]
              [--buffer=1] [--dir="path"] [--web-path="/"] [--ws-path="%s"] [--public-url="https://example.com"]
-             [--public] [--no-web | --no-cli] [--web-preview] [-q | --quiet]
+             [--public] [--no-web | --no-cli] [--web-preview] [--allow-exec] [-q | --quiet]
              [--admin-path="/admin"] [--admin-pass="secret"]
-  rmte join   [--server-relay="%s"] --id="..." --pass="secret" [--name="name"]
-  rmte stop   <session_id | pid>
+  rmte join  [--server-relay="%s"] --id="..." --pass="secret" [--name="name"]
+  rmte exec  [--server-relay="%s"] --id="..." --pass="secret" [--timeout=60] [--bg] -- <command>
+  rmte mcp   [--server-relay="%s"] --id="..." --pass="secret" [--name="Claude-MCP"]
+  rmte stop  <session_id | pid>
   rmte update [--check] [--force] [--restart]
   rmte help | version
 
@@ -534,6 +616,7 @@ Notes:
   * If --pass is empty, a random password is generated and printed.
   * If --id is specified, must be lowercase alphanumeric (a-z, 0-9) up to 10 chars.
   * Web Browser Preview is enabled by default for share (use --web-preview for serve).
+  * Remote execution (exec/mcp) requires host started with --allow-exec.
   * Default bind for serve is 127.0.0.1; use --public to bind 0.0.0.0.
-`, appVersion, defaultPublicRelay, defaultPublicRelay, defaultPort, defaultWSPath, defaultPublicRelay)
+`, appVersion, defaultPublicRelay, defaultPublicRelay, defaultPort, defaultWSPath, defaultPublicRelay, defaultPublicRelay, defaultPublicRelay)
 }

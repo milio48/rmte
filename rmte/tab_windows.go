@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -12,6 +13,10 @@ import (
 )
 
 func startPlatformTab(id byte, ws *SafeConn) (*TabSession, error) {
+	return startPlatformTabWithTitle(id, ws, fmt.Sprintf("Terminal %d", id), false)
+}
+
+func startPlatformTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) (*TabSession, error) {
 	shell := "cmd.exe"
 	if os.Getenv("COMSPEC") != "" {
 		shell = os.Getenv("COMSPEC")
@@ -30,6 +35,8 @@ func startPlatformTab(id byte, ws *SafeConn) (*TabSession, error) {
 			log.Printf("[Host] ConPTY pseudo-terminal initialized for Tab %d (PID %d)", id, cpty.Pid())
 			var cptyOnce sync.Once
 			tab := &TabSession{
+				Title:       title,
+				IsAI:        isAI,
 				ReadCloser:  cpty,
 				WriteCloser: cpty,
 				IsPipe:      false,
@@ -56,6 +63,6 @@ func startPlatformTab(id byte, ws *SafeConn) (*TabSession, error) {
 		c.Dir = hostWorkDir
 	}
 	log.Printf("PTY not supported on Windows, falling back to Pipes for Tab %d", id)
-	runWithPipes(id, c, ws)
+	runWithPipesWithTitle(id, c, ws, title, isAI)
 	return nil, nil
 }

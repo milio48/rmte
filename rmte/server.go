@@ -541,7 +541,9 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 								action == "create_file" ||
 								action == "create_dir" ||
 								action == "rename_file" ||
-								action == "delete_file" {
+								action == "delete_file" ||
+								action == "ai_exec" ||
+								action == "ai_get_info" {
 								// Inject caller's connID so host can route responses back
 								ctrl["target_conn"] = connID
 								newData, _ := json.Marshal(ctrl)

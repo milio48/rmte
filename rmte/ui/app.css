@@ -1381,6 +1381,23 @@ button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
     font-weight: 600;
     flex-shrink: 0;
 }
+.user-item.is-bot {
+    background: oklch(35% 0.08 260 / 0.3);
+    border: 1px solid oklch(60% 0.15 260 / 0.3);
+}
+.user-item .user-bot-badge {
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.tab-btn-container.is-ai-tab {
+    border-left: 2px solid oklch(75% 0.18 260);
+}
+.tab-btn-container.is-ai-tab .tab-icon {
+    font-size: 13px;
+}
 
 /* Sidebar tab switcher */
 #sidebar-tabs {

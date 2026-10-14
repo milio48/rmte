@@ -778,11 +778,11 @@ async function onJson(msg) {
             }
             break;
         }
-        case'tabs_list':{const t=msg.tabs||[];t.forEach(id=>addTermTabBtn(id));if(t.length>0){const firstTab=t.includes(0)?0:t[0];if(!terminals[firstTab])initTerminal(firstTab);setTimeout(()=>switchToTab('term-'+firstTab),50);}break;}
-        case'tab_created':addTermTabBtn(msg.tab_id);break;
+        case'tabs_list':{const t=msg.tabs||[];const titles=msg.titles||{};t.forEach(id=>addTermTabBtn(id,titles[id]||titles[String(id)]));if(t.length>0){const firstTab=t.includes(0)?0:t[0];if(!terminals[firstTab])initTerminal(firstTab);setTimeout(()=>switchToTab('term-'+firstTab),50);}break;}
+        case'tab_created':addTermTabBtn(msg.tab_id, msg.title);break;
         case'tab_deleted':removeTermTab(msg.tab_id);break;
         case'sync_data':{const b=Uint8Array.from(atob(msg.data),c=>c.charCodeAt(0));await onBinary(b);}break;
-        case'presence':updatePresence(msg.tabs);break;
+        case'presence':updatePresence(msg.tabs, msg.bot_viewers);break;
         case'chat_history':{
             const cm=document.getElementById('chat-messages');
             if(cm){
@@ -1150,6 +1150,8 @@ function isAppCursorMode(tabId){
 
 function sendVirtualKey(key){
     const tid = getActiveTerminalTabId();
+    const tabEl = document.getElementById('tab-term-' + tid);
+    if(tabEl && tabEl.classList.contains('is-ai-tab')) return;
     let bytes = null;
     switch(key){
         case 'esc':
@@ -1197,6 +1199,8 @@ function toggleVirtualKeyRow(){
 }
 
 function handleTerminalData(tabId, data){
+    const tabEl = document.getElementById('tab-term-' + tabId);
+    if(tabEl && tabEl.classList.contains('is-ai-tab')) return;
     if(stickyCtrl > 0){
         if(data.length === 1){
             const code = data.charCodeAt(0);
@@ -1245,23 +1249,35 @@ function enableTabDrag(el){
     });
 }
 
-function addTermTabBtn(tabId){
+function addTermTabBtn(tabId, customTitle){
     const id = 'term-' + tabId;
-    if(document.getElementById('tab-' + CSS.escape(id))) return;
+    const existing = document.getElementById('tab-' + CSS.escape(id));
+    if(existing){
+        if(customTitle){
+            const tText = existing.querySelector('.tab-title-text');
+            if(tText) tText.innerText = customTitle;
+            if(customTitle === '[AI]'){
+                existing.classList.add('is-ai-tab');
+            }
+        }
+        return;
+    }
     const c = document.createElement('div');
     c.id = 'tab-' + CSS.escape(id);
     c.className = 'tab-btn-container' + (activeTerminalTab === id ? ' active' : '');
+    if(customTitle === '[AI]') c.classList.add('is-ai-tab');
     c.onclick = () => activateTerminalTab(id);
     enableTabDrag(c);
-    const icon = document.createElement('span'); icon.className = 'tab-icon'; icon.innerHTML = svgIcon('terminal', { size: 14 });
+    const icon = document.createElement('span'); icon.className = 'tab-icon'; icon.innerHTML = customTitle === '[AI]' ? '🤖' : svgIcon('terminal', { size: 14 });
     const content = document.createElement('div'); content.className = 'tab-btn-content';
-    const title = document.createElement('span'); title.className = 'tab-title-text'; title.innerText = 'Tab ' + tabId;
+    const displayTitle = customTitle || ('Tab ' + tabId);
+    const title = document.createElement('span'); title.className = 'tab-title-text'; title.innerText = displayTitle;
     const sub = document.createElement('span'); sub.id = 'tab-subtext-' + tabId; sub.className = 'tab-subtext';
     content.appendChild(title); content.appendChild(sub);
     const close = document.createElement('button'); close.className = 'tab-close-btn'; close.innerText = '×';
     close.onclick = async e => {
         e.stopPropagation();
-        if(await uiConfirm('Delete Tab ' + tabId + '?', {okText: 'Delete', danger: true})){
+        if(await uiConfirm('Delete ' + displayTitle + '?', {okText: 'Delete', danger: true})){
             sendJson({type: 'control', action: 'delete_tab', tab_id: tabId});
         }
     };
@@ -2087,16 +2103,22 @@ function closeConfirm(result){
 }
 
 // ===== PRESENCE + CHAT =====
-function updatePresence(tabs){
+function updatePresence(tabs, botViewers){
     document.querySelectorAll('.tab-subtext').forEach(el=>el.innerText='');
     Object.keys(tabs||{}).forEach(tid=>{const s=document.getElementById('tab-subtext-'+tid);if(s&&tabs[tid]&&tabs[tid].length)s.innerText=tabs[tid].join(', ');});
     const list=document.getElementById('users-list');list.innerHTML='';
     const peers = new Set();
     const selfName = (myUsername || '').trim();
+    const bots = new Set(botViewers || []);
     Object.keys(tabs||{}).forEach(tid=>(tabs[tid]||[]).forEach(name=>{
         const trimmed = (name || '').trim();
         const tabLabel = tid === '255' ? 'Lobby' : 'Tab ' + tid;
-        const i=document.createElement('div');i.className='user-item';i.innerHTML=`<span class="dot"></span><span class="user-name">${esc(trimmed)}</span><span class="user-tab-badge">${tabLabel}</span>`;list.appendChild(i);
+        const isBot = bots.has(trimmed);
+        const iconHtml = isBot ? '<span class="user-bot-badge" title="AI Agent">🤖</span>' : '<span class="dot"></span>';
+        const i=document.createElement('div');
+        i.className='user-item' + (isBot ? ' is-bot' : '');
+        i.innerHTML=`${iconHtml}<span class="user-name">${esc(trimmed)}</span><span class="user-tab-badge">${tabLabel}</span>`;
+        list.appendChild(i);
         if(trimmed && selfName && trimmed !== selfName) peers.add(trimmed);
     }));
     const collabBadge = document.getElementById('collab-badge-top');
