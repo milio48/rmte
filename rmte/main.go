@@ -830,6 +830,7 @@ Usage:
              [--buffer=1] [--dir="path"] [--web-path="/"] [--ws-path="%s"] [--public-url="https://example.com"]
              [--public] [--no-web | --no-cli] [--web-preview] [--allow-exec] [-q | --quiet]
              [--admin-path="/admin"] [--admin-pass="secret"]
+             [--max-buffer=0] [--max-sessions=100] [--max-viewers=50]
   rmte join  [--server-relay="%s"] --id="..." --pass="secret" [--name="name"]
   rmte exec  [--server-relay="%s"] --id="..." --pass="secret" [--timeout=60] [--bg] -- <command>
   rmte mcp   [--server-relay="%s"] --id="..." --pass="secret" [--name="Claude-MCP"]

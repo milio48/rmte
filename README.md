@@ -1,4 +1,4 @@
-# RMTE — Remote Terminal Relay & Cloud IDE (v0.7.14)
+# RMTE — Remote Terminal Relay & Cloud IDE (v0.7.15)
 
 > "I love sshx, but my endless curiosity to build it from scratch got the best of me 🥲"
 
@@ -55,7 +55,13 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
 * **Unified Sidebar & Real-Time Chat Bridge:**
   * Dedicated multi-tab sidebar for `👥 Users` presence, `💬 Chat` (live encrypted bridge between Web and CLI clients), and `📜 Activity Log`.
 * **Share Session Dialog (`🔗`):** Convenient modal to copy browser links or CLI join commands with one click.
-* **Dynamic Max Buffer Limits:** Set customizable memory limits via CLI (e.g. `--buffer=5` for 5MB limits) to configure both the terminal ring buffer and the maximum allowed file sizes.
+* **Dynamic Max Buffer & Relay Adaptive Clamping:**
+  * Set customizable memory limits via CLI (e.g. `--buffer=5` for 5MB limits) to configure both the terminal ring buffer and the maximum allowed file sizes.
+  * **Relay Adaptive Clamping (`--max-buffer`)**: Self-hosted and public relays can set a maximum buffer threshold. If a connecting host requests more memory than allowed, the relay adaptively clamps the session without rejecting the host, and enforces transport-level WebSocket frame ceilings (`SetReadLimit`) to prevent DoS.
+* **Relay Resource & DoS Protection:**
+  * **Session Capacity (`--max-sessions`)**: Limits total concurrent active sessions (default: `100`, `0` = unlimited).
+  * **Viewer Concurrency Ceiling (`--max-viewers`)**: Limits total active WebSocket connections per session across all viewer IDs and tabs (default: `50`, `0` = unlimited).
+  * **Lean Smux Multiplexing**: Slices proxy stream buffers to 512 KB and session receive pools to 4 MB (~87.5% memory reduction).
 * **Zero-copy Binary Data Channel (Tab ID `255`):** Avoids heavy Base64 parsing overhead. Files are sent as pure, encrypted binary frames over a reserved channel.
 * **Background / Quiet Mode (`-q` / `--quiet` & `rmte stop`):**
   * Run `rmte serve` or `rmte share` as a detached background daemon. Prints the connection banner, shareable link, and PID to stdout, then immediately returns control to your shell.
@@ -63,7 +69,7 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
 * **State Persistence & Auto-Reconnect:** Connection credentials live safely in `sessionStorage` for immediate recovery upon page refresh.
 * **Relay Admin Dashboard (`--admin-pass` & `--admin-path`):**
   * Built-in administrative web dashboard for self-hosted relays (`standalone`, `hybrid`, `relay`).
-  * Live monitoring of active sessions, connected viewers, and cumulative TX / RX network bandwidth.
+  * Live monitoring of active sessions, session capacity limits, connected viewers, and cumulative TX / RX network bandwidth.
   * Force-terminate sessions with one click and ban abusive IP addresses in real time.
   * Configurable dashboard route (default: `/admin`) protected against URI collision.
 
@@ -213,7 +219,7 @@ Or with custom credentials:
 ```
 Output:
 ```
-RMTE v0.7.14 — Mode: standalone
+RMTE v0.7.15 — Mode: standalone
 ────────────────────────────────────────────────
 Bind:             127.0.0.1:8048
 Rmte Port:        8048
@@ -427,6 +433,9 @@ Connect a host to a relay server (defaults to public relay):
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 | `--admin-path`, `--path-admin` | `/admin` | HTTP path for Relay Admin Dashboard |
 | `--admin-pass`, `--password-admin` | `""` | Password for Relay Admin Dashboard (disabled if empty) |
+| `--max-buffer` | `0` | Max buffer limit in MB per session (`0` = unlimited / opt-in; enforces `SetReadLimit`, recommended for multi-tenant relays) |
+| `--max-sessions` | `100` | Max concurrent active sessions on relay (`0` = unlimited) |
+| `--max-viewers` | `50` | Max viewer connections per session (`0` = unlimited) |
 | `--insecure`, `--skip-tls-verify` | `false` | Skip TLS certificate verification (process-wide) |
 
 ### `rmte join`

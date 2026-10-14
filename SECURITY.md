@@ -67,6 +67,13 @@ When `--sandbox` is enabled on the host:
 - **Admin CSRF Protection & Reverse Proxy Deployment**: State-changing POST endpoints on the relay admin dashboard (`/login`, `/logout`, `/terminate`, `/ban`, `/unban`) enforce fail-closed CSRF validation requiring `Origin` or `Referer` to match `r.Host`. When running the relay behind a reverse proxy (e.g., Nginx, Caddy, Traefik), the proxy **must** pass through the original Host header (e.g., `proxy_set_header Host $host;`).
 - **Flexible Frame Navigation**: The CSP allows `frame-src 'self' about: http: https: blob: data:` so previewed applications can navigate to external OAuth providers, test APIs, and embed dev tools without parent policy interference.
 
+### 6. Relay Resource Protection & DoS Mitigations (v0.7.15+)
+- **Transport WebSocket Read Limits (`SetReadLimit`)**: When `--max-buffer=<MB>` is configured (`> 0`), the relay immediately enforces `conn.SetReadLimit((maxBuffer+1)*1024*1024)` on all inbound WebSocket connections (both host and viewer) right after the HTTP upgrade. Oversized frames (e.g. malformed or malicious payloads) are dropped before heap exhaustion, triggering a WebSocket `CloseMessageTooBig` (1009) closure.
+- **Adaptive Buffer Clamping**: Cooperative `rmte` hosts negotiate their requested buffer during handshake. If a host requests more memory than `--max-buffer`, the relay instructs the host to clamp its local allocation (`clamped_buffer`), preserving host and relay memory without rejecting the session.
+- **Session Capacity Guard (`--max-sessions`)**: Restricts the maximum number of concurrent active sessions (default: `100`, `0` = unlimited). New session requests exceeding capacity are rejected fail-closed, while existing host reconnects during the 120-second grace period are always honored.
+- **Viewer Concurrency Ceiling (`--max-viewers`)**: Tracks total active WebSocket connections per session across all viewer IDs and tabs (default: `50`, `0` = unlimited), preventing connection flooding by single or distributed viewer IDs.
+- **Lean Smux Multiplexing**: Smux v2 multiplexing buffers for Web Preview proxying are tuned to 512 KB per stream and 4 MB aggregate per session, eliminating unbounded buffer growth and saving ~87.5% memory per session.
+
 ---
 
 ## Security Roadmap (v0.8.0)
