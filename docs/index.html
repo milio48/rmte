@@ -1936,7 +1936,7 @@
               </div>
               <code>./rmte exec --id="mysession" --pass="secret123" -- "uptime"</code>
             </div>
-            <p>Executes commands remotely over E2EE relay from bash scripts or CI/CD pipelines. Streams output synchronously and exits with the exact remote status code. Supports <code>--bg</code> and <code>--tab-name</code>.</p>
+            <p>Executes commands remotely over E2EE relay from bash scripts or CI/CD pipelines. Waits for remote execution to complete, prints full output, and exits with the exact remote status code. Supports <code>--bg</code> and <code>--tab-name</code>.</p>
           </div>
 
           <!-- Item 13: Model Context Protocol (MCP) -->
@@ -2187,7 +2187,7 @@
           <h4 style="font-size: 0.95rem; font-weight: 700; color: #39c5cf; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
             <span>⚡</span> <code>rmte exec</code> (Headless Remote CLI Execution)
           </h4>
-          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Executes a shell command remotely over E2EE relay and streams the output directly to your local terminal with exact exit status code propagation.</p>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Executes a shell command remotely over E2EE relay, prints the output directly to your local terminal upon completion, and propagates the exact exit status code.</p>
           <div class="table-container">
             <table class="cheat-table">
               <thead>
@@ -2792,7 +2792,7 @@
               <input type="number" class="param-input" placeholder="60" value="${escapeAttr(state.execTimeout)}" oninput="updateParam('execTimeout', this.value)">
             </div>
             <div class="param-field">
-              <label class="param-label">Background Tab Title (--tab-name)</label>
+              <label class="param-label">Background Tab Title (--tab-name, requires --bg)</label>
               <input type="text" class="param-input" placeholder="Optional background tab name" value="${escapeAttr(state.execTabName)}" oninput="updateParam('execTabName', this.value)">
             </div>
             <div class="param-checkboxes">
@@ -3055,7 +3055,7 @@
               <input type="number" class="param-input" placeholder="60" value="${escapeAttr(state.execTimeout)}" oninput="updateParam('execTimeout', this.value)">
             </div>
             <div class="param-field">
-              <label class="param-label">Background Tab Title (--tab-name)</label>
+              <label class="param-label">Background Tab Title (--tab-name, requires --bg)</label>
               <input type="text" class="param-input" placeholder="Optional background tab name" value="${escapeAttr(state.execTabName)}" oninput="updateParam('execTabName', this.value)">
             </div>
             <div class="param-checkboxes">
@@ -3171,8 +3171,10 @@
           const sPass = state.password || 'secret123';
           let cmd = `${bin} exec --id="${sId}" --pass="${sPass}"`;
           if (state.execTimeout && state.execTimeout !== '60') cmd += ` --timeout=${state.execTimeout}`;
-          if (state.execBg) cmd += ' --bg';
-          if (state.execTabName) cmd += ` --tab-name="${state.execTabName}"`;
+          if (state.execBg) {
+            cmd += ' --bg';
+            if (state.execTabName) cmd += ` --tab-name="${state.execTabName}"`;
+          }
           const cmdStr = state.execCmd || 'uname -a';
           cmd += ` -- "${cmdStr}"`;
           return cmd;
@@ -3254,8 +3256,10 @@
           const sPass = state.password || 'secret123';
           let cmd = `${bin} exec --server-relay="${url}" --id="${sId}" --pass="${sPass}"`;
           if (state.execTimeout && state.execTimeout !== '60') cmd += ` --timeout=${state.execTimeout}`;
-          if (state.execBg) cmd += ' --bg';
-          if (state.execTabName) cmd += ` --tab-name="${state.execTabName}"`;
+          if (state.execBg) {
+            cmd += ' --bg';
+            if (state.execTabName) cmd += ` --tab-name="${state.execTabName}"`;
+          }
           const cmdStr = state.execCmd || 'uname -a';
           cmd += ` -- "${cmdStr}"`;
           return cmd;

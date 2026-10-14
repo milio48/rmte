@@ -711,7 +711,7 @@
         <div class="pillar-box">
           <h5><span>⚡</span> Process Reaping &amp; Safety</h5>
           <p>
-            Clean process termination via <code>cmd.Wait()</code> prevents zombie shells. 25MB per-message limits protect against oversized buffer panics.
+            Clean process termination via <code>cmd.Wait()</code> prevents zombie shells. Host-level <code>--buffer</code> (default 1 MB) bounds file operations, while 25MB per-message limits protect against oversized JSON-RPC envelope panics.
           </p>
         </div>
       </div>
@@ -840,7 +840,7 @@ Command: rmte mcp --server-relay=wss://my.rmte.biz.id/ws-rmte --id=my-server --p
             <span>📖</span>
           </div>
           <p class="tool-desc">
-            Reads the UTF-8 text content of a remote file. Enforces a 25MB safety buffer to prevent memory exhaustion on large binary artifacts.
+            Reads the UTF-8 text content of a remote file. File size is bounded by the host's <code>--buffer</code> limit (default 1 MB, configurable on host via <code>--buffer=&lt;N&gt;</code>) to protect host memory.
           </p>
           <div class="tool-args">
             Arguments: <code>path</code> (string, req)
@@ -854,7 +854,7 @@ Command: rmte mcp --server-relay=wss://my.rmte.biz.id/ws-rmte --id=my-server --p
             <span>✍️</span>
           </div>
           <p class="tool-desc">
-            Creates or overwrites a text file with new content on the remote host. Automatically registers the file in the Web File Explorer tree.
+            Creates or overwrites a text file with new content on the remote host (bounded by host <code>--buffer</code> limit). Automatically registers the file in the Web File Explorer tree.
           </p>
           <div class="tool-args">
             Arguments: <code>path</code> (string, req), <code>content</code> (string, req)
@@ -868,7 +868,7 @@ Command: rmte mcp --server-relay=wss://my.rmte.biz.id/ws-rmte --id=my-server --p
             <span>📤</span>
           </div>
           <p class="tool-desc">
-            Uploads a local file from the AI agent's computer to the remote host workspace via encrypted binary frame channel (Tab ID 255).
+            Uploads a local file from the AI agent's computer to the remote host workspace via encrypted binary frame channel (Tab ID 255, bounded by host <code>--buffer</code>).
           </p>
           <div class="tool-args">
             Arguments: <code>local_path</code> (string, req), <code>remote_path</code> (string, req)
@@ -882,7 +882,7 @@ Command: rmte mcp --server-relay=wss://my.rmte.biz.id/ws-rmte --id=my-server --p
             <span>📥</span>
           </div>
           <p class="tool-desc">
-            Downloads a file from the remote host workspace directly to the AI agent's local filesystem with matching file size verification.
+            Downloads a file from the remote host workspace directly to the AI agent's local filesystem with matching file size verification (bounded by host <code>--buffer</code>).
           </p>
           <div class="tool-args">
             Arguments: <code>remote_path</code> (string, req), <code>local_path</code> (string, req)
@@ -896,7 +896,7 @@ Command: rmte mcp --server-relay=wss://my.rmte.biz.id/ws-rmte --id=my-server --p
             <span>📂</span>
           </div>
           <p class="tool-desc">
-            Lists directory contents on the remote machine. Returns filenames, file sizes, modification timestamps, and directory indicators.
+            Lists directory contents on the remote machine. Returns filenames, file sizes, and directory indicators (<code>name</code>, <code>is_dir</code>, <code>size</code>).
           </p>
           <div class="tool-args">
             Arguments: <code>path</code> (string, opt - defaults to cwd)
@@ -932,7 +932,7 @@ Command: rmte mcp --server-relay=wss://my.rmte.biz.id/ws-rmte --id=my-server --p
       </div>
 
       <p style="font-size:0.88rem; color:var(--text-muted); line-height:1.6; margin-bottom:14px;">
-        <code>rmte exec</code> connects into an active RMTE host session, issues a command, streams output cleanly to stdout/stderr, and exits with the exact exit status code returned by the remote process.
+        <code>rmte exec</code> connects into an active RMTE host session, issues a command, waits for completion, prints the output cleanly to stdout/stderr, and exits with the exact exit status code returned by the remote process.
       </p>
 
       <div class="snippet-container">
@@ -1037,6 +1037,13 @@ echo "Remote test status: $?"</code></pre>
           Pass the <code>--insecure</code> flag in your MCP server arguments or CLI exec command:
           <br>
           <code>rmte mcp --server-relay="wss://my-internal-relay:8048/ws-rmte" --insecure --id="mysession" --pass="secret"</code>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q"><span>📦</span> What is the file size limit for read, write, upload, and download?</div>
+        <div class="faq-a">
+          File operations are bounded by the host's <code>--buffer</code> limit (default: <strong>1 MB</strong>). If your project requires editing or transferring larger files, launch the host with a higher buffer limit, for example: <code>./rmte share --allow-exec --buffer=10</code> (for 10 MB limits). Note that the <strong>25MB</strong> limit is strictly an internal transport envelope safeguard for JSON-RPC messages over stdio to prevent parser crashes.
         </div>
       </div>
     </section>
