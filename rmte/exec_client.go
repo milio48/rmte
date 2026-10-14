@@ -7,7 +7,7 @@ import (
 )
 
 // runExec connects to the remote host as a headless bot and executes a command,
-// streaming stdout to the local stdout, errors to stderr, and returning the remote exit code.
+// waiting for completion, printing stdout to the local stdout, errors to stderr, and returning the remote exit code.
 func runExec(serverURL, sessionID, password, name, cmd string, timeout int, background bool, tabName string, insecure bool) int {
 	if insecure {
 		setupTLSConfig(true)
