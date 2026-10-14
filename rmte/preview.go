@@ -91,11 +91,11 @@ func (c *wsNetConn) SetWriteDeadline(t time.Time) error {
 	return c.ws.SetWriteDeadline(t)
 }
 
-// createSmuxConfig returns a tuned smux v2 configuration for high-throughput streaming.
+// createSmuxConfig returns a tuned smux v2 configuration with lean memory usage.
 func createSmuxConfig() *smux.Config {
 	cfg := smux.DefaultConfig()
-	cfg.MaxStreamBuffer = 2 * 1024 * 1024   // 2 MB per stream
-	cfg.MaxReceiveBuffer = 32 * 1024 * 1024 // 32 MB aggregate buffer
+	cfg.MaxStreamBuffer = 512 * 1024       // 512 KB per stream
+	cfg.MaxReceiveBuffer = 4 * 1024 * 1024 // 4 MB aggregate buffer per session (~87.5% memory savings)
 	cfg.KeepAliveInterval = 10 * time.Second
 	cfg.KeepAliveTimeout = 30 * time.Second
 	return cfg

@@ -58,6 +58,9 @@ type AdminStatsResponse struct {
 	Cumulative     CumulativeStats      `json:"cumulative"`
 	History        []SessionHistoryInfo `json:"history"`
 	BannedIPs      []BannedIPInfo       `json:"banned_ips"`
+	MaxSessions    int                  `json:"max_sessions"`
+	MaxBuffer      int                  `json:"max_buffer"`
+	MaxViewers     int                  `json:"max_viewers"`
 }
 
 var (
@@ -389,6 +392,17 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 			cumStats.TotalFileBytes += a.FileBytes
 		}
 
+		maxSessions := 100
+		maxBuffer := 0
+		maxViewers := 50
+		if serverCfg != nil {
+			maxSessions = serverCfg.MaxSessions
+			maxBuffer = serverCfg.MaxBuffer
+			if serverCfg.MaxViewers > 0 {
+				maxViewers = serverCfg.MaxViewers
+			}
+		}
+
 		resp := AdminStatsResponse{
 			ServerVersion:  appVersion,
 			RelayUptime:    time.Since(serverStartTime).Round(time.Second).String(),
@@ -398,6 +412,9 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 			Cumulative:     cumStats,
 			History:        histCopy,
 			BannedIPs:      getBannedIPList(),
+			MaxSessions:    maxSessions,
+			MaxBuffer:      maxBuffer,
+			MaxViewers:     maxViewers,
 		}
 
 		w.Header().Set("Content-Type", "application/json")

@@ -503,12 +503,12 @@
             <div class="metric-card">
                 <span class="metric-label">Active Sessions</span>
                 <span class="metric-val" id="metric-sessions">0</span>
-                <span class="metric-sub" id="metric-lifetime-sessions">All-time: 0 sessions</span>
+                <span class="metric-sub" id="metric-session-limits">Limit: unlimited buf • 50 viewers/sess</span>
             </div>
             <div class="metric-card">
                 <span class="metric-label">Connected Viewers</span>
                 <span class="metric-val" id="metric-viewers">0</span>
-                <span class="metric-sub">Live web & CLI connections</span>
+                <span class="metric-sub" id="metric-viewer-sub">Live web & CLI connections</span>
             </div>
             <div class="metric-card">
                 <span class="metric-label">Relay Uptime</span>
@@ -763,8 +763,23 @@
 
         function renderDashboard(data) {
             // Metrics
-            document.getElementById('metric-sessions').textContent = data.total_sessions || 0;
+            const activeCount = data.total_sessions || 0;
+            const maxSess = data.max_sessions > 0 ? ` / ${data.max_sessions}` : '';
+            document.getElementById('metric-sessions').textContent = `${activeCount}${maxSess}`;
+
+            const bufText = data.max_buffer > 0 ? `${data.max_buffer} MB max` : 'unlimited buf';
+            const vText = data.max_viewers > 0 ? `${data.max_viewers} viewers/sess` : '50 viewers/sess';
+            const elSessionLimits = document.getElementById('metric-session-limits');
+            if (elSessionLimits) {
+                elSessionLimits.textContent = `Limit: ${bufText} • ${vText}`;
+            }
+
             document.getElementById('metric-viewers').textContent = data.total_viewers || 0;
+            const elViewerSub = document.getElementById('metric-viewer-sub');
+            if (elViewerSub && data.max_viewers > 0) {
+                elViewerSub.textContent = `Max ${data.max_viewers} conns per session`;
+            }
+
             document.getElementById('metric-uptime').textContent = data.relay_uptime || '0s';
             document.getElementById('metric-version').textContent = 'RMTE v' + (data.server_version || '0.5');
             document.getElementById('metric-banned').textContent = (data.banned_ips || []).length;

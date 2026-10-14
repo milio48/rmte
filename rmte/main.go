@@ -169,6 +169,9 @@ type ServeConfig struct {
 	AdminPass     string // Password for Admin Dashboard (disabled if empty)
 	Insecure      bool   // Skip TLS certificate verification
 	Sandbox       bool   // Restrict file manager and MCP file tools to Dir root
+	MaxBuffer     int    // Max buffer limit in MB per session (0 = unlimited / opt-in)
+	MaxSessions   int    // Max concurrent active sessions (0 = unlimited)
+	MaxViewers    int    // Max viewer connections per session
 }
 
 var origArgs []string
@@ -236,6 +239,9 @@ func cmdServe() {
 	var passFile string
 	flag.StringVar(&passFile, "pass-file", "", "Path to file containing session password")
 	flag.IntVar(&cfg.Buffer, "buffer", 1, "Max buffer size in MB (ignored in relay mode)")
+	flag.IntVar(&cfg.MaxBuffer, "max-buffer", 0, "Max buffer limit in MB per session (0 = unlimited; relay multi-tenant recommended)")
+	flag.IntVar(&cfg.MaxSessions, "max-sessions", 100, "Max concurrent active sessions (0 = unlimited)")
+	flag.IntVar(&cfg.MaxViewers, "max-viewers", 50, "Max viewer connections per session")
 	flag.StringVar(&cfg.WebPath, "web-path", "/", "HTTP path for the Web UI")
 	flag.StringVar(&cfg.WSPath, "ws-path", defaultWSPath, "WebSocket path")
 	flag.StringVar(&cfg.PublicURL, "public-url", "", "Full public base URL or domain (e.g. https://my.rmte.biz.id or http://host:8041)")
@@ -744,6 +750,10 @@ func runServeAndShare(cfg *ServeConfig) {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+
+	if cfg.MaxBuffer > 0 && cfg.Buffer > cfg.MaxBuffer {
+		cfg.Buffer = cfg.MaxBuffer
 	}
 
 	relayURL, _ := resolvePublicRelayURL(cfg.PublicURL, cfg.Port, cfg.WSPath)

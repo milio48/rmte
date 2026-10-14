@@ -125,6 +125,13 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 	conn := &SafeConn{Conn: rawConn}
 	defer conn.Close()
 
+	// Apply WebSocket read limit based on --max-buffer (0 = unlimited)
+	if serverCfg != nil && serverCfg.MaxBuffer > 0 {
+		conn.SetReadLimit(int64(serverCfg.MaxBuffer+1) * 1024 * 1024)
+	} else {
+		conn.SetReadLimit(0) // Unlimited
+	}
+
 	var role string
 	var sessionID string
 	var viewerID string
@@ -146,6 +153,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		InternalToken   string `json:"internal_token"`
 		Client          string `json:"client"` // "web" | "cli" (self-declared)
 		Preview         bool   `json:"preview"`
+		Buffer          int    `json:"buffer"`
 	}
 
 	if err := json.Unmarshal(msg, &auth); err != nil || auth.Type != "auth" {
@@ -234,6 +242,16 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if !isResume {
+			if serverCfg != nil && serverCfg.MaxSessions > 0 && len(sessions) >= serverCfg.MaxSessions {
+				sessionMu.Unlock()
+				conn.WriteJSON(map[string]string{
+					"type":    "error",
+					"message": fmt.Sprintf("relay session capacity reached (limit: %d sessions)", serverCfg.MaxSessions),
+				})
+				fmt.Printf("Host rejected from %s: relay session capacity reached (%d/%d)\n", r.RemoteAddr, len(sessions), serverCfg.MaxSessions)
+				return
+			}
+
 			s = &Session{
 				ID:             sessionID,
 				Host:           conn,
@@ -249,10 +267,16 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		}
 		sessionMu.Unlock()
 
+		clampedBuffer := 0
+		if serverCfg != nil && serverCfg.MaxBuffer > 0 && auth.Buffer > serverCfg.MaxBuffer {
+			clampedBuffer = serverCfg.MaxBuffer
+		}
+
 		// Send back the session ID plus relay paths so the host can build correct links
 		resp := map[string]interface{}{
-			"type":       "auth_success",
-			"session_id": sessionID,
+			"type":           "auth_success",
+			"session_id":     sessionID,
+			"clamped_buffer": clampedBuffer,
 		}
 		if serverCfg != nil {
 			resp["web_path"] = serverCfg.WebPath
@@ -375,11 +399,18 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// P7: Check viewer limit
+		// P7: Check viewer limit (M2: sum total active connections across all viewers)
+		maxViewers := maxViewersPerSession
+		if serverCfg != nil && serverCfg.MaxViewers > 0 {
+			maxViewers = serverCfg.MaxViewers
+		}
 		s.Mutex.RLock()
-		viewerCount := len(s.Viewers)
+		totalConns := 0
+		for _, conns := range s.Viewers {
+			totalConns += len(conns)
+		}
 		s.Mutex.RUnlock()
-		if viewerCount >= maxViewersPerSession {
+		if totalConns >= maxViewers {
 			conn.WriteJSON(map[string]string{"type": "error", "message": "session full"})
 			return
 		}

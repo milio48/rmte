@@ -852,4 +852,388 @@ func TestPresenceLobbyInitialAndFocus(t *testing.T) {
 	}
 }
 
+func TestAdaptiveBufferClamping(t *testing.T) {
+	serverCfg = &ServeConfig{
+		Mode:      modeHybrid,
+		Port:      0,
+		WebPath:   "/",
+		WSPath:    "/ws-rmte",
+		MaxBuffer: 5,
+	}
+
+	sessionMu.Lock()
+	sessions = make(map[string]*Session)
+	sessionMu.Unlock()
+
+	s := httptest.NewServer(http.HandlerFunc(handleWS))
+	defer s.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(s.URL, "http")
+	dialer := websocket.DefaultDialer
+
+	// Case 1: Host requests 20 MB buffer, server clamps to 5 MB
+	conn1, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial failed: %v", err)
+	}
+	defer conn1.Close()
+
+	auth1 := map[string]interface{}{
+		"type":             "auth",
+		"role":             "host",
+		"session_id":       "clamp1",
+		"auth_token":       "token1",
+		"protocol_version": "0.5",
+		"buffer":           20,
+	}
+	if err := conn1.WriteJSON(auth1); err != nil {
+		t.Fatalf("write auth failed: %v", err)
+	}
+
+	var resp1 map[string]interface{}
+	if err := conn1.ReadJSON(&resp1); err != nil {
+		t.Fatalf("read auth resp failed: %v", err)
+	}
+	if resp1["type"] != "auth_success" {
+		t.Fatalf("expected auth_success, got: %+v", resp1)
+	}
+	clamped1, ok := resp1["clamped_buffer"].(float64)
+	if !ok || int(clamped1) != 5 {
+		t.Fatalf("expected clamped_buffer 5, got: %v", resp1["clamped_buffer"])
+	}
+
+	// Case 2: Host requests 3 MB buffer (< MaxBuffer 5), server allows without clamping (clamped_buffer = 0)
+	conn2, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial 2 failed: %v", err)
+	}
+	defer conn2.Close()
+
+	auth2 := map[string]interface{}{
+		"type":             "auth",
+		"role":             "host",
+		"session_id":       "clamp2",
+		"auth_token":       "token2",
+		"protocol_version": "0.5",
+		"buffer":           3,
+	}
+	if err := conn2.WriteJSON(auth2); err != nil {
+		t.Fatalf("write auth 2 failed: %v", err)
+	}
+
+	var resp2 map[string]interface{}
+	if err := conn2.ReadJSON(&resp2); err != nil {
+		t.Fatalf("read auth resp 2 failed: %v", err)
+	}
+	if resp2["type"] != "auth_success" {
+		t.Fatalf("expected auth_success, got: %+v", resp2)
+	}
+	clamped2, _ := resp2["clamped_buffer"].(float64)
+	if int(clamped2) != 0 {
+		t.Fatalf("expected clamped_buffer 0, got: %v", resp2["clamped_buffer"])
+	}
+}
+
+func TestSessionCapacityLimitAndReconnect(t *testing.T) {
+	serverCfg = &ServeConfig{
+		Mode:        modeHybrid,
+		Port:        0,
+		WebPath:     "/",
+		WSPath:      "/ws-rmte",
+		MaxSessions: 2,
+		MaxBuffer:   0,
+	}
+
+	sessionMu.Lock()
+	sessions = make(map[string]*Session)
+	sessionMu.Unlock()
+
+	s := httptest.NewServer(http.HandlerFunc(handleWS))
+	defer s.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(s.URL, "http")
+	dialer := websocket.DefaultDialer
+
+	// Connect Session 1
+	conn1, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("conn 1 dial failed: %v", err)
+	}
+	defer conn1.Close()
+
+	if err := conn1.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "host",
+		"session_id":       "sess1",
+		"auth_token":       "token1",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("conn 1 write auth failed: %v", err)
+	}
+	var resp1 map[string]interface{}
+	if err := conn1.ReadJSON(&resp1); err != nil || resp1["type"] != "auth_success" {
+		t.Fatalf("conn 1 auth failed: %v, resp: %+v", err, resp1)
+	}
+
+	// Connect Session 2 (relay now at capacity 2/2)
+	conn2, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("conn 2 dial failed: %v", err)
+	}
+	defer conn2.Close()
+
+	if err := conn2.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "host",
+		"session_id":       "sess2",
+		"auth_token":       "token2",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("conn 2 write auth failed: %v", err)
+	}
+	var resp2 map[string]interface{}
+	if err := conn2.ReadJSON(&resp2); err != nil || resp2["type"] != "auth_success" {
+		t.Fatalf("conn 2 auth failed: %v, resp: %+v", err, resp2)
+	}
+
+	// Connect Session 3 (NEW session -> MUST be rejected)
+	conn3, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("conn 3 dial failed: %v", err)
+	}
+	defer conn3.Close()
+
+	if err := conn3.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "host",
+		"session_id":       "sess3",
+		"auth_token":       "token3",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("conn 3 write auth failed: %v", err)
+	}
+	var resp3 map[string]interface{}
+	if err := conn3.ReadJSON(&resp3); err != nil {
+		t.Fatalf("conn 3 read failed: %v", err)
+	}
+	if resp3["type"] != "error" || !strings.Contains(resp3["message"].(string), "relay session capacity reached") {
+		t.Fatalf("expected capacity error, got: %+v", resp3)
+	}
+
+	// Reconnect Session 1 while server is FULL (2/2 sessions active).
+	// Host 1 reconnects with matching auth_token -> MUST BE ALLOWED!
+	reconn1, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("reconn 1 dial failed: %v", err)
+	}
+	defer reconn1.Close()
+
+	if err := reconn1.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "host",
+		"session_id":       "sess1",
+		"auth_token":       "token1",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("reconn 1 write auth failed: %v", err)
+	}
+	var reconnResp map[string]interface{}
+	if err := reconn1.ReadJSON(&reconnResp); err != nil {
+		t.Fatalf("reconn 1 read failed: %v", err)
+	}
+	if reconnResp["type"] != "auth_success" {
+		t.Fatalf("expected reconnect auth_success while server is full, got: %+v", reconnResp)
+	}
+}
+
+func TestViewerConnectionLimitTotalConns(t *testing.T) {
+	serverCfg = &ServeConfig{
+		Mode:       modeHybrid,
+		Port:       0,
+		WebPath:    "/",
+		WSPath:     "/ws-rmte",
+		MaxViewers: 2, // Max 2 active connections total
+	}
+
+	sessionMu.Lock()
+	sessions = make(map[string]*Session)
+	sessionMu.Unlock()
+
+	s := httptest.NewServer(http.HandlerFunc(handleWS))
+	defer s.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(s.URL, "http")
+	dialer := websocket.DefaultDialer
+
+	// Connect Host
+	hConn, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("host dial failed: %v", err)
+	}
+	defer hConn.Close()
+
+	if err := hConn.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "host",
+		"session_id":       "vlimit",
+		"auth_token":       "vpass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("host write auth failed: %v", err)
+	}
+	var hResp map[string]interface{}
+	if err := hConn.ReadJSON(&hResp); err != nil || hResp["type"] != "auth_success" {
+		t.Fatalf("host auth failed: %v, resp: %+v", err, hResp)
+	}
+
+	// Viewer Connection 1 (Viewer "userA" tab 1)
+	vConn1, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("viewer 1 dial failed: %v", err)
+	}
+	defer vConn1.Close()
+
+	if err := vConn1.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "viewer",
+		"session_id":       "vlimit",
+		"viewer_id":        "userA",
+		"auth_token":       "vpass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("viewer 1 auth write failed: %v", err)
+	}
+	var vResp1 map[string]interface{}
+	if err := vConn1.ReadJSON(&vResp1); err != nil || vResp1["type"] != "auth_success" {
+		t.Fatalf("viewer 1 auth failed: %v, resp: %+v", err, vResp1)
+	}
+
+	// Viewer Connection 2 (SAME Viewer "userA" tab 2) -> Total conns = 2
+	vConn2, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("viewer 2 dial failed: %v", err)
+	}
+	defer vConn2.Close()
+
+	if err := vConn2.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "viewer",
+		"session_id":       "vlimit",
+		"viewer_id":        "userA",
+		"auth_token":       "vpass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("viewer 2 auth write failed: %v", err)
+	}
+	var vResp2 map[string]interface{}
+	if err := vConn2.ReadJSON(&vResp2); err != nil || vResp2["type"] != "auth_success" {
+		t.Fatalf("viewer 2 auth failed: %v, resp: %+v", err, vResp2)
+	}
+
+	// Viewer Connection 3 (Viewer "userB" or tab 3) -> Exceeds MaxViewers=2!
+	vConn3, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("viewer 3 dial failed: %v", err)
+	}
+	defer vConn3.Close()
+
+	if err := vConn3.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "viewer",
+		"session_id":       "vlimit",
+		"viewer_id":        "userB",
+		"auth_token":       "vpass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("viewer 3 auth write failed: %v", err)
+	}
+	var vResp3 map[string]interface{}
+	if err := vConn3.ReadJSON(&vResp3); err != nil {
+		t.Fatalf("viewer 3 read failed: %v", err)
+	}
+	if vResp3["type"] != "error" || vResp3["message"] != "session full" {
+		t.Fatalf("expected session full error, got: %+v", vResp3)
+	}
+}
+
+func TestSetReadLimitEnforcement(t *testing.T) {
+	serverCfg = &ServeConfig{
+		Mode:      modeHybrid,
+		Port:      0,
+		WebPath:   "/",
+		WSPath:    "/ws-rmte",
+		MaxBuffer: 1, // ReadLimit = (1 + 1) * 1024 * 1024 = 2 MB
+	}
+
+	sessionMu.Lock()
+	sessions = make(map[string]*Session)
+	sessionMu.Unlock()
+
+	s := httptest.NewServer(http.HandlerFunc(handleWS))
+	defer s.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(s.URL, "http")
+	dialer := websocket.DefaultDialer
+
+	// Connect Host
+	hConn, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("host dial failed: %v", err)
+	}
+	defer hConn.Close()
+
+	if err := hConn.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "host",
+		"session_id":       "limitcheck",
+		"auth_token":       "pass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("host write auth failed: %v", err)
+	}
+	var hResp map[string]interface{}
+	if err := hConn.ReadJSON(&hResp); err != nil || hResp["type"] != "auth_success" {
+		t.Fatalf("host auth failed: %v, resp: %+v", err, hResp)
+	}
+
+	// Connect Viewer
+	vConn, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("viewer dial failed: %v", err)
+	}
+	defer vConn.Close()
+
+	if err := vConn.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "viewer",
+		"session_id":       "limitcheck",
+		"viewer_id":        "attacker",
+		"auth_token":       "pass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("viewer auth write failed: %v", err)
+	}
+	var vResp map[string]interface{}
+	if err := vConn.ReadJSON(&vResp); err != nil || vResp["type"] != "auth_success" {
+		t.Fatalf("viewer auth failed: %v, resp: %+v", err, vResp)
+	}
+
+	// Send an oversized binary frame from Viewer (2.5 MB, which exceeds 2 MB limit)
+	oversized := make([]byte, int(2.5*1024*1024))
+	err = vConn.WriteMessage(websocket.BinaryMessage, oversized)
+	if err != nil {
+		// Socket was closed immediately, test passes
+		return
+	}
+
+	// Attempting to read should now fail because the connection was killed by relay's SetReadLimit
+	_ = vConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, _, rerr := vConn.ReadMessage()
+	if rerr == nil {
+		t.Fatalf("expected read error due to SetReadLimit enforcement, but read succeeded")
+	}
+}
+
+
+
 

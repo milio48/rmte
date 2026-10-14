@@ -175,6 +175,15 @@ func TestAdminAPIEndToEnd(t *testing.T) {
 	if err := json.NewDecoder(rrStatsAuth.Body).Decode(&statsResp); err != nil {
 		t.Fatalf("Failed to parse stats JSON: %v", err)
 	}
+	if statsResp.MaxSessions != 100 {
+		t.Errorf("Expected MaxSessions: 100, got %d", statsResp.MaxSessions)
+	}
+	if statsResp.MaxBuffer != 0 {
+		t.Errorf("Expected MaxBuffer: 0, got %d", statsResp.MaxBuffer)
+	}
+	if statsResp.MaxViewers != 50 {
+		t.Errorf("Expected MaxViewers: 50, got %d", statsResp.MaxViewers)
+	}
 
 	// 5. Test Admin UI Security Response Headers
 	reqUI := httptest.NewRequest("GET", "/admin-rmte/", nil)

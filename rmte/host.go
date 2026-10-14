@@ -312,6 +312,7 @@ func runHost(opts HostOptions) {
 		"auth_token":       generateAuthToken(opts.Pass),
 		"protocol_version": protocolVersion,
 		"preview":          opts.Preview,
+		"buffer":           opts.Buffer,
 	}
 	if opts.InternalToken != "" {
 		auth["internal_token"] = opts.InternalToken
@@ -332,6 +333,7 @@ func runHost(opts HostOptions) {
 		PreviewEnabled bool   `json:"preview_enabled"`
 		ProxySecret    string `json:"proxy_secret"`
 		WSProxyPath    string `json:"ws_proxy_path"`
+		ClampedBuffer  int    `json:"clamped_buffer"`
 	}
 	if err := conn.ReadJSON(&authResp); err != nil {
 		log.Fatal("Auth failed: ", err)
@@ -345,6 +347,16 @@ func runHost(opts HostOptions) {
 	}
 	if authResp.WebPath == "" {
 		authResp.WebPath = "/" // older relays
+	}
+
+	if authResp.ClampedBuffer > 0 && authResp.ClampedBuffer < opts.Buffer {
+		fmt.Printf("\n\033[33m⚠️  [Buffer] Relay clamped buffer to %d MB (requested: %d MB). Terminal scrollback and file transfers are capped accordingly.\033[0m\n", authResp.ClampedBuffer, opts.Buffer)
+		opts.Buffer = authResp.ClampedBuffer
+		if opts.Serve != nil {
+			opts.Serve.Buffer = authResp.ClampedBuffer
+		}
+		setHostOptions(opts)
+		maxBufferSize = opts.Buffer * 1024 * 1024
 	}
 
 	var info BannerInfo
@@ -812,6 +824,7 @@ func reconnectToRelay(opts HostOptions, sessionID string, timeout time.Duration)
 			"protocol_version": protocolVersion,
 			"preview":          opts.Preview,
 			"session_id":       sessionID,
+			"buffer":           opts.Buffer,
 		}
 		if opts.InternalToken != "" {
 			auth["internal_token"] = opts.InternalToken
@@ -829,6 +842,7 @@ func reconnectToRelay(opts HostOptions, sessionID string, timeout time.Duration)
 			PreviewEnabled bool   `json:"preview_enabled"`
 			ProxySecret    string `json:"proxy_secret"`
 			WSProxyPath    string `json:"ws_proxy_path"`
+			ClampedBuffer  int    `json:"clamped_buffer"`
 		}
 
 		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
@@ -838,6 +852,15 @@ func reconnectToRelay(opts HostOptions, sessionID string, timeout time.Duration)
 		if err != nil || authResp.Type != "auth_success" {
 			_ = conn.Close()
 			continue
+		}
+
+		if authResp.ClampedBuffer > 0 && authResp.ClampedBuffer < opts.Buffer {
+			opts.Buffer = authResp.ClampedBuffer
+			if opts.Serve != nil {
+				opts.Serve.Buffer = authResp.ClampedBuffer
+			}
+			setHostOptions(opts)
+			maxBufferSize = opts.Buffer * 1024 * 1024
 		}
 
 		// Update preview proxy secret if changed
