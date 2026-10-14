@@ -92,9 +92,6 @@ func (t *TabSession) Close() {
 		return
 	}
 	t.closeOnce.Do(func() {
-		if t.IsAI {
-			t.notifyAIDone()
-		}
 		if t.CloseFn != nil {
 			t.CloseFn()
 		} else {
