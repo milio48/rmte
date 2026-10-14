@@ -1,4 +1,4 @@
-# RMTE — Remote Terminal Relay & Cloud IDE (v0.7.13)
+# RMTE — Remote Terminal Relay & Cloud IDE (v0.7.14)
 
 > "I love sshx, but my endless curiosity to build it from scratch got the best of me 🥲"
 
@@ -213,7 +213,7 @@ Or with custom credentials:
 ```
 Output:
 ```
-RMTE v0.7.13 — Mode: standalone
+RMTE v0.7.14 — Mode: standalone
 ────────────────────────────────────────────────
 Bind:             127.0.0.1:8048
 Rmte Port:        8048
@@ -378,8 +378,10 @@ Run `rmte` without subcommands to share directly to `my.rmte.biz.id`:
 | Flag | Default | Description |
 | :--- | :--- | :--- |
 | `--pass`, `--password` | *random* | E2EE password (printed if generated) |
+| `--pass-file` | `""` | Read password from local file (`0600` permissions on Unix) |
 | `--id` | *random* | Custom persistent Session ID (`a-z`, `0-9`, max 10 chars) |
 | `--dir` | `""` | Initial working directory for File Explorer and terminal |
+| `--sandbox`, `--dir-only` | `false` | Confine Web Explorer and file tools to workspace directory (files only; does not jail shell) |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
 | `--web-preview` | `true` | Embedded Web Browser Preview reverse proxy (`--preview` alias) |
 | `--allow-exec` | `false` | Allow remote command execution via MCP or CLI exec (`--enable-ai` alias) |
@@ -393,8 +395,10 @@ Connect a host to a relay server (defaults to public relay):
 | :--- | :--- | :--- |
 | `--server-relay`, `--server` | `wss://my.rmte.biz.id/ws-rmte` | Relay WebSocket URL |
 | `--pass`, `--password` | *random* | E2EE password (printed if generated) |
+| `--pass-file` | `""` | Read password from local file (`0600` permissions on Unix) |
 | `--id` | *random* | Custom persistent Session ID (`a-z`, `0-9`, max 10 chars) |
 | `--dir` | `""` | Initial working directory for File Explorer and terminal |
+| `--sandbox`, `--dir-only` | `false` | Confine Web Explorer and file tools to workspace directory (files only; does not jail shell) |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
 | `--web-preview` | `true` | Embedded Web Browser Preview reverse proxy (`--preview` alias) |
 | `--allow-exec` | `false` | Allow remote command execution via MCP or CLI exec (`--enable-ai` alias) |
@@ -407,8 +411,10 @@ Connect a host to a relay server (defaults to public relay):
 | `--mode` | `standalone` | `standalone` \| `hybrid` \| `relay` |
 | `--port` | `8048` | Listen port |
 | `--pass` | *random* | E2EE password (printed if generated). Ignored in `relay` |
+| `--pass-file` | `""` | Read password from local file (`0600` permissions on Unix). Ignored in `relay` |
 | `--id` | *random* | Custom persistent Session ID (`a-z`, `0-9`, max 10 chars). Ignored in `relay` |
 | `--dir` | `""` | Initial working directory for File Explorer and terminal |
+| `--sandbox`, `--dir-only` | `false` | Confine Web Explorer and file tools to workspace directory (files only; does not jail shell). Ignored in `relay` |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB). Ignored in `relay` |
 | `--web-path` | `/` | Path of the Web UI (e.g. `/web`) |
 | `--ws-path` | `/ws-rmte` | WebSocket path |
@@ -429,6 +435,7 @@ Connect a host to a relay server (defaults to public relay):
 | `--server-relay` | `wss://my.rmte.biz.id/ws-rmte` | Relay WebSocket URL (defaults to public relay) |
 | `--id` | *required* | Session ID |
 | `--pass` | *required* | E2EE password |
+| `--pass-file` | `""` | Read password from local file |
 | `--name` | *prompt* | Display name |
 | `--insecure`, `--skip-tls-verify` | `false` | Skip TLS certificate verification (process-wide, for self-signed relays) |
 
@@ -438,6 +445,7 @@ Connect a host to a relay server (defaults to public relay):
 | `--server-relay` | `wss://my.rmte.biz.id/ws-rmte` | Relay WebSocket URL (defaults to public relay) |
 | `--id` | *required* | Session ID |
 | `--pass` | *required* | E2EE password |
+| `--pass-file` | `""` | Read password from local file |
 | `--timeout` | `60` | Execution timeout in seconds |
 | `--bg`, `--background` | `false` | Run command in a dedicated background tab |
 | `--tab-name`, `--name-tab` | `""` | Custom tab title when running in background |
@@ -450,6 +458,7 @@ Connect a host to a relay server (defaults to public relay):
 | `--server-relay` | `wss://my.rmte.biz.id/ws-rmte` | Relay WebSocket URL (defaults to public relay) |
 | `--id` | *required* | Session ID |
 | `--pass` | *required* | E2EE password |
+| `--pass-file` | `""` | Read password from local file |
 | `--name` | `Claude-MCP` | Client display name |
 | `--insecure` | `false` | Skip TLS certificate verification |
 
@@ -469,7 +478,7 @@ Update the `rmte` binary in-place directly from official GitHub releases:
 # Check if a new version is available without downloading
 rmte update --check
 
-# Download and replace the current binary
+# Download and replace the current binary (verifies SHA-256 checksums.txt)
 rmte update
 
 # Force download even if already on the latest version
@@ -477,8 +486,32 @@ rmte update --force
 
 # Update binary and seamlessly restart active background session
 rmte update --restart
+
+# Force update bypassing checksum verification (fail-closed override)
+rmte update --skip-checksum-verify
 ```
 > **Seamless Viewer Reconnect:** When restarting sessions using `--restart` (or reusing the same `--id`), connected browser tabs will automatically reconnect through their exponential-backoff retry loop without re-entering credentials.
+
+---
+
+## 🔐 Security & Environment Variables
+
+### Credential Precedence
+RMTE resolves credentials according to strict precedence across all subcommands (`share`, `serve`, `join`, `exec`, `mcp`):
+1. **CLI Flag (`--pass`)**: Overrides all other sources. *(Exposed in `ps aux`)*
+2. **Password File (`--pass-file <path>`)**: Reads from disk. *(Checks for `0600` permissions on Unix; recommended for automated services)*
+3. **Environment Variable (`RMTE_PASS`)**: Ingested from process environment. *(Host prints anti-footgun warning banner if active to prevent unintentional re-use)*
+4. **Default**: Host generates a cryptographically secure 12-character random password.
+
+### Supported Environment Variables
+| Variable | Subcommands | Description |
+| :--- | :--- | :--- |
+| `RMTE_PASS` | `share`, `serve`, `join`, `exec`, `mcp` | Session E2EE password |
+| `RMTE_SERVER` | `share`, `join`, `exec`, `mcp` | Default relay WebSocket URL (`--server-relay`) |
+| `RMTE_ID` | `share`, `serve`, `join`, `exec`, `mcp` | Pre-set Session ID (`--id`) |
+| `RMTE_ADMIN_PASS` | `serve` | Relay Admin Dashboard password (`--admin-pass`) |
+
+> 📖 **Security Model & Reporting:** For details on our end-to-end encryption model, filesystem sandbox boundaries (`--sandbox` files $\neq$ shell container), and responsible vulnerability disclosure, please read our [SECURITY.md](SECURITY.md).
 
 ---
 

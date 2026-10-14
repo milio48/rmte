@@ -1,6 +1,11 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -34,6 +39,25 @@ type githubAsset struct {
 	Size               int64  `json:"size"`
 }
 
+func parseChecksumForAsset(checksumContent, targetAssetName string) string {
+	scanner := bufio.NewScanner(strings.NewReader(checksumContent))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			hashVal := strings.ToLower(strings.TrimSpace(fields[0]))
+			fileName := strings.TrimPrefix(strings.TrimSpace(fields[1]), "*")
+			if fileName == targetAssetName {
+				return hashVal
+			}
+		}
+	}
+	return ""
+}
+
 func cmdUpdate() {
 	fs := flag.NewFlagSet("update", flag.ExitOnError)
 	checkOnly := fs.Bool("check", false, "Check for updates without downloading")
@@ -41,6 +65,8 @@ func cmdUpdate() {
 	force := fs.Bool("force", false, "Force re-download even if already on the latest version")
 	restart := fs.Bool("restart", false, "Gracefully restart running background session after update")
 	r := fs.Bool("r", false, "Alias for --restart")
+	skipChecksum := fs.Bool("skip-checksum-verify", false, "Skip SHA-256 checksum verification against release checksums.txt")
+	noChecksum := fs.Bool("no-checksum", false, "Alias for --skip-checksum-verify")
 
 	if len(os.Args) > 1 {
 		_ = fs.Parse(os.Args[1:])
@@ -112,6 +138,48 @@ func cmdUpdate() {
 		fatalf("Error downloading update: %v", err)
 	}
 	_ = tempFile.Close()
+
+	if !(*skipChecksum || *noChecksum) {
+		var checksumAsset *githubAsset
+		for i := range release.Assets {
+			if release.Assets[i].Name == "checksums.txt" {
+				checksumAsset = &release.Assets[i]
+				break
+			}
+		}
+		if checksumAsset == nil {
+			fatalf("Error: checksums.txt not found in release %s. Update aborted for safety (re-run with --skip-checksum-verify to override)", release.TagName)
+		}
+
+		var checksumBuf bytes.Buffer
+		if err := downloadAsset(checksumAsset.BrowserDownloadURL, &checksumBuf); err != nil {
+			fatalf("Error downloading checksums.txt: %v", err)
+		}
+
+		expectedHash := parseChecksumForAsset(checksumBuf.String(), targetAssetName)
+		if expectedHash == "" {
+			fatalf("Error: asset %q not listed in checksums.txt for release %s. Update aborted.", targetAssetName, release.TagName)
+		}
+
+		f, err := os.Open(tempPath)
+		if err != nil {
+			fatalf("Error reading downloaded update for verification: %v", err)
+		}
+		hasher := sha256.New()
+		if _, err := io.Copy(hasher, f); err != nil {
+			_ = f.Close()
+			fatalf("Error calculating checksum of downloaded update: %v", err)
+		}
+		_ = f.Close()
+
+		calcHash := hex.EncodeToString(hasher.Sum(nil))
+		if subtle.ConstantTimeCompare([]byte(strings.ToLower(calcHash)), []byte(strings.ToLower(expectedHash))) != 1 {
+			fatalf("FATAL: Checksum mismatch for %s!\n  Expected: %s\n  Actual:   %s\nUpdate aborted for safety.", targetAssetName, expectedHash, calcHash)
+		}
+		fmt.Printf("✅ Checksum verified (SHA-256: %s)\n", calcHash)
+	} else {
+		fmt.Println("⚠️  Skipping checksum verification (--skip-checksum-verify)")
+	}
 
 	if err := os.Chmod(tempPath, 0755); err != nil {
 		fatalf("Error setting executable permissions: %v", err)

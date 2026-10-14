@@ -582,7 +582,7 @@
     <a href="index.html" class="brand">
       <img src="rmte.svg" alt="RMTE Logo" width="28" height="28">
       <span>RMTE</span>
-      <span class="brand-badge">v0.7.13</span>
+      <span class="brand-badge">v0.7.14</span>
     </a>
     <div class="nav-links">
       <a href="index.html" class="nav-link">
@@ -750,6 +750,9 @@
       <h3 style="font-size:1rem; font-weight:700; color:var(--text); margin-top:24px;">
         Step 2: Configure Your AI Coding Assistant
       </h3>
+      <p style="font-size:0.83rem; color:var(--text-muted); margin-bottom:12px;">
+        RMTE supports credential ingestion via environment variables (<code>RMTE_PASS</code>, <code>RMTE_ID</code>, <code>RMTE_SERVER</code>), secure key files (<code>--pass-file</code>), or direct CLI flags. For maximum process table safety, use the <code>env</code> block or <code>--pass-file</code>:
+      </p>
 
       <!-- Claude Desktop Config -->
       <div style="margin-top:12px;">
@@ -757,7 +760,7 @@
           Option A: Claude Desktop (Anthropic)
         </h4>
         <p style="font-size:0.83rem; color:var(--text-muted); margin-bottom:8px;">
-          Add the RMTE server entry into your <code>claude_desktop_config.json</code>:
+          Add the RMTE server entry into your <code>claude_desktop_config.json</code> using the secure <code>env</code> block:
           <br>
           <span style="font-family:'JetBrains Mono',monospace; font-size:0.75rem;">
             macOS: <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>
@@ -774,6 +777,53 @@
   "mcpServers": {
     "rmte": {
       "command": "rmte",
+      "args": ["mcp"],
+      "env": {
+        "RMTE_SERVER": "wss://my.rmte.biz.id/ws-rmte",
+        "RMTE_ID": "my-server",
+        "RMTE_PASS": "supersecret123"
+      }
+    }
+  }
+}</code></pre>
+        </div>
+      </div>
+
+      <!-- Claude Code CLI Config -->
+      <div style="margin-top:20px;">
+        <h4 style="font-size:0.92rem; font-weight:600; color:var(--accent-green); margin-bottom:6px;">
+          Option B: Claude Code CLI
+        </h4>
+        <p style="font-size:0.83rem; color:var(--text-muted); margin-bottom:8px;">
+          Add RMTE directly into Claude Code using session environment variables (avoids argument exposure):
+        </p>
+        <div class="snippet-container">
+          <div class="snippet-header">
+            <span>CLAUDE CODE CLI</span>
+            <button class="copy-btn" onclick="copySnippet('RMTE_PASS=&quot;supersecret123&quot; claude mcp add rmte -- rmte mcp --id=&quot;my-server&quot;', this)">Copy Command</button>
+          </div>
+          <pre><code># Add RMTE with credential in env:
+RMTE_PASS="supersecret123" claude mcp add rmte -- rmte mcp --id="my-server"</code></pre>
+        </div>
+      </div>
+
+      <!-- Cursor IDE & VS Code Config -->
+      <div style="margin-top:20px;">
+        <h4 style="font-size:0.92rem; font-weight:600; color:var(--accent-cyan); margin-bottom:6px;">
+          Option C: Cursor IDE &amp; VS Code (Roo Code / Cline)
+        </h4>
+        <p style="font-size:0.83rem; color:var(--text-muted); margin-bottom:8px;">
+          In Cursor (<strong>Cursor Settings → Features → MCP</strong>) or VS Code MCP settings:
+        </p>
+        <div class="snippet-container">
+          <div class="snippet-header">
+            <span>CURSOR / VS CODE MCP CONFIG</span>
+            <button class="copy-btn" onclick="copySnippet(document.getElementById('code-cursor').textContent, this)">Copy Config</button>
+          </div>
+          <pre><code id="code-cursor">{
+  "mcpServers": {
+    "rmte": {
+      "command": "rmte",
       "args": [
         "mcp",
         "--server-relay=wss://my.rmte.biz.id/ws-rmte",
@@ -785,25 +835,6 @@
 }</code></pre>
         </div>
       </div>
-
-      <!-- Cursor IDE Config -->
-      <div style="margin-top:20px;">
-        <h4 style="font-size:0.92rem; font-weight:600; color:var(--accent-cyan); margin-bottom:6px;">
-          Option B: Cursor IDE (Cursor MCP)
-        </h4>
-        <p style="font-size:0.83rem; color:var(--text-muted); margin-bottom:8px;">
-          In Cursor, open <strong>Cursor Settings → Features → MCP → Add New MCP Server</strong>:
-        </p>
-        <div class="snippet-container">
-          <div class="snippet-header">
-            <span>CURSOR MCP SETTINGS</span>
-            <button class="copy-btn" onclick="copySnippet('rmte mcp --server-relay=wss://my.rmte.biz.id/ws-rmte --id=my-server --pass=supersecret123', this)">Copy Command</button>
-          </div>
-          <pre><code>Name:    rmte
-Type:    command (stdio)
-Command: rmte mcp --server-relay=wss://my.rmte.biz.id/ws-rmte --id=my-server --pass=supersecret123</code></pre>
-        </div>
-      </div>
     </section>
 
     <!-- 3. All 7 MCP Tools Reference -->
@@ -812,7 +843,7 @@ Command: rmte mcp --server-relay=wss://my.rmte.biz.id/ws-rmte --id=my-server --p
         <div>
           <h2 class="card-title"><span>🛠️</span> The 7 Built-In MCP Tools</h2>
           <p style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">
-            Full capability matrix exposed to AI agents over the Model Context Protocol (v2024-11-05).
+            Full capability matrix exposed to AI agents over the Model Context Protocol (v2025-03-26 with Tool Annotations).
           </p>
         </div>
         <span class="badge-cyan">Tool Reference</span>
@@ -1075,12 +1106,12 @@ echo "Remote test status: $?"</code></pre>
         mcpServers: {
           rmte: {
             command: "rmte",
-            args: [
-              "mcp",
-              `--server-relay=${sRelay}`,
-              `--id=${sId}`,
-              `--pass=${sPass}`
-            ]
+            args: ["mcp"],
+            env: {
+              RMTE_SERVER: sRelay,
+              RMTE_ID: sId,
+              RMTE_PASS: sPass
+            }
           }
         }
       };

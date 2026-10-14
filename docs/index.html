@@ -1296,7 +1296,7 @@
     <a href="#" class="brand">
       <img src="rmte.svg" alt="RMTE Logo" width="28" height="28">
       <span>RMTE</span>
-      <span class="brand-badge">v0.7.13</span>
+      <span class="brand-badge">v0.7.14</span>
     </a>
     <div class="nav-links">
       <a href="mcp.html" class="nav-link" style="color: var(--accent-purple); font-weight: 600;">
@@ -1314,7 +1314,7 @@
   <main>
     <section class="hero">
       <div class="hero-tag">
-        ✨ v0.7.13 Released • AI Agent Gateway (MCP), Headless CLI Exec &amp; Zero-Inbound E2EE Automation
+        ✨ v0.7.14 Released • Credential Hardening, Release Checksums, Filesystem Sandbox &amp; MCP 2025-03-26
       </div>
       <h1>Remote Terminal Relay & Cloud IDE</h1>
       <p>
@@ -1705,13 +1705,13 @@
               </tr>
               <tr>
                 <td><strong>Supported Flags</strong></td>
-                <td><code>--port</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code>, <code>--admin-pass</code></td>
-                <td><code>--port</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--public</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code></td>
+                <td><code>--port</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--id</code>, <code>--dir</code>, <code>--sandbox</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code>, <code>--admin-pass</code></td>
+                <td><code>--port</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--id</code>, <code>--dir</code>, <code>--sandbox</code>, <code>--buffer</code>, <code>--public</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code></td>
                 <td><code>--port</code>, <code>--public</code>, <code>--admin-pass</code>, <code>--admin-path</code>, <code>--public-url</code>, <code>--web-path</code>, <code>--ws-path</code>, <code>-q</code></td>
-                <td><code>--server-relay</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code></td>
-                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--name</code></td>
-                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--timeout</code>, <code>--bg</code>, <code>--tab-name</code>, <code>--name</code></td>
-                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--name</code></td>
+                <td><code>--server-relay</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--id</code>, <code>--dir</code>, <code>--sandbox</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code></td>
+                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--name</code></td>
+                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--timeout</code>, <code>--bg</code>, <code>--tab-name</code>, <code>--name</code></td>
+                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--name</code></td>
               </tr>
             </tbody>
           </table>
@@ -1994,6 +1994,11 @@
                   <td>End-to-End Encryption (AES-GCM-256) password. Printed to terminal on startup if generated.</td>
                 </tr>
                 <tr>
+                  <td><code>--pass-file</code></td>
+                  <td><em>Disabled (empty)</em></td>
+                  <td>Read password from local file. Prevents leaking password in <code>ps aux</code> process listings. Requires permissions <code>0600</code> on Unix.</td>
+                </tr>
+                <tr>
                   <td><code>--id</code></td>
                   <td><em>Auto-generated (8 chars)</em></td>
                   <td>Persistent custom Session ID (lowercase alphanumeric <code>a-z</code>, <code>0-9</code>, max 10 chars). Re-usable across restarts.</td>
@@ -2002,6 +2007,11 @@
                   <td><code>--dir</code></td>
                   <td><em>Current Working Directory</em></td>
                   <td>Initial root directory exposed to the Web File Explorer and terminal working session.</td>
+                </tr>
+                <tr>
+                  <td><code>--sandbox</code>, <code>--dir-only</code></td>
+                  <td><code>false</code></td>
+                  <td>Confine Web Explorer and file tools strictly to workspace directory (prevents path traversal and symlink escapes). <em>Note: files only, shell is unconfined.</em></td>
                 </tr>
                 <tr>
                   <td><code>--buffer</code></td>
@@ -2079,6 +2089,11 @@
                   <td>E2EE password for the local host session. <em>(Ignored in <code>relay</code> mode)</em>.</td>
                 </tr>
                 <tr>
+                  <td><code>--pass-file</code></td>
+                  <td><em>Disabled (empty)</em></td>
+                  <td>Read password from local file (`0600` on Unix). <em>(Ignored in <code>relay</code> mode)</em>.</td>
+                </tr>
+                <tr>
                   <td><code>--id</code></td>
                   <td><em>Auto-generated (8 chars)</em></td>
                   <td>Custom Session ID for the local host session. <em>(Ignored in <code>relay</code> mode)</em>.</td>
@@ -2087,6 +2102,11 @@
                   <td><code>--dir</code></td>
                   <td><em>Current Working Directory</em></td>
                   <td>Root directory for File Explorer and terminal shell. <em>(Ignored in <code>relay</code> mode)</em>.</td>
+                </tr>
+                <tr>
+                  <td><code>--sandbox</code>, <code>--dir-only</code></td>
+                  <td><code>false</code></td>
+                  <td>Confine Web Explorer and file tools strictly to workspace directory (files only; does not jail shell). <em>(Ignored in <code>relay</code> mode)</em>.</td>
                 </tr>
                 <tr>
                   <td><code>--buffer</code></td>
@@ -2169,9 +2189,14 @@
                   <td>Target Session ID to connect to.</td>
                 </tr>
                 <tr>
-                  <td><code>--pass</code></td>
+                  <td><code>--pass</code>, <code>--password</code></td>
                   <td><em>Required</em></td>
                   <td>Shared E2EE password required to decrypt terminal streams.</td>
+                </tr>
+                <tr>
+                  <td><code>--pass-file</code></td>
+                  <td><em>Disabled (empty)</em></td>
+                  <td>Read password from local file.</td>
                 </tr>
                 <tr>
                   <td><code>--name</code></td>
@@ -2212,6 +2237,11 @@
                   <td><code>--pass</code>, <code>--password</code></td>
                   <td><em>Required</em></td>
                   <td>Shared E2EE password for session decryption.</td>
+                </tr>
+                <tr>
+                  <td><code>--pass-file</code></td>
+                  <td><em>Disabled (empty)</em></td>
+                  <td>Read password from local file.</td>
                 </tr>
                 <tr>
                   <td><code>--timeout</code></td>
@@ -2279,6 +2309,11 @@
                   <td>Shared E2EE password for session decryption.</td>
                 </tr>
                 <tr>
+                  <td><code>--pass-file</code></td>
+                  <td><em>Disabled (empty)</em></td>
+                  <td>Read password from local file.</td>
+                </tr>
+                <tr>
                   <td><code>--name</code></td>
                   <td><code>Claude-MCP</code></td>
                   <td>Bot display name shown in Web IDE presence badge (e.g. <code>[AI] Claude-MCP</code>).</td>
@@ -2338,8 +2373,60 @@
                   <td>Seamless restart</td>
                   <td>Updates binary and gracefully relaunches active background daemon without dropping web sessions.</td>
                 </tr>
+                <tr>
+                  <td><code>rmte update --skip-checksum-verify</code></td>
+                  <td>Bypass integrity check</td>
+                  <td>Disables fail-closed SHA-256 verification against release <code>checksums.txt</code>. <em>(Use with caution)</em>.</td>
+                </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- 6. Environment Variables & Security Posture -->
+        <div style="margin-top: 28px;">
+          <h4 style="font-size: 0.95rem; font-weight: 700; color: #3fb950; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
+            <span>🔐</span> Environment Variables &amp; Credential Precedence
+          </h4>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">
+            RMTE supports credential ingestion via environment variables for CI/CD runners, systemd units, and automated scripts without exposing secrets in <code>ps aux</code> process listings.
+          </p>
+          <div class="table-container">
+            <table class="cheat-table">
+              <thead>
+                <tr>
+                  <th style="width: 28%;">Variable</th>
+                  <th style="width: 24%;">Applies To</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>RMTE_PASS</code></td>
+                  <td><code>share</code>, <code>serve</code>, <code>join</code>, <code>exec</code>, <code>mcp</code></td>
+                  <td>Pre-set session encryption password. <em>(Host displays startup warning banner to prevent accidental predictable reuse)</em>.</td>
+                </tr>
+                <tr>
+                  <td><code>RMTE_SERVER</code></td>
+                  <td><code>share</code>, <code>join</code>, <code>exec</code>, <code>mcp</code></td>
+                  <td>Default relay server WebSocket URL (equivalent to <code>--server-relay</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>RMTE_ID</code></td>
+                  <td><code>share</code>, <code>serve</code>, <code>join</code>, <code>exec</code>, <code>mcp</code></td>
+                  <td>Pre-set session identifier (equivalent to <code>--id</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>RMTE_ADMIN_PASS</code></td>
+                  <td><code>serve</code> (<code>standalone</code>, <code>hybrid</code>, <code>relay</code>)</td>
+                  <td>Relay Admin Dashboard password (equivalent to <code>--admin-pass</code>).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top: 14px; padding: 12px 16px; background: rgba(227, 179, 65, 0.08); border-left: 3px solid #e3b341; border-radius: 6px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.6;">
+            <strong style="color: #e3b341;">🔒 Credential Precedence:</strong> CLI Flag (<code>--pass</code>) &gt; Password File (<code>--pass-file</code>) &gt; Environment Variable (<code>RMTE_PASS</code>) &gt; Default (Auto-generated random).<br>
+            <strong style="color: #f85149;">⚠️ Filesystem Confinement vs Shell Jail:</strong> The <code>--sandbox</code> flag confines <strong>file operations only</strong> (Web Explorer, File Transfers, and MCP file tools). Shell commands (<code>rmte exec</code> or interactive terminal tabs) run with full user privileges and are not jailed. Use Docker for complete isolation. See <a href="https://github.com/milio48/rmte/blob/main/SECURITY.md" style="color: var(--accent-cyan); text-decoration: underline;" target="_blank" rel="noopener">SECURITY.md</a> for details.
           </div>
         </div>
       </div>
@@ -2408,6 +2495,7 @@
       adminPath: '/admin',
       webPreview: false,
       allowExec: false,
+      sandbox: false,
       execCmd: 'uname -a',
       execBg: false,
       execTabName: '',
@@ -2738,6 +2826,10 @@
                 <input type="checkbox" ${state.allowExec ? 'checked' : ''} onchange="updateParam('allowExec', this.checked)">
                 Allow remote AI &amp; CLI execution (--allow-exec)
               </label>
+              <label class="checkbox-label" title="Restricts file explorer and MCP file tools to workspace root directory">
+                <input type="checkbox" ${state.sandbox ? 'checked' : ''} onchange="updateParam('sandbox', this.checked)">
+                Confine files to workspace root (--sandbox)
+              </label>
               <label class="checkbox-label">
                 <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
                 Run detached in background daemon (-q)
@@ -2874,6 +2966,10 @@
                 <input type="checkbox" ${state.allowExec ? 'checked' : ''} onchange="updateParam('allowExec', this.checked)">
                 Allow remote AI &amp; CLI execution (--allow-exec)
               </label>
+              <label class="checkbox-label" title="Restricts file explorer and MCP file tools to workspace root directory">
+                <input type="checkbox" ${state.sandbox ? 'checked' : ''} onchange="updateParam('sandbox', this.checked)">
+                Confine files to workspace root (--sandbox)
+              </label>
               <label class="checkbox-label">
                 <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
                 Run detached in background (-q)
@@ -2917,6 +3013,10 @@
               <label class="checkbox-label">
                 <input type="checkbox" ${state.allowExec ? 'checked' : ''} onchange="updateParam('allowExec', this.checked)">
                 Allow remote AI &amp; CLI execution (--allow-exec)
+              </label>
+              <label class="checkbox-label" title="Restricts file explorer and MCP file tools to workspace root directory">
+                <input type="checkbox" ${state.sandbox ? 'checked' : ''} onchange="updateParam('sandbox', this.checked)">
+                Confine files to workspace root (--sandbox)
               </label>
               <label class="checkbox-label">
                 <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
@@ -2992,6 +3092,10 @@
               <label class="checkbox-label">
                 <input type="checkbox" ${state.allowExec ? 'checked' : ''} onchange="updateParam('allowExec', this.checked)">
                 Allow remote AI &amp; CLI execution (--allow-exec)
+              </label>
+              <label class="checkbox-label" title="Restricts file explorer and MCP file tools to workspace root directory">
+                <input type="checkbox" ${state.sandbox ? 'checked' : ''} onchange="updateParam('sandbox', this.checked)">
+                Confine files to workspace root (--sandbox)
               </label>
               <label class="checkbox-label">
                 <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
@@ -3158,6 +3262,7 @@
           if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
           if (state.webPreview) cmd += ' --web-preview';
           if (state.allowExec) cmd += ' --allow-exec';
+          if (state.sandbox) cmd += ' --sandbox';
           if (state.quiet) cmd += ' -q';
           return cmd;
         } else if (act === 'join') {
@@ -3200,6 +3305,7 @@
           if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
           if (state.webPreview) cmd += ' --web-preview';
           if (state.allowExec) cmd += ' --allow-exec';
+          if (state.sandbox) cmd += ' --sandbox';
           if (state.adminPass) {
             cmd += ` --admin-pass="${state.adminPass}"`;
             if (state.adminPath && state.adminPath !== '/admin') cmd += ` --admin-path="${state.adminPath}"`;
@@ -3215,6 +3321,7 @@
           if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
           if (state.webPreview) cmd += ' --web-preview';
           if (state.allowExec) cmd += ' --allow-exec';
+          if (state.sandbox) cmd += ' --sandbox';
           if (state.quiet) cmd += ' -q';
           return cmd;
         } else if (act === 'relay-only') {
@@ -3237,6 +3344,7 @@
           if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
           if (state.webPreview) cmd += ' --web-preview';
           if (state.allowExec) cmd += ' --allow-exec';
+          if (state.sandbox) cmd += ' --sandbox';
           if (state.adminPass) {
             cmd += ` --admin-pass="${state.adminPass}"`;
             if (state.adminPath && state.adminPath !== '/admin') cmd += ` --admin-path="${state.adminPath}"`;

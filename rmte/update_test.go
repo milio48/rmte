@@ -137,3 +137,36 @@ func TestBuildRestartArgs(t *testing.T) {
 		t.Errorf("argsShare = %v; want %v", argsShare, expectedShare)
 	}
 }
+
+func TestParseChecksumForAsset(t *testing.T) {
+	sampleChecksums := `# SHA-256 Checksums for RMTE release
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  rmte-linux-amd64
+a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e *rmte-windows-amd64.exe
+2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae   rmte-darwin-arm64
+`
+
+	// 1. Existing asset with two spaces
+	h1 := parseChecksumForAsset(sampleChecksums, "rmte-linux-amd64")
+	if h1 != "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
+		t.Errorf("got %q, want e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", h1)
+	}
+
+	// 2. Existing asset with asterisk prefix (*)
+	h2 := parseChecksumForAsset(sampleChecksums, "rmte-windows-amd64.exe")
+	if h2 != "a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e" {
+		t.Errorf("got %q, want a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e", h2)
+	}
+
+	// 3. Existing asset with multiple spaces
+	h3 := parseChecksumForAsset(sampleChecksums, "rmte-darwin-arm64")
+	if h3 != "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae" {
+		t.Errorf("got %q, want 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae", h3)
+	}
+
+	// 4. Non-existent asset
+	h4 := parseChecksumForAsset(sampleChecksums, "rmte-freebsd-amd64")
+	if h4 != "" {
+		t.Errorf("expected empty string for non-existent asset, got %q", h4)
+	}
+}
+

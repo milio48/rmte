@@ -83,6 +83,7 @@ type BannerInfo struct {
 	WSPath        string
 	Pass          string
 	PassGenerated bool
+	PassSource    CredentialSource
 	SessionID     string // empty in relay mode
 	Buffer        int
 	NoWeb         bool
@@ -90,6 +91,7 @@ type BannerInfo struct {
 	Preview       bool
 	AllowExec     bool
 	Dir           string
+	Sandbox       bool
 }
 
 func bannerFromServe(cfg *ServeConfig, sessionID string) BannerInfo {
@@ -108,6 +110,7 @@ func bannerFromServe(cfg *ServeConfig, sessionID string) BannerInfo {
 		WSPath:        cfg.WSPath,
 		Pass:          cfg.Pass,
 		PassGenerated: cfg.PassGenerated,
+		PassSource:    cfg.PassSource,
 		SessionID:     sessionID,
 		Buffer:        cfg.Buffer,
 		NoWeb:         cfg.NoWeb,
@@ -115,6 +118,7 @@ func bannerFromServe(cfg *ServeConfig, sessionID string) BannerInfo {
 		Preview:       cfg.Preview,
 		AllowExec:     cfg.AllowExec,
 		Dir:           cfg.Dir,
+		Sandbox:       cfg.Sandbox,
 	}
 }
 
@@ -148,7 +152,9 @@ func printBanner(b BannerInfo) {
 	}
 
 	if b.Mode != modeRelay {
-		if b.PassGenerated {
+		if b.PassSource == CredSourceEnv {
+			line("Custom Password", "⚠️ Pre-set via RMTE_PASS (not random)")
+		} else if b.PassGenerated {
 			line("Custom Password", "❌ No  (generated: "+b.Pass+")")
 		} else {
 			line("Custom Password", "✅ Yes")
@@ -157,6 +163,10 @@ func printBanner(b BannerInfo) {
 		line("Buffer limit", fmt.Sprintf("%d MB", b.Buffer))
 	} else {
 		line("Session ID", "❌ Relay Only")
+	}
+
+	if b.Sandbox {
+		line("Sandbox", "🔒 Confined (--sandbox: files restricted to workspace)")
 	}
 
 	if b.Mode != "share" {

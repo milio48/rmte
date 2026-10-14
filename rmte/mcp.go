@@ -35,11 +35,22 @@ type mcpError struct {
 	Message string `json:"message"`
 }
 
-type mcpTool struct {
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	InputSchema interface{} `json:"inputSchema"`
+type mcpToolAnnotations struct {
+	Title           string `json:"title,omitempty"`
+	ReadOnlyHint    *bool  `json:"readOnlyHint"`
+	DestructiveHint *bool  `json:"destructiveHint"`
+	OpenWorldHint   *bool  `json:"openWorldHint"`
+	IdempotentHint  *bool  `json:"idempotentHint,omitempty"`
 }
+
+type mcpTool struct {
+	Name        string              `json:"name"`
+	Description string              `json:"description"`
+	InputSchema interface{}         `json:"inputSchema"`
+	Annotations *mcpToolAnnotations `json:"annotations,omitempty"`
+}
+
+func boolPtr(b bool) *bool { return &b }
 
 type mcpToolResult struct {
 	Content []mcpContent `json:"content"`
@@ -104,6 +115,13 @@ func getMCPToolsList() []mcpTool {
 				},
 				"required": []string{"command"},
 			},
+			Annotations: &mcpToolAnnotations{
+				Title:           "Execute Shell Command",
+				ReadOnlyHint:    boolPtr(false),
+				DestructiveHint: boolPtr(true),
+				OpenWorldHint:   boolPtr(true),
+				IdempotentHint:  boolPtr(false),
+			},
 		},
 		{
 			Name:        "rmte_read_file",
@@ -117,6 +135,13 @@ func getMCPToolsList() []mcpTool {
 					},
 				},
 				"required": []string{"path"},
+			},
+			Annotations: &mcpToolAnnotations{
+				Title:           "Read File Content",
+				ReadOnlyHint:    boolPtr(true),
+				DestructiveHint: boolPtr(false),
+				OpenWorldHint:   boolPtr(false),
+				IdempotentHint:  boolPtr(true),
 			},
 		},
 		{
@@ -136,6 +161,13 @@ func getMCPToolsList() []mcpTool {
 				},
 				"required": []string{"path", "content"},
 			},
+			Annotations: &mcpToolAnnotations{
+				Title:           "Write Remote File",
+				ReadOnlyHint:    boolPtr(false),
+				DestructiveHint: boolPtr(true),
+				OpenWorldHint:   boolPtr(false),
+				IdempotentHint:  boolPtr(true),
+			},
 		},
 		{
 			Name:        "rmte_upload_file",
@@ -153,6 +185,13 @@ func getMCPToolsList() []mcpTool {
 					},
 				},
 				"required": []string{"local_path", "remote_path"},
+			},
+			Annotations: &mcpToolAnnotations{
+				Title:           "Upload Local File",
+				ReadOnlyHint:    boolPtr(false),
+				DestructiveHint: boolPtr(true),
+				OpenWorldHint:   boolPtr(false),
+				IdempotentHint:  boolPtr(true),
 			},
 		},
 		{
@@ -172,6 +211,13 @@ func getMCPToolsList() []mcpTool {
 				},
 				"required": []string{"remote_path", "local_path"},
 			},
+			Annotations: &mcpToolAnnotations{
+				Title:           "Download Remote File",
+				ReadOnlyHint:    boolPtr(true),
+				DestructiveHint: boolPtr(false),
+				OpenWorldHint:   boolPtr(true),
+				IdempotentHint:  boolPtr(false),
+			},
 		},
 		{
 			Name:        "rmte_list_files",
@@ -185,6 +231,13 @@ func getMCPToolsList() []mcpTool {
 					},
 				},
 			},
+			Annotations: &mcpToolAnnotations{
+				Title:           "List Directory Files",
+				ReadOnlyHint:    boolPtr(true),
+				DestructiveHint: boolPtr(false),
+				OpenWorldHint:   boolPtr(false),
+				IdempotentHint:  boolPtr(false),
+			},
 		},
 		{
 			Name:        "rmte_get_info",
@@ -192,6 +245,13 @@ func getMCPToolsList() []mcpTool {
 			InputSchema: map[string]interface{}{
 				"type":       "object",
 				"properties": map[string]interface{}{},
+			},
+			Annotations: &mcpToolAnnotations{
+				Title:           "Remote System Info",
+				ReadOnlyHint:    boolPtr(true),
+				DestructiveHint: boolPtr(false),
+				OpenWorldHint:   boolPtr(false),
+				IdempotentHint:  boolPtr(true),
 			},
 		},
 	}
@@ -204,7 +264,7 @@ func handleMCPRequest(req mcpRequest, bot *BotClient, tools []mcpTool) *mcpRespo
 			JSONRPC: "2.0",
 			ID:      req.ID,
 			Result: map[string]interface{}{
-				"protocolVersion": "2024-11-05",
+				"protocolVersion": "2025-03-26",
 				"capabilities": map[string]interface{}{
 					"tools": map[string]interface{}{},
 				},
@@ -212,6 +272,7 @@ func handleMCPRequest(req mcpRequest, bot *BotClient, tools []mcpTool) *mcpRespo
 					"name":    "rmte-mcp",
 					"version": appVersion,
 				},
+				"instructions": "RMTE AI Gateway: Zero-inbound E2EE remote terminal and workspace tools. Use rmte_exec for terminal commands, rmte_read_file / rmte_write_file for files, and rmte_list_files for discovery.",
 			},
 		}
 

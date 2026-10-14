@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -102,12 +103,55 @@ const (
 	modeShare      = "share"      // share client host connected to external relay
 )
 
+type CredentialSource int
+
+const (
+	CredSourceFlag CredentialSource = iota
+	CredSourceFile
+	CredSourceEnv
+	CredSourceDefault
+)
+
+func resolveCredential(flagVal string, flagSet bool, passFile string, envKey string, defaultVal string) (string, CredentialSource, error) {
+	if flagSet && flagVal != "" {
+		return flagVal, CredSourceFlag, nil
+	}
+	if passFile != "" {
+		st, err := os.Stat(passFile)
+		if err != nil {
+			return "", CredSourceFile, fmt.Errorf("failed to stat credential file %q: %w", passFile, err)
+		}
+		if runtime.GOOS != "windows" {
+			perm := st.Mode().Perm()
+			if perm&0077 != 0 {
+				fmt.Fprintf(os.Stderr, "⚠️  [Security] Warning: permissions on credential file %q are %#o (recommended: 0600)\n", passFile, perm)
+			}
+		}
+		data, err := os.ReadFile(passFile)
+		if err != nil {
+			return "", CredSourceFile, fmt.Errorf("failed to read credential file %q: %w", passFile, err)
+		}
+		val := strings.TrimSpace(string(data))
+		if val == "" {
+			return "", CredSourceFile, fmt.Errorf("credential file %q is empty", passFile)
+		}
+		return val, CredSourceFile, nil
+	}
+	if envKey != "" {
+		if envVal := os.Getenv(envKey); envVal != "" {
+			return envVal, CredSourceEnv, nil
+		}
+	}
+	return defaultVal, CredSourceDefault, nil
+}
+
 // ServeConfig holds all options for `rmte serve`.
 type ServeConfig struct {
 	Mode          string
 	Port          int
 	Pass          string
 	PassGenerated bool
+	PassSource    CredentialSource
 	Buffer        int
 	WebPath       string
 	WSPath        string
@@ -124,6 +168,7 @@ type ServeConfig struct {
 	AdminPath     string // HTTP path for Admin Dashboard (e.g. /admin or /admin-rmte)
 	AdminPass     string // Password for Admin Dashboard (disabled if empty)
 	Insecure      bool   // Skip TLS certificate verification
+	Sandbox       bool   // Restrict file manager and MCP file tools to Dir root
 }
 
 var origArgs []string
@@ -188,6 +233,8 @@ func cmdServe() {
 	flag.StringVar(&cfg.Mode, "mode", modeStandalone, "Serve mode: standalone | hybrid | relay")
 	flag.IntVar(&cfg.Port, "port", defaultPort, "Port to listen on")
 	flag.StringVar(&cfg.Pass, "pass", "", "Password for E2EE (random if empty; ignored in relay mode)")
+	var passFile string
+	flag.StringVar(&passFile, "pass-file", "", "Path to file containing session password")
 	flag.IntVar(&cfg.Buffer, "buffer", 1, "Max buffer size in MB (ignored in relay mode)")
 	flag.StringVar(&cfg.WebPath, "web-path", "/", "HTTP path for the Web UI")
 	flag.StringVar(&cfg.WSPath, "ws-path", defaultWSPath, "WebSocket path")
@@ -202,6 +249,8 @@ func cmdServe() {
 	flag.BoolVar(&cfg.Preview, "preview", false, "Alias for --web-preview")
 	flag.BoolVar(&cfg.AllowExec, "allow-exec", false, "Allow remote command execution via MCP or CLI exec")
 	flag.BoolVar(&cfg.AllowExec, "enable-ai", false, "Alias for --allow-exec")
+	flag.BoolVar(&cfg.Sandbox, "sandbox", false, "Restrict file manager and MCP file tools to project directory")
+	flag.BoolVar(&cfg.Sandbox, "dir-only", false, "Alias for --sandbox")
 	flag.BoolVar(&cfg.Quiet, "quiet", false, "Run in background (detached) and print connection info with PID")
 	flag.BoolVar(&cfg.Quiet, "q", false, "Alias for --quiet")
 	flag.StringVar(&cfg.AdminPath, "admin-path", "/admin", "HTTP path for Relay Admin Dashboard")
@@ -220,15 +269,38 @@ func cmdServe() {
 		runAsDaemon()
 	}
 
-	passSet, bufferSet := false, false
+	passSet, bufferSet, idSet, adminPassSet := false, false, false, false
 	flag.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "pass":
 			passSet = true
 		case "buffer":
 			bufferSet = true
+		case "id":
+			idSet = true
+		case "admin-pass", "password-admin":
+			adminPassSet = true
 		}
 	})
+
+	resolvedPass, passSource, err := resolveCredential(cfg.Pass, passSet, passFile, "RMTE_PASS", "")
+	if err != nil {
+		fatalf("Error resolving session password: %v", err)
+	}
+	cfg.Pass = resolvedPass
+	cfg.PassSource = passSource
+
+	resolvedID, _, err := resolveCredential(cfg.ID, idSet, "", "RMTE_ID", "")
+	if err != nil {
+		fatalf("Error resolving session ID: %v", err)
+	}
+	cfg.ID = resolvedID
+
+	resolvedAdminPass, _, err := resolveCredential(cfg.AdminPass, adminPassSet, "", "RMTE_ADMIN_PASS", "")
+	if err != nil {
+		fatalf("Error resolving admin password: %v", err)
+	}
+	cfg.AdminPass = resolvedAdminPass
 
 	cfg.Mode = strings.ToLower(strings.TrimSpace(cfg.Mode))
 	switch cfg.Mode {
@@ -296,13 +368,16 @@ func cmdServe() {
 	}
 
 	if cfg.Mode == modeRelay {
-		if passSet || bufferSet {
+		if passSet || bufferSet || passFile != "" {
 			fmt.Println("Warning: --pass and --buffer are ignored in relay mode (they belong to hosts).")
 		}
 		cfg.Pass = ""
 	} else if cfg.Pass == "" {
 		cfg.Pass = generatePassword(12)
 		cfg.PassGenerated = true
+		cfg.PassSource = CredSourceDefault
+	} else if cfg.PassSource == CredSourceEnv {
+		fmt.Printf("⚠️  [Auth] Using pre-set password from RMTE_PASS environment variable (NOT random).\n")
 	}
 
 	if cfg.Mode == modeStandalone {
@@ -349,6 +424,7 @@ func runShare(args []string) {
 	serverAlias := fs.String("server", "", "Alias for --server-relay")
 	pass := fs.String("pass", "", "Password for E2EE (random if empty)")
 	password := fs.String("password", "", "Alias for --pass")
+	passFile := fs.String("pass-file", "", "Path to file containing session password")
 	id := fs.String("id", "", "Custom Session ID (lowercase a-z, 0-9, max 10 chars; random if empty)")
 	bufferMB := fs.Int("buffer", 1, "Max buffer size in MB (terminal ring buffer and file manager)")
 	dir := fs.String("dir", "", "Initial working directory for File Explorer and terminal")
@@ -356,6 +432,8 @@ func runShare(args []string) {
 	preview := fs.Bool("preview", true, "Alias for --web-preview")
 	allowExec := fs.Bool("allow-exec", false, "Allow remote command execution via MCP or CLI exec")
 	enableAI := fs.Bool("enable-ai", false, "Alias for --allow-exec")
+	sandbox := fs.Bool("sandbox", false, "Restrict file manager and MCP file tools to project directory")
+	dirOnly := fs.Bool("dir-only", false, "Alias for --sandbox")
 	quiet := fs.Bool("quiet", false, "Run in background (detached) and print connection info with PID")
 	q := fs.Bool("q", false, "Alias for --quiet")
 	insecure := fs.Bool("insecure", false, "Skip TLS certificate verification")
@@ -383,13 +461,43 @@ func runShare(args []string) {
 		chosenPass = *password
 	}
 
+	passSet, idSet, serverSet := false, false, false
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "pass", "password":
+			passSet = true
+		case "id":
+			idSet = true
+		case "server-relay", "server":
+			serverSet = true
+		}
+	})
+
+	resolvedPass, passSource, err := resolveCredential(chosenPass, passSet, *passFile, "RMTE_PASS", "")
+	if err != nil {
+		fatalf("Error resolving session password: %v", err)
+	}
+
+	resolvedID, _, err := resolveCredential(*id, idSet, "", "RMTE_ID", "")
+	if err != nil {
+		fatalf("Error resolving session ID: %v", err)
+	}
+
+	resolvedServer, _, _ := resolveCredential(relayURL, serverSet, "", "RMTE_SERVER_RELAY", defaultPublicRelay)
+	if !serverSet && resolvedServer == defaultPublicRelay {
+		if envS := os.Getenv("RMTE_SERVER"); envS != "" {
+			resolvedServer = envS
+		}
+	}
+	relayURL = resolvedServer
+
 	if *bufferMB < 1 {
 		fatalf("Error: --buffer must be >= 1")
 	}
 
 	var cleanID string
-	if *id != "" {
-		cleanID = strings.ToLower(strings.TrimSpace(*id))
+	if resolvedID != "" {
+		cleanID = strings.ToLower(strings.TrimSpace(resolvedID))
 		if err := validateSessionID(cleanID); err != nil {
 			fatalf("Error: invalid --id: %v", err)
 		}
@@ -409,38 +517,86 @@ func runShare(args []string) {
 	}
 
 	opts := HostOptions{
-		DialURL:   relayURL,
-		PublicURL: relayURL,
-		Pass:      chosenPass,
-		Buffer:    *bufferMB,
-		Mode:      modeShare,
-		Dir:       cleanDir,
-		ID:        cleanID,
-		Preview:   *webPreview && *preview,
-		AllowExec: *allowExec || *enableAI,
+		DialURL:    relayURL,
+		PublicURL:  relayURL,
+		Pass:       resolvedPass,
+		PassSource: passSource,
+		Buffer:     *bufferMB,
+		Mode:       modeShare,
+		Dir:        cleanDir,
+		ID:         cleanID,
+		Preview:    *webPreview && *preview,
+		AllowExec:  *allowExec || *enableAI,
+		Sandbox:    *sandbox || *dirOnly,
 	}
 	if opts.Pass == "" {
 		opts.Pass = generatePassword(12)
 		opts.PassGenerated = true
+		opts.PassSource = CredSourceDefault
+	} else if opts.PassSource == CredSourceEnv {
+		fmt.Printf("⚠️  [Auth] Using pre-set password from RMTE_PASS environment variable (NOT random).\n")
 	}
 	runHost(opts)
 }
 
 func cmdJoin() {
-	server := flag.String("server-relay", defaultPublicRelay, "Relay server WebSocket URL")
-	sessionID := flag.String("id", "", "Session ID to join")
-	pass := flag.String("pass", "", "Password for E2EE")
-	name := flag.String("name", "", "Display name of the viewer")
-	insecure := flag.Bool("insecure", false, "Skip TLS certificate verification")
-	skipTLS := flag.Bool("skip-tls-verify", false, "Alias for --insecure")
-	flag.Parse()
+	fs := flag.NewFlagSet("join", flag.ExitOnError)
+	server := fs.String("server-relay", defaultPublicRelay, "Relay server WebSocket URL")
+	serverAlias := fs.String("server", "", "Alias for --server-relay")
+	sessionID := fs.String("id", "", "Session ID to join")
+	pass := fs.String("pass", "", "Password for E2EE")
+	password := fs.String("password", "", "Alias for --pass")
+	passFile := fs.String("pass-file", "", "Path to file containing session password")
+	name := fs.String("name", "", "Display name of the viewer")
+	insecure := fs.Bool("insecure", false, "Skip TLS certificate verification")
+	skipTLS := fs.Bool("skip-tls-verify", false, "Alias for --insecure")
+
+	_ = fs.Parse(os.Args[1:])
+
 	if *insecure || *skipTLS {
 		setupTLSConfig(true)
 	}
-	if *sessionID == "" || *pass == "" {
-		fatalf("Error: --id and --pass are required")
+
+	relayURL := *server
+	if *serverAlias != "" {
+		relayURL = *serverAlias
 	}
-	runViewer(*server, *sessionID, *pass, *name)
+	chosenPass := *pass
+	if *password != "" {
+		chosenPass = *password
+	}
+
+	passSet, idSet, serverSet := false, false, false
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "pass", "password":
+			passSet = true
+		case "id":
+			idSet = true
+		case "server-relay", "server":
+			serverSet = true
+		}
+	})
+
+	resolvedPass, _, err := resolveCredential(chosenPass, passSet, *passFile, "RMTE_PASS", "")
+	if err != nil {
+		fatalf("Error resolving session password: %v", err)
+	}
+	resolvedID, _, err := resolveCredential(*sessionID, idSet, "", "RMTE_ID", "")
+	if err != nil {
+		fatalf("Error resolving session ID: %v", err)
+	}
+	resolvedServer, _, _ := resolveCredential(relayURL, serverSet, "", "RMTE_SERVER_RELAY", defaultPublicRelay)
+	if !serverSet && resolvedServer == defaultPublicRelay {
+		if envS := os.Getenv("RMTE_SERVER"); envS != "" {
+			resolvedServer = envS
+		}
+	}
+
+	if resolvedID == "" || resolvedPass == "" {
+		fatalf("Error: session ID and password are required for rmte join (set via --id/--pass, --pass-file, or RMTE_ID/RMTE_PASS)")
+	}
+	runViewer(resolvedServer, resolvedID, resolvedPass, *name)
 }
 
 func cmdExec() {
@@ -450,6 +606,7 @@ func cmdExec() {
 	sessionID := fs.String("id", "", "Target session ID")
 	pass := fs.String("pass", "", "Session password for E2EE")
 	password := fs.String("password", "", "Alias for --pass")
+	passFile := fs.String("pass-file", "", "Path to file containing session password")
 	name := fs.String("name", "rmte-exec", "Client name")
 	timeout := fs.Int("timeout", 60, "Execution timeout in seconds")
 	background := fs.Bool("background", false, "Run command in a dedicated background tab")
@@ -470,8 +627,35 @@ func cmdExec() {
 		chosenPass = *password
 	}
 
-	if *sessionID == "" || chosenPass == "" {
-		fatalf("Error: --id and --pass are required for rmte exec")
+	passSet, idSet, serverSet := false, false, false
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "pass", "password":
+			passSet = true
+		case "id":
+			idSet = true
+		case "server-relay", "server":
+			serverSet = true
+		}
+	})
+
+	resolvedPass, _, err := resolveCredential(chosenPass, passSet, *passFile, "RMTE_PASS", "")
+	if err != nil {
+		fatalf("Error resolving session password: %v", err)
+	}
+	resolvedID, _, err := resolveCredential(*sessionID, idSet, "", "RMTE_ID", "")
+	if err != nil {
+		fatalf("Error resolving session ID: %v", err)
+	}
+	resolvedServer, _, _ := resolveCredential(relayURL, serverSet, "", "RMTE_SERVER_RELAY", defaultPublicRelay)
+	if !serverSet && resolvedServer == defaultPublicRelay {
+		if envS := os.Getenv("RMTE_SERVER"); envS != "" {
+			resolvedServer = envS
+		}
+	}
+
+	if resolvedID == "" || resolvedPass == "" {
+		fatalf("Error: session ID and password are required for rmte exec (set via --id/--pass, --pass-file, or RMTE_ID/RMTE_PASS)")
 	}
 
 	chosenTabName := *tabName
@@ -485,7 +669,7 @@ func cmdExec() {
 	}
 	cmdStr := strings.Join(cmdArgs, " ")
 
-	exitCode := runExec(relayURL, *sessionID, chosenPass, *name, cmdStr, *timeout, *background || *bg, chosenTabName, *insecure || *skipTLS)
+	exitCode := runExec(resolvedServer, resolvedID, resolvedPass, *name, cmdStr, *timeout, *background || *bg, chosenTabName, *insecure || *skipTLS)
 	os.Exit(exitCode)
 }
 
@@ -496,6 +680,7 @@ func cmdMCP() {
 	sessionID := fs.String("id", "", "Target session ID")
 	pass := fs.String("pass", "", "Session password for E2EE")
 	password := fs.String("password", "", "Alias for --pass")
+	passFile := fs.String("pass-file", "", "Path to file containing session password")
 	name := fs.String("name", "Claude-MCP", "Client name")
 	insecure := fs.Bool("insecure", false, "Skip TLS certificate verification")
 	skipTLS := fs.Bool("skip-tls-verify", false, "Alias for --insecure")
@@ -511,11 +696,38 @@ func cmdMCP() {
 		chosenPass = *password
 	}
 
-	if *sessionID == "" || chosenPass == "" {
-		fatalf("Error: --id and --pass are required for rmte mcp")
+	passSet, idSet, serverSet := false, false, false
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "pass", "password":
+			passSet = true
+		case "id":
+			idSet = true
+		case "server-relay", "server":
+			serverSet = true
+		}
+	})
+
+	resolvedPass, _, err := resolveCredential(chosenPass, passSet, *passFile, "RMTE_PASS", "")
+	if err != nil {
+		fatalf("Error resolving session password: %v", err)
+	}
+	resolvedID, _, err := resolveCredential(*sessionID, idSet, "", "RMTE_ID", "")
+	if err != nil {
+		fatalf("Error resolving session ID: %v", err)
+	}
+	resolvedServer, _, _ := resolveCredential(relayURL, serverSet, "", "RMTE_SERVER_RELAY", defaultPublicRelay)
+	if !serverSet && resolvedServer == defaultPublicRelay {
+		if envS := os.Getenv("RMTE_SERVER"); envS != "" {
+			resolvedServer = envS
+		}
 	}
 
-	runMCP(relayURL, *sessionID, chosenPass, *name, *insecure || *skipTLS)
+	if resolvedID == "" || resolvedPass == "" {
+		fatalf("Error: session ID and password are required for rmte mcp (set via --id/--pass, --pass-file, or RMTE_ID/RMTE_PASS)")
+	}
+
+	runMCP(resolvedServer, resolvedID, resolvedPass, *name, *insecure || *skipTLS)
 }
 
 // runServeAndShare starts the relay server, waits for it to be ready,

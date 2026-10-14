@@ -35,13 +35,122 @@ func TestMCPInitialize(t *testing.T) {
 		t.Fatalf("expected result map, got: %T", resp.Result)
 	}
 
-	if resMap["protocolVersion"] != "2024-11-05" {
-		t.Errorf("expected protocolVersion 2024-11-05, got %v", resMap["protocolVersion"])
+	if resMap["protocolVersion"] != "2025-03-26" {
+		t.Errorf("expected protocolVersion 2025-03-26, got %v", resMap["protocolVersion"])
+	}
+
+	instr, ok := resMap["instructions"].(string)
+	if !ok || len(instr) == 0 {
+		t.Errorf("expected instructions to be non-empty string, got %v", resMap["instructions"])
 	}
 
 	sInfo, ok := resMap["serverInfo"].(map[string]interface{})
 	if !ok || sInfo["name"] != "rmte-mcp" {
 		t.Errorf("expected serverInfo.name rmte-mcp, got %v", sInfo)
+	}
+}
+
+func TestMCPToolAnnotationsSchema(t *testing.T) {
+	tools := getMCPToolsList()
+	data, err := json.Marshal(tools)
+	if err != nil {
+		t.Fatalf("failed to marshal tools: %v", err)
+	}
+
+	var rawTools []map[string]interface{}
+	if err := json.Unmarshal(data, &rawTools); err != nil {
+		t.Fatalf("failed to unmarshal tools JSON: %v", err)
+	}
+
+	toolMap := make(map[string]map[string]interface{})
+	for _, tool := range rawTools {
+		name, _ := tool["name"].(string)
+		toolMap[name] = tool
+
+		// Verification 1: title must NOT be at root level of Tool
+		if _, hasRootTitle := tool["title"]; hasRootTitle {
+			t.Errorf("tool %q has 'title' at root level, must only be inside 'annotations'", name)
+		}
+
+		// Verification 2: annotations object must exist
+		ann, ok := tool["annotations"].(map[string]interface{})
+		if !ok || ann == nil {
+			t.Errorf("tool %q missing 'annotations' object", name)
+			continue
+		}
+
+		// Verification 3: title must be inside annotations
+		if title, ok := ann["title"].(string); !ok || title == "" {
+			t.Errorf("tool %q missing or empty annotations.title", name)
+		}
+
+		// Verification 4: readOnlyHint, destructiveHint, openWorldHint must be explicitly present in JSON
+		if _, ok := ann["readOnlyHint"].(bool); !ok {
+			t.Errorf("tool %q missing readOnlyHint in JSON (must not be omitted)", name)
+		}
+		if _, ok := ann["destructiveHint"].(bool); !ok {
+			t.Errorf("tool %q missing destructiveHint in JSON (must not be omitted)", name)
+		}
+		if _, ok := ann["openWorldHint"].(bool); !ok {
+			t.Errorf("tool %q missing openWorldHint in JSON (must not be omitted)", name)
+		}
+	}
+
+	// Verify specific semantics
+	// rmte_read_file: readOnly=true, destructive=false, openWorld=false, idempotent=true
+	if rf, ok := toolMap["rmte_read_file"]; ok {
+		ann := rf["annotations"].(map[string]interface{})
+		if ann["destructiveHint"] != false {
+			t.Errorf("rmte_read_file destructiveHint expected false, got %v", ann["destructiveHint"])
+		}
+		if ann["readOnlyHint"] != true {
+			t.Errorf("rmte_read_file readOnlyHint expected true, got %v", ann["readOnlyHint"])
+		}
+		if ann["openWorldHint"] != false {
+			t.Errorf("rmte_read_file openWorldHint expected false, got %v", ann["openWorldHint"])
+		}
+		if ann["idempotentHint"] != true {
+			t.Errorf("rmte_read_file idempotentHint expected true, got %v", ann["idempotentHint"])
+		}
+	}
+
+	// rmte_exec: readOnly=false, destructive=true, openWorld=true, idempotent=false
+	if exec, ok := toolMap["rmte_exec"]; ok {
+		ann := exec["annotations"].(map[string]interface{})
+		if ann["destructiveHint"] != true {
+			t.Errorf("rmte_exec destructiveHint expected true, got %v", ann["destructiveHint"])
+		}
+		if ann["readOnlyHint"] != false {
+			t.Errorf("rmte_exec readOnlyHint expected false, got %v", ann["readOnlyHint"])
+		}
+		if ann["openWorldHint"] != true {
+			t.Errorf("rmte_exec openWorldHint expected true, got %v", ann["openWorldHint"])
+		}
+		if ann["idempotentHint"] != false {
+			t.Errorf("rmte_exec idempotentHint expected false, got %v", ann["idempotentHint"])
+		}
+	}
+
+	// rmte_write_file: openWorld=false, idempotent=true, destructive=true
+	if wf, ok := toolMap["rmte_write_file"]; ok {
+		ann := wf["annotations"].(map[string]interface{})
+		if ann["openWorldHint"] != false {
+			t.Errorf("rmte_write_file openWorldHint expected false, got %v", ann["openWorldHint"])
+		}
+		if ann["idempotentHint"] != true {
+			t.Errorf("rmte_write_file idempotentHint expected true, got %v", ann["idempotentHint"])
+		}
+	}
+
+	// rmte_download_file: openWorld=true (writes locally), readOnly=true (on remote)
+	if df, ok := toolMap["rmte_download_file"]; ok {
+		ann := df["annotations"].(map[string]interface{})
+		if ann["openWorldHint"] != true {
+			t.Errorf("rmte_download_file openWorldHint expected true, got %v", ann["openWorldHint"])
+		}
+		if ann["readOnlyHint"] != true {
+			t.Errorf("rmte_download_file readOnlyHint expected true, got %v", ann["readOnlyHint"])
+		}
 	}
 }
 

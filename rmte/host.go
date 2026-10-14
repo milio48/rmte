@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -140,6 +141,9 @@ var (
 	// Dynamic buffer limit (set by --buffer flag)
 	maxBufferSize int
 
+	// Host sandbox restriction (--sandbox flag)
+	hostSandbox bool
+
 	// Pending file saves keyed by transfer id: when a viewer sends prepare_save,
 	// we register what path the next Tab 255 binary frame with that id should write to.
 	pendingSaves  = make(map[uint32]*PendingSave)
@@ -177,6 +181,7 @@ type HostOptions struct {
 	PublicURL     string // URL shown in printed links
 	Pass          string
 	PassGenerated bool
+	PassSource    CredentialSource
 	Buffer        int
 	InternalToken string
 	Mode          string       // standalone | hybrid | share
@@ -184,6 +189,7 @@ type HostOptions struct {
 	ID            string       // custom session ID (optional)
 	Preview       bool         // enable Embedded Web Browser Preview reverse proxy
 	AllowExec     bool         // allow remote command execution via MCP or CLI exec
+	Sandbox       bool         // restrict file manager and MCP file tools to Dir root
 	Serve         *ServeConfig // non-nil when embedded in `serve`
 }
 
@@ -276,6 +282,12 @@ func runHost(opts HostOptions) {
 		hostWorkDir = wd
 	}
 	hostWorkDir = filepath.ToSlash(hostWorkDir)
+	hostSandbox = opts.Sandbox
+	if hostSandbox {
+		if canonicalRoot, err := filepath.EvalSymlinks(hostWorkDir); err == nil {
+			hostWorkDir = filepath.ToSlash(canonicalRoot)
+		}
+	}
 
 	u, err := url.Parse(opts.DialURL)
 	if err != nil {
@@ -345,6 +357,7 @@ func runHost(opts HostOptions) {
 			WebPath:       authResp.WebPath,
 			Pass:          opts.Pass,
 			PassGenerated: opts.PassGenerated,
+			PassSource:    opts.PassSource,
 			SessionID:     authResp.SessionID,
 			Buffer:        opts.Buffer,
 			NoWeb:         authResp.NoWeb,
@@ -352,6 +365,7 @@ func runHost(opts HostOptions) {
 			Preview:       opts.Preview,
 			AllowExec:     opts.AllowExec,
 			Dir:           opts.Dir,
+			Sandbox:       opts.Sandbox,
 		}
 	}
 	printBanner(info)
@@ -849,6 +863,55 @@ func ctrlTransferID(ctrl map[string]interface{}) uint32 {
 	return 0
 }
 
+func isSubPath(base, target string) (bool, error) {
+	normBase := filepath.Clean(base)
+	normTarget := filepath.Clean(target)
+	if runtime.GOOS == "windows" {
+		normBase = strings.ToLower(normBase)
+		normTarget = strings.ToLower(normTarget)
+	}
+
+	rel, err := filepath.Rel(normBase, normTarget)
+	if err != nil {
+		// FAIL-DENY: Different drive on Windows or path calculation error
+		return false, err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return false, nil
+	}
+	return true, nil
+}
+
+func evalSymlinksForTarget(path string) (string, error) {
+	if realPath, err := filepath.EvalSymlinks(path); err == nil {
+		return realPath, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+
+	var trailing []string
+	cur := path
+	for {
+		dir := filepath.Dir(cur)
+		base := filepath.Base(cur)
+		trailing = append([]string{base}, trailing...)
+		if dir == cur {
+			break
+		}
+		if realDir, err := filepath.EvalSymlinks(dir); err == nil {
+			resolved := realDir
+			for _, comp := range trailing {
+				resolved = filepath.Join(resolved, comp)
+			}
+			return resolved, nil
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		cur = dir
+	}
+	return filepath.Clean(path), nil
+}
+
 // sanitizePath resolves the requested path relative to the host working directory.
 func sanitizePath(reqPath string) (string, error) {
 	cleaned := filepath.Clean(reqPath)
@@ -863,6 +926,18 @@ func sanitizePath(reqPath string) (string, error) {
 	absPath, err := filepath.Abs(absPath)
 	if err != nil {
 		return "", fmt.Errorf("invalid path")
+	}
+
+	if hostSandbox {
+		resolvedTarget, err := evalSymlinksForTarget(absPath)
+		if err != nil {
+			return "", fmt.Errorf("invalid path: %w", err)
+		}
+		allowed, err := isSubPath(hostWorkDir, resolvedTarget)
+		if err != nil || !allowed {
+			return "", fmt.Errorf("access denied: path escapes sandbox root (%s)", hostWorkDir)
+		}
+		return resolvedTarget, nil
 	}
 
 	return absPath, nil
