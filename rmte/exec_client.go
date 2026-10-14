@@ -8,7 +8,7 @@ import (
 
 // runExec connects to the remote host as a headless bot and executes a command,
 // streaming stdout to the local stdout, errors to stderr, and returning the remote exit code.
-func runExec(serverURL, sessionID, password, name, cmd string, timeout int, background bool, insecure bool) int {
+func runExec(serverURL, sessionID, password, name, cmd string, timeout int, background bool, tabName string, insecure bool) int {
 	if insecure {
 		setupTLSConfig(true)
 	}
@@ -20,7 +20,7 @@ func runExec(serverURL, sessionID, password, name, cmd string, timeout int, back
 	}
 	defer bot.Close()
 
-	stdout, exitCode, err := bot.ExecCommand(cmd, timeout, background, "")
+	stdout, exitCode, err := bot.ExecCommand(cmd, timeout, background, tabName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Execution error: %v\n", err)
 		if stdout != "" {

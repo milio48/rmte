@@ -34,17 +34,17 @@ type BotClient struct {
 	name       string
 	nextXferID atomic.Uint32
 
-	execMu      sync.Mutex
-	pendingExec chan map[string]interface{}
+	execMu sync.Mutex // serializes ExecCommand callers
+	infoMu sync.Mutex // serializes GetInfo callers
+	dirMu  sync.Mutex // serializes ListFiles callers
 
-	infoMu      sync.Mutex
+	respMu      sync.Mutex // guards pendingExec, pendingInfo, pendingDir
+	pendingExec chan map[string]interface{}
 	pendingInfo chan map[string]interface{}
+	pendingDir  chan map[string]interface{}
 
 	xferMu      sync.Mutex
 	pendingXfer map[uint32]*pendingTransfer
-
-	dirMu      sync.Mutex
-	pendingDir chan map[string]interface{}
 
 	closed chan struct{}
 }
@@ -127,24 +127,26 @@ func (b *BotClient) readLoop() {
 			action, _ := msg["action"].(string)
 			switch action {
 			case "ai_exec_result":
-				b.execMu.Lock()
-				if b.pendingExec != nil {
+				b.respMu.Lock()
+				ch := b.pendingExec
+				b.respMu.Unlock()
+				if ch != nil {
 					select {
-					case b.pendingExec <- msg:
+					case ch <- msg:
 					default:
 					}
 				}
-				b.execMu.Unlock()
 
 			case "ai_get_info_result":
-				b.infoMu.Lock()
-				if b.pendingInfo != nil {
+				b.respMu.Lock()
+				ch := b.pendingInfo
+				b.respMu.Unlock()
+				if ch != nil {
 					select {
-					case b.pendingInfo <- msg:
+					case ch <- msg:
 					default:
 					}
 				}
-				b.infoMu.Unlock()
 
 			case "ready_for_data":
 				tid := ctrlTransferID(msg)
@@ -174,14 +176,15 @@ func (b *BotClient) readLoop() {
 				// Binary payload on Tab 255 follows shortly
 
 			case "dir_data":
-				b.dirMu.Lock()
-				if b.pendingDir != nil {
+				b.respMu.Lock()
+				ch := b.pendingDir
+				b.respMu.Unlock()
+				if ch != nil {
 					select {
-					case b.pendingDir <- msg:
+					case ch <- msg:
 					default:
 					}
 				}
-				b.dirMu.Unlock()
 
 			case "fm_error":
 				errMsg, _ := msg["message"].(string)
@@ -201,46 +204,47 @@ func (b *BotClient) readLoop() {
 					}
 				}
 				// Also notify pending directory listing if active
-				b.dirMu.Lock()
-				if b.pendingDir != nil {
+				b.respMu.Lock()
+				ch := b.pendingDir
+				b.respMu.Unlock()
+				if ch != nil {
 					select {
-					case b.pendingDir <- msg:
+					case ch <- msg:
 					default:
 					}
 				}
-				b.dirMu.Unlock()
 			}
 		}
 	}
 }
 
 func (b *BotClient) broadcastError(err error) {
-	b.execMu.Lock()
-	if b.pendingExec != nil {
-		select {
-		case b.pendingExec <- map[string]interface{}{"error": err.Error(), "exit_code": float64(1)}:
-		default:
-		}
-	}
-	b.execMu.Unlock()
+	b.respMu.Lock()
+	pExec := b.pendingExec
+	pInfo := b.pendingInfo
+	pDir := b.pendingDir
+	b.respMu.Unlock()
 
-	b.infoMu.Lock()
-	if b.pendingInfo != nil {
+	if pExec != nil {
 		select {
-		case b.pendingInfo <- map[string]interface{}{"error": err.Error()}:
+		case pExec <- map[string]interface{}{"error": err.Error(), "exit_code": float64(1)}:
 		default:
 		}
 	}
-	b.infoMu.Unlock()
 
-	b.dirMu.Lock()
-	if b.pendingDir != nil {
+	if pInfo != nil {
 		select {
-		case b.pendingDir <- map[string]interface{}{"action": "fm_error", "message": err.Error()}:
+		case pInfo <- map[string]interface{}{"error": err.Error()}:
 		default:
 		}
 	}
-	b.dirMu.Unlock()
+
+	if pDir != nil {
+		select {
+		case pDir <- map[string]interface{}{"action": "fm_error", "message": err.Error()}:
+		default:
+		}
+	}
 
 	b.xferMu.Lock()
 	for _, pt := range b.pendingXfer {
@@ -259,7 +263,16 @@ func (b *BotClient) ExecCommand(command string, timeoutSec int, background bool,
 	b.execMu.Lock()
 	defer b.execMu.Unlock()
 
-	b.pendingExec = make(chan map[string]interface{}, 1)
+	ch := make(chan map[string]interface{}, 1)
+	b.respMu.Lock()
+	b.pendingExec = ch
+	b.respMu.Unlock()
+
+	defer func() {
+		b.respMu.Lock()
+		b.pendingExec = nil
+		b.respMu.Unlock()
+	}()
 
 	msg := map[string]interface{}{
 		"type":            "control",
@@ -278,7 +291,7 @@ func (b *BotClient) ExecCommand(command string, timeoutSec int, background bool,
 
 	waitDuration := time.Duration(timeoutSec+15) * time.Second
 	select {
-	case res := <-b.pendingExec:
+	case res := <-ch:
 		exitCode := 0
 		if ec, ok := res["exit_code"].(float64); ok {
 			exitCode = int(ec)
@@ -308,7 +321,16 @@ func (b *BotClient) GetInfo() (map[string]interface{}, error) {
 	b.infoMu.Lock()
 	defer b.infoMu.Unlock()
 
-	b.pendingInfo = make(chan map[string]interface{}, 1)
+	ch := make(chan map[string]interface{}, 1)
+	b.respMu.Lock()
+	b.pendingInfo = ch
+	b.respMu.Unlock()
+
+	defer func() {
+		b.respMu.Lock()
+		b.pendingInfo = nil
+		b.respMu.Unlock()
+	}()
 
 	if err := b.conn.WriteJSON(map[string]interface{}{
 		"type":   "control",
@@ -318,7 +340,7 @@ func (b *BotClient) GetInfo() (map[string]interface{}, error) {
 	}
 
 	select {
-	case res := <-b.pendingInfo:
+	case res := <-ch:
 		info, _ := res["info"].(map[string]interface{})
 		if info == nil {
 			info = res
@@ -434,7 +456,16 @@ func (b *BotClient) ListFiles(remotePath string) ([]FileInfoEntry, error) {
 	b.dirMu.Lock()
 	defer b.dirMu.Unlock()
 
-	b.pendingDir = make(chan map[string]interface{}, 1)
+	ch := make(chan map[string]interface{}, 1)
+	b.respMu.Lock()
+	b.pendingDir = ch
+	b.respMu.Unlock()
+
+	defer func() {
+		b.respMu.Lock()
+		b.pendingDir = nil
+		b.respMu.Unlock()
+	}()
 
 	if err := b.conn.WriteJSON(map[string]interface{}{
 		"type":   "control",
@@ -445,7 +476,7 @@ func (b *BotClient) ListFiles(remotePath string) ([]FileInfoEntry, error) {
 	}
 
 	select {
-	case res := <-b.pendingDir:
+	case res := <-ch:
 		action, _ := res["action"].(string)
 		if action == "fm_error" {
 			errMsg, _ := res["message"].(string)

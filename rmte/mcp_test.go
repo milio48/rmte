@@ -3,8 +3,12 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/gorilla/websocket"
 )
 
 func TestMCPInitialize(t *testing.T) {
@@ -204,3 +208,113 @@ func TestReadMCPLine(t *testing.T) {
 		t.Fatalf("line3 failed to recover after oversized line: got=%s tooLarge=%v reqID=%v err=%v", string(got), tooLarge, reqID, err)
 	}
 }
+
+func TestMCPToolCallWithRealBot(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer raw.Close()
+
+		var authMsg map[string]interface{}
+		if err := raw.ReadJSON(&authMsg); err != nil {
+			return
+		}
+		_ = raw.WriteJSON(map[string]interface{}{
+			"type":       "auth_success",
+			"session_id": "test-mcp-real",
+		})
+
+		for {
+			var msg map[string]interface{}
+			if err := raw.ReadJSON(&msg); err != nil {
+				return
+			}
+			action, _ := msg["action"].(string)
+			switch action {
+			case "unfocus":
+			case "ai_exec":
+				cmd, _ := msg["command"].(string)
+				_ = raw.WriteJSON(map[string]interface{}{
+					"type":        "control",
+					"action":      "ai_exec_result",
+					"target_conn": "test-bot",
+					"stdout":      "real-exec: " + cmd,
+					"exit_code":   0,
+				})
+			case "ai_get_info":
+				_ = raw.WriteJSON(map[string]interface{}{
+					"type":        "control",
+					"action":      "ai_get_info_result",
+					"target_conn": "test-bot",
+					"info": map[string]interface{}{
+						"os":         "darwin",
+						"arch":       "arm64",
+						"allow_exec": true,
+					},
+				})
+			}
+		}
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	bot, err := newBotClient(wsURL, "test-mcp-real", "password123", "test-bot", false)
+	if err != nil {
+		t.Fatalf("newBotClient failed: %v", err)
+	}
+	defer bot.Close()
+
+	tools := getMCPToolsList()
+
+	// 1. Test MCP tools/call rmte_exec with real bot
+	callParams, _ := json.Marshal(map[string]interface{}{
+		"name": "rmte_exec",
+		"arguments": map[string]interface{}{
+			"command": "git status",
+		},
+	})
+	resp := handleMCPRequest(mcpRequest{
+		JSONRPC: "2.0",
+		ID:      101,
+		Method:  "tools/call",
+		Params:  callParams,
+	}, bot, tools)
+
+	if resp == nil || resp.Error != nil {
+		t.Fatalf("rmte_exec tools/call unexpected resp: %+v", resp)
+	}
+	resTool, ok := resp.Result.(mcpToolResult)
+	if !ok || resTool.IsError || len(resTool.Content) == 0 {
+		t.Fatalf("rmte_exec tools/call expected success, got: %+v", resp.Result)
+	}
+	if !strings.Contains(resTool.Content[0].Text, "real-exec: git status") {
+		t.Fatalf("rmte_exec unexpected content: %s", resTool.Content[0].Text)
+	}
+
+	// 2. Test MCP tools/call rmte_get_info with real bot
+	callInfoParams, _ := json.Marshal(map[string]interface{}{
+		"name":      "rmte_get_info",
+		"arguments": map[string]interface{}{},
+	})
+	respInfo := handleMCPRequest(mcpRequest{
+		JSONRPC: "2.0",
+		ID:      102,
+		Method:  "tools/call",
+		Params:  callInfoParams,
+	}, bot, tools)
+
+	if respInfo == nil || respInfo.Error != nil {
+		t.Fatalf("rmte_get_info tools/call unexpected resp: %+v", respInfo)
+	}
+	resInfoTool, ok := respInfo.Result.(mcpToolResult)
+	if !ok || resInfoTool.IsError || len(resInfoTool.Content) == 0 {
+		t.Fatalf("rmte_get_info tools/call expected success, got: %+v", respInfo.Result)
+	}
+	if !strings.Contains(resInfoTool.Content[0].Text, "darwin") {
+		t.Fatalf("rmte_get_info unexpected content: %s", resInfoTool.Content[0].Text)
+	}
+}
+

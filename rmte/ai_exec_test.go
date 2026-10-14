@@ -220,5 +220,114 @@ func TestApplyPresenceTransitionWithBot(t *testing.T) {
 	}
 }
 
-// Suppress unused warning if json package is imported
+func TestBotClientDeadlockFreeEndToEnd(t *testing.T) {
+	upgrader := websocket.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer raw.Close()
+
+		// 1. Read viewer auth
+		var authMsg map[string]interface{}
+		if err := raw.ReadJSON(&authMsg); err != nil {
+			return
+		}
+		if authMsg["type"] != "auth" || authMsg["role"] != "viewer" {
+			return
+		}
+
+		// 2. Reply auth success
+		_ = raw.WriteJSON(map[string]interface{}{
+			"type":       "auth_success",
+			"session_id": "test-session-dl",
+		})
+
+		// 3. Service client requests
+		for {
+			var msg map[string]interface{}
+			if err := raw.ReadJSON(&msg); err != nil {
+				return
+			}
+			action, _ := msg["action"].(string)
+			switch action {
+			case "unfocus":
+				// bot initial presence announce
+			case "ai_exec":
+				cmd, _ := msg["command"].(string)
+				_ = raw.WriteJSON(map[string]interface{}{
+					"type":        "control",
+					"action":      "ai_exec_result",
+					"target_conn": "test-bot",
+					"stdout":      "output-of: " + cmd,
+					"exit_code":   0,
+				})
+			case "ai_get_info":
+				_ = raw.WriteJSON(map[string]interface{}{
+					"type":        "control",
+					"action":      "ai_get_info_result",
+					"target_conn": "test-bot",
+					"info": map[string]interface{}{
+						"os":         "linux",
+						"arch":       "amd64",
+						"allow_exec": true,
+					},
+				})
+			case "req_dir":
+				_ = raw.WriteJSON(map[string]interface{}{
+					"type":        "control",
+					"action":      "dir_data",
+					"target_conn": "test-bot",
+					"path":        "/",
+					"files": []interface{}{
+						map[string]interface{}{"name": "main.go", "is_dir": false, "size": 1234},
+						map[string]interface{}{"name": "src", "is_dir": true, "size": 0},
+					},
+				})
+			}
+		}
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	testPass := "testpass12345"
+
+	bot, err := newBotClient(wsURL, "test-session-dl", testPass, "test-bot", false)
+	if err != nil {
+		t.Fatalf("newBotClient failed: %v", err)
+	}
+	defer bot.Close()
+
+	// 1. Verify ExecCommand completes without deadlock
+	stdout, exitCode, err := bot.ExecCommand("uname -a", 5, false, "")
+	if err != nil {
+		t.Fatalf("ExecCommand returned error: %v", err)
+	}
+	if exitCode != 0 {
+		t.Fatalf("ExecCommand expected exitCode 0, got %d", exitCode)
+	}
+	if stdout != "output-of: uname -a" {
+		t.Fatalf("ExecCommand expected %q, got %q", "output-of: uname -a", stdout)
+	}
+
+	// 2. Verify GetInfo completes without deadlock
+	info, err := bot.GetInfo()
+	if err != nil {
+		t.Fatalf("GetInfo returned error: %v", err)
+	}
+	if info["os"] != "linux" || info["allow_exec"] != true {
+		t.Fatalf("GetInfo unexpected payload: %+v", info)
+	}
+
+	// 3. Verify ListFiles completes without deadlock
+	entries, err := bot.ListFiles("/")
+	if err != nil {
+		t.Fatalf("ListFiles returned error: %v", err)
+	}
+	if len(entries) != 2 || entries[0].Name != "main.go" || entries[1].Name != "src" {
+		t.Fatalf("ListFiles unexpected entries: %+v", entries)
+	}
+}
+
 var _ = json.Marshal

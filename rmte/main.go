@@ -454,6 +454,8 @@ func cmdExec() {
 	timeout := fs.Int("timeout", 60, "Execution timeout in seconds")
 	background := fs.Bool("background", false, "Run command in a dedicated background tab")
 	bg := fs.Bool("bg", false, "Alias for --background")
+	tabName := fs.String("tab-name", "", "Custom tab title when running in background")
+	tabNameAlias := fs.String("name-tab", "", "Alias for --tab-name")
 	insecure := fs.Bool("insecure", false, "Skip TLS certificate verification")
 	skipTLS := fs.Bool("skip-tls-verify", false, "Alias for --insecure")
 
@@ -472,13 +474,18 @@ func cmdExec() {
 		fatalf("Error: --id and --pass are required for rmte exec")
 	}
 
+	chosenTabName := *tabName
+	if *tabNameAlias != "" {
+		chosenTabName = *tabNameAlias
+	}
+
 	cmdArgs := fs.Args()
 	if len(cmdArgs) == 0 {
 		fatalf("Error: command argument is required (e.g. rmte exec --id=... --pass=... -- ls -la)")
 	}
 	cmdStr := strings.Join(cmdArgs, " ")
 
-	exitCode := runExec(relayURL, *sessionID, chosenPass, *name, cmdStr, *timeout, *background || *bg, *insecure || *skipTLS)
+	exitCode := runExec(relayURL, *sessionID, chosenPass, *name, cmdStr, *timeout, *background || *bg, chosenTabName, *insecure || *skipTLS)
 	os.Exit(exitCode)
 }
 

@@ -1102,6 +1102,7 @@ func handleDataChannelWrite(transferID uint32, plaintext []byte, conn *SafeConn)
 			"type":        "control",
 			"action":      "fm_error",
 			"target_conn": ps.TargetConn,
+			"transfer_id": ps.TransferID,
 			"message":     err.Error(),
 		})
 		return

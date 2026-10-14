@@ -1,4 +1,4 @@
-# RMTE — Remote Terminal Relay & Cloud IDE (v0.7.12)
+# RMTE — Remote Terminal Relay & Cloud IDE (v0.7.13)
 
 > "I love sshx, but my endless curiosity to build it from scratch got the best of me 🥲"
 
@@ -213,7 +213,7 @@ Or with custom credentials:
 ```
 Output:
 ```
-RMTE v0.7.12 — Mode: standalone
+RMTE v0.7.13 — Mode: standalone
 ────────────────────────────────────────────────
 Bind:             127.0.0.1:8048
 Rmte Port:        8048
@@ -438,6 +438,7 @@ Connect a host to a relay server (defaults to public relay):
 | `--pass` | *required* | E2EE password |
 | `--timeout` | `60` | Execution timeout in seconds |
 | `--bg`, `--background` | `false` | Run command in a dedicated background tab |
+| `--tab-name`, `--name-tab` | `""` | Custom tab title when running in background |
 | `--name` | `rmte-exec` | Client display name |
 | `--insecure` | `false` | Skip TLS certificate verification |
 
