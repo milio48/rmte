@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -466,38 +468,35 @@ func handleMCPRequest(req mcpRequest, bot *BotClient, tools []mcpTool) *mcpRespo
 	}
 }
 
-// perMessageLimitReader limits bytes read for a single JSON-RPC message, resetting
-// its quota upon each message decoded. This prevents memory exhaustion from infinite
-// payload attacks while allowing the MCP session to process unlimited requests and
-// gigabytes of data over its lifetime.
-type perMessageLimitReader struct {
-	r         io.Reader
-	limit     int64
-	bytesRead int64
-}
-
-func newPerMessageLimitReader(r io.Reader, limit int64) *perMessageLimitReader {
-	return &perMessageLimitReader{
-		r:     r,
-		limit: limit,
+// readMCPLine reads a single line (JSON-RPC message) from reader up to maxLimit bytes.
+// If a message exceeds maxLimit, it drains the oversized line and returns tooLarge = true,
+// allowing the MCP server to return a JSON-RPC error instead of crashing the connection.
+func readMCPLine(r *bufio.Reader, maxLimit int64) (line []byte, tooLarge bool, err error) {
+	var buf bytes.Buffer
+	for {
+		chunk, isPrefix, err := r.ReadLine()
+		if err != nil {
+			if err == io.EOF && buf.Len() > 0 {
+				return buf.Bytes(), false, nil
+			}
+			return nil, false, err
+		}
+		if int64(buf.Len()+len(chunk)) > maxLimit {
+			tooLarge = true
+			for isPrefix {
+				_, isPrefix, err = r.ReadLine()
+				if err != nil {
+					break
+				}
+			}
+			return nil, true, nil
+		}
+		buf.Write(chunk)
+		if !isPrefix {
+			break
+		}
 	}
-}
-
-func (lr *perMessageLimitReader) Read(p []byte) (int, error) {
-	if lr.bytesRead >= lr.limit {
-		return 0, fmt.Errorf("message size exceeded limit of %d bytes", lr.limit)
-	}
-	allowed := lr.limit - lr.bytesRead
-	if int64(len(p)) > allowed {
-		p = p[:allowed]
-	}
-	n, err := lr.r.Read(p)
-	lr.bytesRead += int64(n)
-	return n, err
-}
-
-func (lr *perMessageLimitReader) Reset() {
-	lr.bytesRead = 0
+	return buf.Bytes(), false, nil
 }
 
 // runMCP initiates the Model Context Protocol stdio server connected to the remote session.
@@ -513,21 +512,49 @@ func runMCP(serverURL, sessionID, password, name string, insecure bool) {
 
 	fmt.Fprintf(os.Stderr, "[RMTE MCP] Connected to session %s as %s. Serving MCP JSON-RPC on stdio.\n", sessionID, name)
 
-	limitReader := newPerMessageLimitReader(os.Stdin, 25*1024*1024)
-	decoder := json.NewDecoder(limitReader)
+	reader := bufio.NewReaderSize(os.Stdin, 64*1024)
 	tools := getMCPToolsList()
+	const maxMessageBytes = 25 * 1024 * 1024 // 25 MB per-message limit
 
 	for {
-		var req mcpRequest
-		if err := decoder.Decode(&req); err != nil {
+		line, tooLarge, err := readMCPLine(reader, maxMessageBytes)
+		if err != nil {
 			if err == io.EOF {
 				fmt.Fprintln(os.Stderr, "[RMTE MCP] Stdin closed, shutting down.")
 				return
 			}
-			fmt.Fprintf(os.Stderr, "[RMTE MCP] JSON decode error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "[RMTE MCP] Stdin read error: %v\n", err)
 			return
 		}
-		limitReader.Reset()
+
+		if tooLarge {
+			sendMCPResponse(mcpResponse{
+				JSONRPC: "2.0",
+				ID:      nil,
+				Error: &mcpError{
+					Code:    -32600,
+					Message: "Request entity too large (exceeds 25MB limit)",
+				},
+			})
+			continue
+		}
+
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+
+		var req mcpRequest
+		if err := json.Unmarshal(line, &req); err != nil {
+			sendMCPResponse(mcpResponse{
+				JSONRPC: "2.0",
+				ID:      nil,
+				Error: &mcpError{
+					Code:    -32700,
+					Message: fmt.Sprintf("Parse error: %v", err),
+				},
+			})
+			continue
+		}
 
 		resp := handleMCPRequest(req, bot, tools)
 		if resp != nil {

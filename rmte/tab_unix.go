@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/creack/pty"
 	"golang.org/x/sys/unix"
@@ -40,28 +41,45 @@ func startPlatformTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) (
 		c.Dir = hostWorkDir
 	}
 
-	f, err := pty.Start(c)
+	ptyFile, ttyFile, err := pty.Open()
 	if err != nil {
-		log.Printf("Failed to start PTY for tab %d: %v", id, err)
-		return nil, fmt.Errorf("pty.Start failed: %w", err)
+		log.Printf("Failed to open PTY for tab %d: %v", id, err)
+		return nil, fmt.Errorf("pty.Open failed: %w", err)
 	}
+	defer func() { _ = ttyFile.Close() }()
 
 	if isAI {
-		disablePTYEcho(f)
+		disablePTYEcho(ttyFile)
+	}
+
+	if c.SysProcAttr == nil {
+		c.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	c.SysProcAttr.Setsid = true
+	c.SysProcAttr.Setctty = true
+
+	c.Stdout = ttyFile
+	c.Stderr = ttyFile
+	c.Stdin = ttyFile
+
+	if err := c.Start(); err != nil {
+		_ = ptyFile.Close()
+		log.Printf("Failed to start command in PTY for tab %d: %v", id, err)
+		return nil, fmt.Errorf("cmd.Start failed: %w", err)
 	}
 
 	tab := &TabSession{
 		Title:       title,
 		IsAI:        isAI,
 		Cmd:         c,
-		ReadCloser:  f,
-		WriteCloser: f,
+		ReadCloser:  ptyFile,
+		WriteCloser: ptyFile,
 		IsPipe:      false,
 		Resizer: func(cols, rows int) error {
-			return pty.Setsize(f, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
+			return pty.Setsize(ptyFile, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
 		},
 		CloseFn: func() error {
-			f.Close()
+			ptyFile.Close()
 			if c.Process != nil {
 				c.Process.Kill()
 			}

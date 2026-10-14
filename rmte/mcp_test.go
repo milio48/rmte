@@ -1,8 +1,8 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
-	"io"
 	"strings"
 	"testing"
 )
@@ -171,44 +171,33 @@ func TestMCPToolCallMock(t *testing.T) {
 	}
 }
 
-func TestPerMessageLimitReader(t *testing.T) {
-	// 100 bytes limit per message
-	// Total input is 240 bytes across 3 messages (80 bytes each)
-	msg1 := strings.Repeat("A", 80)
-	msg2 := strings.Repeat("B", 80)
-	msg3 := strings.Repeat("C", 80)
-	input := msg1 + msg2 + msg3
+func TestReadMCPLine(t *testing.T) {
+	// Test stream with:
+	// 1. Valid line (80 bytes)
+	// 2. Oversized line (150 bytes, exceeds 100 limit)
+	// 3. Subsequent valid line (50 bytes)
+	line1 := strings.Repeat("A", 80) + "\n"
+	line2Oversized := strings.Repeat("B", 150) + "\n"
+	line3 := strings.Repeat("C", 50) + "\n"
+	input := line1 + line2Oversized + line3
 
-	r := strings.NewReader(input)
-	limiter := newPerMessageLimitReader(r, 100)
+	r := bufio.NewReader(strings.NewReader(input))
 
-	buf := make([]byte, len(msg1))
-	// Read msg1
-	n, err := io.ReadFull(limiter, buf)
-	if err != nil || n != len(msg1) {
-		t.Fatalf("msg1 read failed: n=%d err=%v", n, err)
-	}
-	limiter.Reset()
-
-	// Read msg2 (total read is now 160 bytes, which exceeds 100 limit, but resets per message!)
-	n, err = io.ReadFull(limiter, buf)
-	if err != nil || n != len(msg2) {
-		t.Fatalf("msg2 read failed: n=%d err=%v", n, err)
-	}
-	limiter.Reset()
-
-	// Read msg3 (total read is now 240 bytes)
-	n, err = io.ReadFull(limiter, buf)
-	if err != nil || n != len(msg3) {
-		t.Fatalf("msg3 read failed: n=%d err=%v", n, err)
+	// 1. Read line 1
+	got, tooLarge, err := readMCPLine(r, 100)
+	if err != nil || tooLarge || string(got) != strings.Repeat("A", 80) {
+		t.Fatalf("line1 failed: got=%s tooLarge=%v err=%v", string(got), tooLarge, err)
 	}
 
-	// Test an oversized single message exceeding limit (150 bytes > 100 bytes limit)
-	bigMsg := strings.Repeat("X", 150)
-	bigLimiter := newPerMessageLimitReader(strings.NewReader(bigMsg), 100)
-	sink := make([]byte, 150)
-	_, err = io.ReadFull(bigLimiter, sink)
-	if err == nil {
-		t.Fatalf("expected error for oversized message, got nil")
+	// 2. Read oversized line 2: should return tooLarge=true and drain until newline
+	_, tooLarge, err = readMCPLine(r, 100)
+	if err != nil || !tooLarge {
+		t.Fatalf("line2 expected tooLarge=true, got tooLarge=%v err=%v", tooLarge, err)
+	}
+
+	// 3. Read line 3: should recover cleanly without error
+	got, tooLarge, err = readMCPLine(r, 100)
+	if err != nil || tooLarge || string(got) != strings.Repeat("C", 50) {
+		t.Fatalf("line3 failed to recover after oversized line: got=%s tooLarge=%v err=%v", string(got), tooLarge, err)
 	}
 }

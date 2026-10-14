@@ -214,25 +214,50 @@ func executeAICommand(tab *TabSession, command string, timeoutSec int) (string, 
 		case <-timeoutTimer.C:
 			// Command timed out: send Ctrl+C (SIGINT) to PTY slave
 			_, _ = tab.WriteCloser.Write([]byte{3})
-			time.Sleep(200 * time.Millisecond)
-			_, _ = tab.WriteCloser.Write([]byte{3, '\n'})
 
-			// Check if process/shell returned or died; fallback kill if shell is completely stuck
-			time.Sleep(200 * time.Millisecond)
-			select {
-			case <-tab.AIProcessDone:
-				// Process died cleanly
-			default:
-				// If shell does not respond after timeout, kill tab process to prevent stuck state
-				// for future commands
-				if tab.Cmd != nil && tab.Cmd.Process != nil {
-					_ = tab.Cmd.Process.Kill()
+			// Give the shell up to 1.5s grace period to receive SIGINT, interrupt the child,
+			// and output the end sentinel without destroying the healthy shell session
+			graceTimer := time.NewTimer(1500 * time.Millisecond)
+			shellRecovered := false
+
+			for !shellRecovered {
+				select {
+				case chunk, ok := <-outChan:
+					if !ok {
+						shellRecovered = true
+						break
+					}
+					rawBuf.Write(chunk)
+					b := rawBuf.Bytes()
+					if endIdx := bytes.Index(b, endPrefix); endIdx >= 0 {
+						// The shell successfully recovered and completed wrapper!
+						rawBuf.Reset()
+						rawBuf.Write(b[:endIdx])
+						shellRecovered = true
+					}
+				case <-tab.AIProcessDone:
+					shellRecovered = true
+				case <-graceTimer.C:
+					// Shell did not respond to SIGINT within grace period.
+					// Try one more SIGINT + newline. If still completely unresponsive, kill tab process.
+					_, _ = tab.WriteCloser.Write([]byte{3, '\n'})
+					time.Sleep(300 * time.Millisecond)
+					select {
+					case <-tab.AIProcessDone:
+					default:
+						// Process is hopelessly hung (ignoring SIGINT); kill to protect future commands
+						if tab.Cmd != nil && tab.Cmd.Process != nil {
+							_ = tab.Cmd.Process.Kill()
+						}
+						tab.Close()
+						aiTabMu.Lock()
+						aiTabActive = false
+						aiTabMu.Unlock()
+					}
+					shellRecovered = true
 				}
-				tab.Close()
-				aiTabMu.Lock()
-				aiTabActive = false
-				aiTabMu.Unlock()
 			}
+			graceTimer.Stop()
 
 			cleanOutput := stripANSI(rawBuf.Bytes())
 			if len(cleanOutput) > 1024*1024 {

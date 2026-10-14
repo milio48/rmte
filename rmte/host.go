@@ -46,7 +46,6 @@ func (c *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time
 type TabSession struct {
 	Title         string
 	IsAI          bool
-	AIOutputChan  chan []byte
 	AIProcessDone chan struct{}
 	aiDoneOnce    sync.Once
 	AIListenerMu  sync.Mutex
@@ -1149,7 +1148,6 @@ func createTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) {
 	tab.Title = title
 	tab.IsAI = isAI
 	if isAI {
-		tab.AIOutputChan = make(chan []byte, 100)
 		tab.AIProcessDone = make(chan struct{})
 	}
 
@@ -1238,7 +1236,6 @@ func runWithPipesWithTitle(id byte, c *exec.Cmd, ws *SafeConn, title string, isA
 		},
 	}
 	if isAI {
-		tab.AIOutputChan = make(chan []byte, 100)
 		tab.AIProcessDone = make(chan struct{})
 	}
 
