@@ -64,6 +64,16 @@ type TabSession struct {
 	Resizer    func(cols, rows int) error
 	CloseFn    func() error
 	closeOnce  sync.Once
+	waitOnce   sync.Once
+}
+
+func (t *TabSession) waitCmd() {
+	if t == nil || t.Cmd == nil {
+		return
+	}
+	t.waitOnce.Do(func() {
+		_ = t.Cmd.Wait()
+	})
 }
 
 func (t *TabSession) notifyAIDone() {
@@ -98,8 +108,9 @@ func (t *TabSession) Close() {
 				t.WriteCloser.Close()
 			}
 		}
-		if t.Cmd != nil {
-			_ = t.Cmd.Wait()
+		t.waitCmd()
+		if t.IsAI {
+			t.notifyAIDone()
 		}
 	})
 }
@@ -1197,9 +1208,7 @@ func createTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) {
 				}
 			}
 		}
-		if tab.Cmd != nil {
-			_ = tab.Cmd.Wait()
-		}
+		tab.waitCmd()
 		if tab.IsAI {
 			tab.notifyAIDone()
 		}
@@ -1290,7 +1299,7 @@ func runWithPipesWithTitle(id byte, c *exec.Cmd, ws *SafeConn, title string, isA
 				}
 			}
 		}
-		_ = c.Wait()
+		tab.waitCmd()
 		if tab.IsAI {
 			tab.notifyAIDone()
 		}
