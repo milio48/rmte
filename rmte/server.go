@@ -399,20 +399,22 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// P7: Check viewer limit (M2: sum total active connections across all viewers)
+		// P7: Check viewer limit (M2: sum total active connections across all viewers; 0 = unlimited)
 		maxViewers := maxViewersPerSession
-		if serverCfg != nil && serverCfg.MaxViewers > 0 {
+		if serverCfg != nil {
 			maxViewers = serverCfg.MaxViewers
 		}
-		s.Mutex.RLock()
-		totalConns := 0
-		for _, conns := range s.Viewers {
-			totalConns += len(conns)
-		}
-		s.Mutex.RUnlock()
-		if totalConns >= maxViewers {
-			conn.WriteJSON(map[string]string{"type": "error", "message": "session full"})
-			return
+		if maxViewers > 0 {
+			s.Mutex.RLock()
+			totalConns := 0
+			for _, conns := range s.Viewers {
+				totalConns += len(conns)
+			}
+			s.Mutex.RUnlock()
+			if totalConns >= maxViewers {
+				conn.WriteJSON(map[string]string{"type": "error", "message": "session full"})
+				return
+			}
 		}
 
 		s.Mutex.Lock()

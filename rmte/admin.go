@@ -398,9 +398,7 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 		if serverCfg != nil {
 			maxSessions = serverCfg.MaxSessions
 			maxBuffer = serverCfg.MaxBuffer
-			if serverCfg.MaxViewers > 0 {
-				maxViewers = serverCfg.MaxViewers
-			}
+			maxViewers = serverCfg.MaxViewers
 		}
 
 		resp := AdminStatsResponse{

@@ -241,7 +241,7 @@ func cmdServe() {
 	flag.IntVar(&cfg.Buffer, "buffer", 1, "Max buffer size in MB (ignored in relay mode)")
 	flag.IntVar(&cfg.MaxBuffer, "max-buffer", 0, "Max buffer limit in MB per session (0 = unlimited; relay multi-tenant recommended)")
 	flag.IntVar(&cfg.MaxSessions, "max-sessions", 100, "Max concurrent active sessions (0 = unlimited)")
-	flag.IntVar(&cfg.MaxViewers, "max-viewers", 50, "Max viewer connections per session")
+	flag.IntVar(&cfg.MaxViewers, "max-viewers", 50, "Max viewer connections per session (0 = unlimited)")
 	flag.StringVar(&cfg.WebPath, "web-path", "/", "HTTP path for the Web UI")
 	flag.StringVar(&cfg.WSPath, "ws-path", defaultWSPath, "WebSocket path")
 	flag.StringVar(&cfg.PublicURL, "public-url", "", "Full public base URL or domain (e.g. https://my.rmte.biz.id or http://host:8041)")
@@ -753,6 +753,7 @@ func runServeAndShare(cfg *ServeConfig) {
 	}
 
 	if cfg.MaxBuffer > 0 && cfg.Buffer > cfg.MaxBuffer {
+		fmt.Printf("\n\033[33m⚠️  [Buffer] Standalone relay clamped buffer to %d MB (requested: %d MB via --buffer). Terminal scrollback and file transfers are capped accordingly.\033[0m\n", cfg.MaxBuffer, cfg.Buffer)
 		cfg.Buffer = cfg.MaxBuffer
 	}
 

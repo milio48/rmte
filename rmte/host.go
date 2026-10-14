@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -138,8 +139,19 @@ var (
 	presenceMap   = make(map[string]ViewersPresence)
 	presenceMutex sync.Mutex
 
-	// Dynamic buffer limit (set by --buffer flag)
-	maxBufferSize int
+	// Dynamic buffer limit (set by --buffer flag; thread-safe via atomic)
+	maxBufferSize atomic.Int64
+)
+
+func getMaxBufferSize() int {
+	return int(maxBufferSize.Load())
+}
+
+func setMaxBufferSize(bytes int) {
+	maxBufferSize.Store(int64(bytes))
+}
+
+var (
 
 	// Host sandbox restriction (--sandbox flag)
 	hostSandbox bool
@@ -269,7 +281,7 @@ func logEvent(conn *SafeConn, eventType, user, message string) {
 
 func runHost(opts HostOptions) {
 	setHostOptions(opts)
-	maxBufferSize = opts.Buffer * 1024 * 1024
+	setMaxBufferSize(opts.Buffer * 1024 * 1024)
 
 	// Set working directory as sandbox root
 	if opts.Dir != "" {
@@ -356,7 +368,7 @@ func runHost(opts HostOptions) {
 			opts.Serve.Buffer = authResp.ClampedBuffer
 		}
 		setHostOptions(opts)
-		maxBufferSize = opts.Buffer * 1024 * 1024
+		setMaxBufferSize(opts.Buffer * 1024 * 1024)
 	}
 
 	var info BannerInfo
@@ -860,7 +872,7 @@ func reconnectToRelay(opts HostOptions, sessionID string, timeout time.Duration)
 				opts.Serve.Buffer = authResp.ClampedBuffer
 			}
 			setHostOptions(opts)
-			maxBufferSize = opts.Buffer * 1024 * 1024
+			setMaxBufferSize(opts.Buffer * 1024 * 1024)
 		}
 
 		// Update preview proxy secret if changed
@@ -1084,12 +1096,13 @@ func handleReqReadFile(reqPath, targetConn string, transferID uint32, conn *Safe
 		return
 	}
 
-	if info.Size() > int64(maxBufferSize) {
+	bufLimit := getMaxBufferSize()
+	if info.Size() > int64(bufLimit) {
 		conn.WriteJSON(map[string]interface{}{
 			"type":        "control",
 			"action":      "fm_error",
 			"target_conn": targetConn,
-			"message":     fmt.Sprintf("file too large: %d bytes (limit: %d bytes)", info.Size(), maxBufferSize),
+			"message":     fmt.Sprintf("file too large: %d bytes (limit: %d bytes)", info.Size(), bufLimit),
 		})
 		return
 	}
@@ -1183,13 +1196,14 @@ func handleDataChannelWrite(transferID uint32, plaintext []byte, conn *SafeConn)
 		return
 	}
 
-	if len(plaintext) > maxBufferSize {
+	bufLimit := getMaxBufferSize()
+	if len(plaintext) > bufLimit {
 		conn.WriteJSON(map[string]interface{}{
 			"type":        "control",
 			"action":      "fm_error",
 			"target_conn": ps.TargetConn,
 			"transfer_id": ps.TransferID,
-			"message":     fmt.Sprintf("file too large: %d bytes (limit: %d bytes)", len(plaintext), maxBufferSize),
+			"message":     fmt.Sprintf("file too large: %d bytes (limit: %d bytes)", len(plaintext), bufLimit),
 		})
 		return
 	}
@@ -1276,8 +1290,8 @@ func createTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) {
 
 			tab.Mutex.Lock()
 			tab.Buffer = append(tab.Buffer, data...)
-			if len(tab.Buffer) > maxBufferSize {
-				tab.Buffer = tab.Buffer[len(tab.Buffer)-maxBufferSize:]
+			if bufLimit := getMaxBufferSize(); len(tab.Buffer) > bufLimit {
+				tab.Buffer = tab.Buffer[len(tab.Buffer)-bufLimit:]
 			}
 			tab.Mutex.Unlock()
 
@@ -1367,8 +1381,8 @@ func runWithPipesWithTitle(id byte, c *exec.Cmd, ws *SafeConn, title string, isA
 
 			tab.Mutex.Lock()
 			tab.Buffer = append(tab.Buffer, data...)
-			if len(tab.Buffer) > maxBufferSize {
-				tab.Buffer = tab.Buffer[len(tab.Buffer)-maxBufferSize:]
+			if bufLimit := getMaxBufferSize(); len(tab.Buffer) > bufLimit {
+				tab.Buffer = tab.Buffer[len(tab.Buffer)-bufLimit:]
 			}
 			tab.Mutex.Unlock()
 

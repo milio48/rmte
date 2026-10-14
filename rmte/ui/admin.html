@@ -768,7 +768,7 @@
             document.getElementById('metric-sessions').textContent = `${activeCount}${maxSess}`;
 
             const bufText = data.max_buffer > 0 ? `${data.max_buffer} MB max` : 'unlimited buf';
-            const vText = data.max_viewers > 0 ? `${data.max_viewers} viewers/sess` : '50 viewers/sess';
+            const vText = data.max_viewers > 0 ? `${data.max_viewers} viewers/sess` : 'unlimited viewers';
             const elSessionLimits = document.getElementById('metric-session-limits');
             if (elSessionLimits) {
                 elSessionLimits.textContent = `Limit: ${bufText} • ${vText}`;
@@ -776,8 +776,8 @@
 
             document.getElementById('metric-viewers').textContent = data.total_viewers || 0;
             const elViewerSub = document.getElementById('metric-viewer-sub');
-            if (elViewerSub && data.max_viewers > 0) {
-                elViewerSub.textContent = `Max ${data.max_viewers} conns per session`;
+            if (elViewerSub) {
+                elViewerSub.textContent = data.max_viewers > 0 ? `Max ${data.max_viewers} conns per session` : 'Unlimited connections per session';
             }
 
             document.getElementById('metric-uptime').textContent = data.relay_uptime || '0s';

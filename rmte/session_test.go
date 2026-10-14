@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1233,6 +1234,72 @@ func TestSetReadLimitEnforcement(t *testing.T) {
 		t.Fatalf("expected read error due to SetReadLimit enforcement, but read succeeded")
 	}
 }
+
+func TestViewerConnectionUnlimitedWhenZero(t *testing.T) {
+	serverCfg = &ServeConfig{
+		Mode:       modeHybrid,
+		Port:       0,
+		WebPath:    "/",
+		WSPath:     "/ws-rmte",
+		MaxViewers: 0, // 0 = unlimited
+	}
+
+	sessionMu.Lock()
+	sessions = make(map[string]*Session)
+	sessionMu.Unlock()
+
+	s := httptest.NewServer(http.HandlerFunc(handleWS))
+	defer s.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(s.URL, "http")
+	dialer := websocket.DefaultDialer
+
+	// Connect Host
+	hConn, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("host dial failed: %v", err)
+	}
+	defer hConn.Close()
+
+	if err := hConn.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "host",
+		"session_id":       "vzero",
+		"auth_token":       "vpass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("host write auth failed: %v", err)
+	}
+	var hResp map[string]interface{}
+	if err := hConn.ReadJSON(&hResp); err != nil || hResp["type"] != "auth_success" {
+		t.Fatalf("host auth failed: %v, resp: %+v", err, hResp)
+	}
+
+	// Connect 3 Viewers - all should succeed without being capped
+	for i := 1; i <= 3; i++ {
+		vConn, _, err := dialer.Dial(wsURL, nil)
+		if err != nil {
+			t.Fatalf("viewer %d dial failed: %v", i, err)
+		}
+		defer vConn.Close()
+
+		if err := vConn.WriteJSON(map[string]interface{}{
+			"type":             "auth",
+			"role":             "viewer",
+			"session_id":       "vzero",
+			"viewer_id":        fmt.Sprintf("user-%d", i),
+			"auth_token":       "vpass",
+			"protocol_version": "0.5",
+		}); err != nil {
+			t.Fatalf("viewer %d auth write failed: %v", i, err)
+		}
+		var vResp map[string]interface{}
+		if err := vConn.ReadJSON(&vResp); err != nil || vResp["type"] != "auth_success" {
+			t.Fatalf("viewer %d expected auth_success with MaxViewers=0 (unlimited), got: %+v", i, vResp)
+		}
+	}
+}
+
 
 
 
