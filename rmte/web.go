@@ -52,7 +52,7 @@ func setupWebHandler(mux *http.ServeMux, webPath, wsPath string) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com data:; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' ws: wss:; frame-src 'self' about: http: https: blob: data:; object-src 'none'; base-uri 'self'; form-action 'self';")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com data:; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' ws: wss: https://cdn.jsdelivr.net; frame-src 'self' about: http: https: blob: data:; object-src 'none'; base-uri 'self'; form-action 'self';")
 
 		cleanPath := strings.TrimPrefix(r.URL.Path, strings.TrimSuffix(webPath, "/"))
 		cleanPath = strings.TrimPrefix(cleanPath, "/")
