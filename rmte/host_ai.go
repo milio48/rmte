@@ -250,9 +250,12 @@ func executeAICommand(tab *TabSession, command string, timeoutSec int) (string, 
 							_ = tab.Cmd.Process.Kill()
 						}
 						tab.Close()
+						tabsMu.Lock()
 						aiTabMu.Lock()
+						delete(tabs, aiTabID)
 						aiTabActive = false
 						aiTabMu.Unlock()
+						tabsMu.Unlock()
 					}
 					shellRecovered = true
 				}

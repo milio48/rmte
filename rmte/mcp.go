@@ -7,9 +7,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 )
+
+var mcpIDRegex = regexp.MustCompile(`"id"\s*:\s*([0-9]+|"[^"]*")`)
 
 // MCP JSON-RPC 2.0 structures
 type mcpRequest struct {
@@ -470,33 +474,42 @@ func handleMCPRequest(req mcpRequest, bot *BotClient, tools []mcpTool) *mcpRespo
 
 // readMCPLine reads a single line (JSON-RPC message) from reader up to maxLimit bytes.
 // If a message exceeds maxLimit, it drains the oversized line and returns tooLarge = true,
-// allowing the MCP server to return a JSON-RPC error instead of crashing the connection.
-func readMCPLine(r *bufio.Reader, maxLimit int64) (line []byte, tooLarge bool, err error) {
+// attempting to extract the client's request ID so error responses match the client's promise.
+func readMCPLine(r *bufio.Reader, maxLimit int64) (line []byte, tooLarge bool, reqID interface{}, err error) {
 	var buf bytes.Buffer
 	for {
 		chunk, isPrefix, err := r.ReadLine()
 		if err != nil {
 			if err == io.EOF && buf.Len() > 0 {
-				return buf.Bytes(), false, nil
+				return buf.Bytes(), false, nil, nil
 			}
-			return nil, false, err
+			return nil, false, nil, err
 		}
 		if int64(buf.Len()+len(chunk)) > maxLimit {
 			tooLarge = true
+			buf.Write(chunk)
+			if m := mcpIDRegex.FindSubmatch(buf.Bytes()); len(m) > 1 {
+				rawID := string(m[1])
+				if strings.HasPrefix(rawID, "\"") && strings.HasSuffix(rawID, "\"") {
+					reqID = strings.Trim(rawID, "\"")
+				} else if num, err := strconv.ParseInt(rawID, 10, 64); err == nil {
+					reqID = num
+				}
+			}
 			for isPrefix {
 				_, isPrefix, err = r.ReadLine()
 				if err != nil {
 					break
 				}
 			}
-			return nil, true, nil
+			return nil, true, reqID, nil
 		}
 		buf.Write(chunk)
 		if !isPrefix {
 			break
 		}
 	}
-	return buf.Bytes(), false, nil
+	return buf.Bytes(), false, nil, nil
 }
 
 // runMCP initiates the Model Context Protocol stdio server connected to the remote session.
@@ -517,7 +530,7 @@ func runMCP(serverURL, sessionID, password, name string, insecure bool) {
 	const maxMessageBytes = 25 * 1024 * 1024 // 25 MB per-message limit
 
 	for {
-		line, tooLarge, err := readMCPLine(reader, maxMessageBytes)
+		line, tooLarge, reqID, err := readMCPLine(reader, maxMessageBytes)
 		if err != nil {
 			if err == io.EOF {
 				fmt.Fprintln(os.Stderr, "[RMTE MCP] Stdin closed, shutting down.")
@@ -530,7 +543,7 @@ func runMCP(serverURL, sessionID, password, name string, insecure bool) {
 		if tooLarge {
 			sendMCPResponse(mcpResponse{
 				JSONRPC: "2.0",
-				ID:      nil,
+				ID:      reqID,
 				Error: &mcpError{
 					Code:    -32600,
 					Message: "Request entity too large (exceeds 25MB limit)",

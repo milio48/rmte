@@ -98,6 +98,9 @@ func (t *TabSession) Close() {
 				t.WriteCloser.Close()
 			}
 		}
+		if t.Cmd != nil {
+			_ = t.Cmd.Wait()
+		}
 	})
 }
 
@@ -1194,6 +1197,9 @@ func createTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) {
 				}
 			}
 		}
+		if tab.Cmd != nil {
+			_ = tab.Cmd.Wait()
+		}
 		if tab.IsAI {
 			tab.notifyAIDone()
 		}
@@ -1284,10 +1290,11 @@ func runWithPipesWithTitle(id byte, c *exec.Cmd, ws *SafeConn, title string, isA
 				}
 			}
 		}
+		_ = c.Wait()
 		if tab.IsAI {
 			tab.notifyAIDone()
 		}
-		c.Wait()
+		tab.Close()
 	}()
 }
 

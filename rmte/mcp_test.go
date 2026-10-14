@@ -174,30 +174,33 @@ func TestMCPToolCallMock(t *testing.T) {
 func TestReadMCPLine(t *testing.T) {
 	// Test stream with:
 	// 1. Valid line (80 bytes)
-	// 2. Oversized line (150 bytes, exceeds 100 limit)
+	// 2. Oversized line (150 bytes, exceeds 100 limit, includes "id": 42)
 	// 3. Subsequent valid line (50 bytes)
 	line1 := strings.Repeat("A", 80) + "\n"
-	line2Oversized := strings.Repeat("B", 150) + "\n"
+	line2Oversized := `{"jsonrpc":"2.0","id":42,"data":"` + strings.Repeat("B", 120) + "\"}\n"
 	line3 := strings.Repeat("C", 50) + "\n"
 	input := line1 + line2Oversized + line3
 
 	r := bufio.NewReader(strings.NewReader(input))
 
 	// 1. Read line 1
-	got, tooLarge, err := readMCPLine(r, 100)
-	if err != nil || tooLarge || string(got) != strings.Repeat("A", 80) {
-		t.Fatalf("line1 failed: got=%s tooLarge=%v err=%v", string(got), tooLarge, err)
+	got, tooLarge, reqID, err := readMCPLine(r, 100)
+	if err != nil || tooLarge || reqID != nil || string(got) != strings.Repeat("A", 80) {
+		t.Fatalf("line1 failed: got=%s tooLarge=%v reqID=%v err=%v", string(got), tooLarge, reqID, err)
 	}
 
-	// 2. Read oversized line 2: should return tooLarge=true and drain until newline
-	_, tooLarge, err = readMCPLine(r, 100)
+	// 2. Read oversized line 2: should return tooLarge=true, extract reqID=42, and drain until newline
+	_, tooLarge, reqID, err = readMCPLine(r, 100)
 	if err != nil || !tooLarge {
 		t.Fatalf("line2 expected tooLarge=true, got tooLarge=%v err=%v", tooLarge, err)
 	}
+	if reqID != int64(42) {
+		t.Fatalf("line2 expected reqID=42, got %v (%T)", reqID, reqID)
+	}
 
 	// 3. Read line 3: should recover cleanly without error
-	got, tooLarge, err = readMCPLine(r, 100)
-	if err != nil || tooLarge || string(got) != strings.Repeat("C", 50) {
-		t.Fatalf("line3 failed to recover after oversized line: got=%s tooLarge=%v err=%v", string(got), tooLarge, err)
+	got, tooLarge, reqID, err = readMCPLine(r, 100)
+	if err != nil || tooLarge || reqID != nil || string(got) != strings.Repeat("C", 50) {
+		t.Fatalf("line3 failed to recover after oversized line: got=%s tooLarge=%v reqID=%v err=%v", string(got), tooLarge, reqID, err)
 	}
 }
