@@ -3254,6 +3254,7 @@ function toggleWebPreview(force) {
     if (webPreviewOpen) {
         setActiveContext('preview');
         updatePreviewStatus();
+        checkPreviewSecurityNotice();
         const portInput = document.getElementById('preview-port-input');
         if (portInput && !portInput.value) {
             portInput.value = previewPort || 8080;
@@ -3413,6 +3414,28 @@ function handlePreviewPathKey(e) {
     if (e.key === 'Enter') {
         previewNavigate();
     }
+}
+
+function checkPreviewSecurityNotice() {
+    const notice = document.getElementById('preview-security-notice');
+    if (!notice) return;
+    try {
+        if (localStorage.getItem('rmte_preview_notice_dismissed') === '1') {
+            notice.style.display = 'none';
+        } else {
+            notice.style.display = 'flex';
+        }
+    } catch (e) {
+        notice.style.display = 'flex';
+    }
+}
+
+function dismissPreviewSecurityNotice() {
+    const notice = document.getElementById('preview-security-notice');
+    if (notice) notice.style.display = 'none';
+    try {
+        localStorage.setItem('rmte_preview_notice_dismissed', '1');
+    } catch (e) {}
 }
 
 // ── Mobile Global Listeners ──

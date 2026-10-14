@@ -2511,10 +2511,18 @@ kbd {
         font-size: 11px;
         height: 22px;
     }
+    .preview-security-notice {
+        padding: 4px 8px;
+        font-size: 10px;
+        gap: 6px;
+    }
 }
 
 @container preview (max-width: 280px) {
     .preview-address-icon {
+        display: none !important;
+    }
+    .preview-security-icon {
         display: none !important;
     }
     .preview-btn {
@@ -2528,6 +2536,61 @@ kbd {
     #preview-port-input {
         width: 36px;
     }
+}
+
+/* Security Awareness Banner in Web Preview */
+.preview-security-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 11px;
+    line-height: 1.4;
+    background: #fff8eb;
+    color: #92400e;
+    border-bottom: 1px solid #fcd34d;
+    flex-shrink: 0;
+    user-select: text;
+    transition: all var(--dur-short) var(--ease-out);
+}
+
+.preview-security-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #d97706;
+    flex-shrink: 0;
+}
+
+.preview-security-content {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.preview-security-content strong {
+    font-weight: 600;
+    color: #78350f;
+}
+
+.preview-security-close {
+    background: transparent;
+    border: none;
+    color: #92400e;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 4px;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--dur-short) var(--ease-out);
+}
+
+.preview-security-close:hover {
+    background: rgba(146, 64, 14, 0.12);
+    color: #78350f;
 }
 
 #preview-viewport-wrap {
