@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -239,6 +240,25 @@ func isValidAdminToken(token string) bool {
 	return true
 }
 
+func checkAdminCSRF(r *http.Request) bool {
+	if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+		return true
+	}
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		origin = r.Header.Get("Referer")
+	}
+	// FAIL-CLOSED: Pada request state-changing, Origin/Referer wajib ada dan cocok
+	if origin == "" {
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(u.Host, r.Host)
+}
+
 func checkAdminAuth(r *http.Request) bool {
 	cookie, err := r.Cookie("rmte_admin_token")
 	if err != nil {
@@ -259,6 +279,10 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 	mux.HandleFunc(apiPrefix+"/login", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !checkAdminCSRF(r) {
+			http.Error(w, "Forbidden (CSRF check failed)", http.StatusForbidden)
 			return
 		}
 		var req struct {
@@ -295,6 +319,10 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 
 	// Logout endpoint
 	mux.HandleFunc(apiPrefix+"/logout", func(w http.ResponseWriter, r *http.Request) {
+		if !checkAdminCSRF(r) {
+			http.Error(w, "Forbidden (CSRF check failed)", http.StatusForbidden)
+			return
+		}
 		cookie, err := r.Cookie("rmte_admin_token")
 		if err == nil {
 			adminTokenMu.Lock()
@@ -378,6 +406,10 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 
 	// Terminate session endpoint
 	mux.HandleFunc(apiPrefix+"/terminate", func(w http.ResponseWriter, r *http.Request) {
+		if !checkAdminCSRF(r) {
+			http.Error(w, "Forbidden (CSRF check failed)", http.StatusForbidden)
+			return
+		}
 		if !checkAdminAuth(r) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -396,6 +428,10 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 
 	// Ban IP endpoint
 	mux.HandleFunc(apiPrefix+"/ban", func(w http.ResponseWriter, r *http.Request) {
+		if !checkAdminCSRF(r) {
+			http.Error(w, "Forbidden (CSRF check failed)", http.StatusForbidden)
+			return
+		}
 		if !checkAdminAuth(r) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -420,6 +456,10 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 
 	// Unban IP endpoint
 	mux.HandleFunc(apiPrefix+"/unban", func(w http.ResponseWriter, r *http.Request) {
+		if !checkAdminCSRF(r) {
+			http.Error(w, "Forbidden (CSRF check failed)", http.StatusForbidden)
+			return
+		}
 		if !checkAdminAuth(r) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -444,6 +484,10 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';")
 		_, _ = w.Write(data)
 	}
 

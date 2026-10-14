@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -118,18 +119,38 @@ func TestAdminAPIEndToEnd(t *testing.T) {
 		t.Errorf("Expected 401 Unauthorized, got %d", rrStats.Code)
 	}
 
-	// 2. Test failed login
+	// 2. Test CSRF protection: POST without Origin/Referer must be rejected (fail-closed)
+	badCSRFPayload, _ := json.Marshal(map[string]string{"password": adminPass})
+	reqNoCSRF := httptest.NewRequest("POST", "/admin-rmte/api/login", bytes.NewReader(badCSRFPayload))
+	rrNoCSRF := httptest.NewRecorder()
+	mux.ServeHTTP(rrNoCSRF, reqNoCSRF)
+	if rrNoCSRF.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden on missing Origin/Referer, got %d", rrNoCSRF.Code)
+	}
+
+	// Mismatched Origin must also be rejected
+	reqBadOrigin := httptest.NewRequest("POST", "/admin-rmte/api/login", bytes.NewReader(badCSRFPayload))
+	reqBadOrigin.Header.Set("Origin", "http://evil-attacker.com")
+	rrBadOrigin := httptest.NewRecorder()
+	mux.ServeHTTP(rrBadOrigin, reqBadOrigin)
+	if rrBadOrigin.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden on mismatched Origin, got %d", rrBadOrigin.Code)
+	}
+
+	// 3. Test failed login (with valid same-origin Origin header)
 	badLoginPayload, _ := json.Marshal(map[string]string{"password": "wrong"})
 	reqBadLogin := httptest.NewRequest("POST", "/admin-rmte/api/login", bytes.NewReader(badLoginPayload))
+	reqBadLogin.Header.Set("Origin", "http://example.com")
 	rrBadLogin := httptest.NewRecorder()
 	mux.ServeHTTP(rrBadLogin, reqBadLogin)
 	if rrBadLogin.Code != http.StatusUnauthorized {
 		t.Errorf("Expected 401 on bad password, got %d", rrBadLogin.Code)
 	}
 
-	// 3. Test successful login & cookie reception
+	// 4. Test successful login & cookie reception
 	goodLoginPayload, _ := json.Marshal(map[string]string{"password": adminPass})
 	reqGoodLogin := httptest.NewRequest("POST", "/admin-rmte/api/login", bytes.NewReader(goodLoginPayload))
+	reqGoodLogin.Header.Set("Origin", "http://example.com")
 	rrGoodLogin := httptest.NewRecorder()
 	mux.ServeHTTP(rrGoodLogin, reqGoodLogin)
 	if rrGoodLogin.Code != http.StatusOK {
@@ -153,5 +174,25 @@ func TestAdminAPIEndToEnd(t *testing.T) {
 	var statsResp AdminStatsResponse
 	if err := json.NewDecoder(rrStatsAuth.Body).Decode(&statsResp); err != nil {
 		t.Fatalf("Failed to parse stats JSON: %v", err)
+	}
+
+	// 5. Test Admin UI Security Response Headers
+	reqUI := httptest.NewRequest("GET", "/admin-rmte/", nil)
+	rrUI := httptest.NewRecorder()
+	mux.ServeHTTP(rrUI, reqUI)
+	if rrUI.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK on admin UI, got %d", rrUI.Code)
+	}
+	if xcto := rrUI.Header().Get("X-Content-Type-Options"); xcto != "nosniff" {
+		t.Errorf("Expected X-Content-Type-Options: nosniff, got %q", xcto)
+	}
+	if xfo := rrUI.Header().Get("X-Frame-Options"); xfo != "DENY" {
+		t.Errorf("Expected X-Frame-Options: DENY, got %q", xfo)
+	}
+	if rp := rrUI.Header().Get("Referrer-Policy"); rp != "strict-origin-when-cross-origin" {
+		t.Errorf("Expected Referrer-Policy: strict-origin-when-cross-origin, got %q", rp)
+	}
+	if csp := rrUI.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "default-src 'self'") || !strings.Contains(csp, "object-src 'none'") {
+		t.Errorf("Expected Content-Security-Policy header on admin UI, got %q", csp)
 	}
 }

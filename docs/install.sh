@@ -121,32 +121,74 @@ TARGET_FILE="${TARGET_DIR}/rmte${EXE_EXT}"
 
 mkdir -p "${TARGET_DIR}"
 
+CHECKSUMS_URL="https://github.com/milio48/rmte/releases/latest/download/checksums.txt"
+CHECKSUMS_FILE="${TARGET_DIR}/rmte.checksums.$$"
+TEMP_FILE="${TARGET_DIR}/rmte.tmp.$$"
+trap 'rm -f "${TEMP_FILE}" "${CHECKSUMS_FILE}"' EXIT INT TERM
+
 if [ "$QUIET_MODE" -eq 0 ]; then
   printf "${BLUE}==>${NC} Detected platform: ${GREEN}%s/%s${NC}\n" "${OS}" "${ARCH}"
   printf "${BLUE}==>${NC} Downloading ${CYAN}%s${NC}...\n" "${DOWNLOAD_URL}"
 fi
 
-TEMP_FILE="${TARGET_DIR}/rmte.tmp.$$"
-trap 'rm -f "${TEMP_FILE}"' EXIT INT TERM
-
 if command -v curl >/dev/null 2>&1; then
   if [ "$QUIET_MODE" -eq 1 ]; then
     curl -sSfL "${DOWNLOAD_URL}" -o "${TEMP_FILE}"
+    curl -sSfL "${CHECKSUMS_URL}" -o "${CHECKSUMS_FILE}"
   else
     curl -fL --progress-bar "${DOWNLOAD_URL}" -o "${TEMP_FILE}"
+    curl -sSfL "${CHECKSUMS_URL}" -o "${CHECKSUMS_FILE}"
   fi
 elif command -v wget >/dev/null 2>&1; then
   if [ "$QUIET_MODE" -eq 1 ]; then
     wget -q "${DOWNLOAD_URL}" -O "${TEMP_FILE}"
+    wget -q "${CHECKSUMS_URL}" -O "${CHECKSUMS_FILE}"
   elif wget --help 2>&1 | grep -q -- '--show-progress'; then
     wget -q --show-progress "${DOWNLOAD_URL}" -O "${TEMP_FILE}"
+    wget -q "${CHECKSUMS_URL}" -O "${CHECKSUMS_FILE}"
   else
     wget "${DOWNLOAD_URL}" -O "${TEMP_FILE}"
+    wget "${CHECKSUMS_URL}" -O "${CHECKSUMS_FILE}"
   fi
 else
   printf "${RED}Error: curl or wget is required to download rmte.${NC}\n" >&2
   exit 1
 fi
+
+if [ "$QUIET_MODE" -eq 0 ]; then
+  printf "${BLUE}==>${NC} Verifying SHA-256 checksum...\n"
+fi
+
+EXPECTED_HASH=$(tr -d '\r' < "${CHECKSUMS_FILE}" | grep -E "(^|[[:space:]*])${BINARY_NAME}$" | awk '{print $1}')
+if [ -z "${EXPECTED_HASH}" ]; then
+  printf "${RED}Error: Checksum for %s not found in checksums.txt (fail-closed).${NC}\n" "${BINARY_NAME}" >&2
+  rm -f "${TEMP_FILE}" "${CHECKSUMS_FILE}"
+  exit 1
+fi
+
+if command -v sha256sum >/dev/null 2>&1; then
+  ACTUAL_HASH=$(sha256sum "${TEMP_FILE}" | awk '{print $1}')
+elif command -v shasum >/dev/null 2>&1; then
+  ACTUAL_HASH=$(shasum -a 256 "${TEMP_FILE}" | awk '{print $1}')
+elif command -v sha256 >/dev/null 2>&1; then
+  ACTUAL_HASH=$(sha256 -q "${TEMP_FILE}")
+else
+  printf "${RED}Error: No SHA-256 utility found (sha256sum, shasum, sha256). Aborting (fail-closed).${NC}\n" >&2
+  rm -f "${TEMP_FILE}" "${CHECKSUMS_FILE}"
+  exit 1
+fi
+
+EXPECTED_HASH=$(printf "%s" "${EXPECTED_HASH}" | tr '[:upper:]' '[:lower:]')
+ACTUAL_HASH=$(printf "%s" "${ACTUAL_HASH}" | tr '[:upper:]' '[:lower:]')
+
+if [ "${EXPECTED_HASH}" != "${ACTUAL_HASH}" ]; then
+  printf "${RED}Error: SHA-256 checksum mismatch for %s!${NC}\n" "${BINARY_NAME}" >&2
+  printf "Expected: %s\n" "${EXPECTED_HASH}" >&2
+  printf "Actual:   %s\n" "${ACTUAL_HASH}" >&2
+  rm -f "${TEMP_FILE}" "${CHECKSUMS_FILE}"
+  exit 1
+fi
+rm -f "${CHECKSUMS_FILE}"
 
 chmod +x "${TEMP_FILE}"
 mv -f "${TEMP_FILE}" "${TARGET_FILE}"

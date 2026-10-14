@@ -532,8 +532,15 @@ function fileIcon(name, opts) {
     if (iconKey) return svgIcon(iconKey, opts);
     return isTextFile(name) ? svgIcon('langText', opts) : svgIcon('langBinary', opts);
 }
-function fmtSize(b){if(!b)return'0 B';const u=['B','KB','MB','GB'];const i=Math.floor(Math.log(b)/Math.log(1024));return(b/Math.pow(1024,i)).toFixed(i>0?1:0)+' '+u[i];}
-function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function esc(s) {
+    if (s == null) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 // ===== FILE OPERATION SERIALIZATION =====
 // The host keeps a single pending-save slot, so file reads, saves and uploads
@@ -2117,7 +2124,7 @@ function updatePresence(tabs, botViewers){
         const iconHtml = isBot ? '<span class="user-bot-badge" title="AI Agent">🤖</span>' : '<span class="dot"></span>';
         const i=document.createElement('div');
         i.className='user-item' + (isBot ? ' is-bot' : '');
-        i.innerHTML=`${iconHtml}<span class="user-name">${esc(trimmed)}</span><span class="user-tab-badge">${tabLabel}</span>`;
+        i.innerHTML=`${iconHtml}<span class="user-name">${esc(trimmed)}</span><span class="user-tab-badge">${esc(tabLabel)}</span>`;
         list.appendChild(i);
         if(trimmed && selfName && trimmed !== selfName) peers.add(trimmed);
     }));
@@ -3272,7 +3279,7 @@ function toggleWebPreview(force) {
 async function getPreviewTicket(sessionId, port) {
     if (!rawAesKeyBytes) return '';
     const expiresAt = Math.floor(Date.now() / 1000) + 60;
-    const nonce = Math.random().toString(36).slice(2, 10);
+    const nonce = Array.from(rmteCrypto.randomBytes(8)).map(b => b.toString(16).padStart(2, '0')).join('');
     const enc = new TextEncoder();
     const subKey = await rmteCrypto.hmacSha256(rawAesKeyBytes, enc.encode("rmte-preview-subauth"));
     const msg = `${sessionId}:${port}:${expiresAt}:${nonce}`;
@@ -3336,12 +3343,11 @@ function previewGoForward() {
 
 function previewReload() {
     const frame = document.getElementById('preview-frame');
+    if (!frame) return;
     try {
-        if (frame && frame.contentWindow) frame.contentWindow.location.reload();
-        else previewNavigate();
-    } catch(e) {
-        previewNavigate();
-    }
+        frame.src = 'about:blank';
+    } catch(e) {}
+    setTimeout(previewNavigate, 20);
 }
 
 async function previewOpenInNewTab() {

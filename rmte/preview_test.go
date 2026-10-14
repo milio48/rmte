@@ -122,6 +122,17 @@ func TestPreviewTicketAndCookie(t *testing.T) {
 	if validatePreviewCookie(sessionID, port, "tampered_value") {
 		t.Fatal("tampered cookie passed validation")
 	}
+
+	// Fail-closed when rawEncryptionKey is nil
+	origKey := rawEncryptionKey
+	rawEncryptionKey = nil
+	if val := generatePreviewCookieValue(sessionID, port); val != "" {
+		t.Fatalf("expected empty cookie value when key is nil, got %q", val)
+	}
+	if validatePreviewCookie(sessionID, port, cookieVal) {
+		t.Fatal("expected validatePreviewCookie to fail-closed when key is nil")
+	}
+	rawEncryptionKey = origKey
 }
 
 func TestPreviewEndToEndIntegration(t *testing.T) {

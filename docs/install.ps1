@@ -8,6 +8,9 @@
 #   & ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) download run          # Download to current dir and run
 #   & ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) install run           # Install to bin and run
 
+# Force TLS 1.2 at the top level
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 [CmdletBinding()]
 param(
     [Parameter(Position=0, ValueFromRemainingArguments=$true)]
@@ -92,23 +95,54 @@ if (-not $quiet) {
 }
 
 try {
+    $checksumsUrl = "https://github.com/milio48/rmte/releases/latest/download/checksums.txt"
+    $tempChecksums = Join-Path $targetDir ("rmte.checksums." + [System.Guid]::NewGuid().ToString("N").Substring(0, 8) + ".txt")
+
     # Prefer curl.exe if available
     if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
         if ($quiet) {
             & curl.exe -sSfL "$downloadUrl" -o "$tempExe"
+            & curl.exe -sSfL "$checksumsUrl" -o "$tempChecksums"
         } else {
             & curl.exe -fL --progress-bar "$downloadUrl" -o "$tempExe"
+            & curl.exe -sSfL "$checksumsUrl" -o "$tempChecksums"
         }
         if ($LASTEXITCODE -ne 0) {
             throw "curl.exe exited with code $LASTEXITCODE"
         }
     } else {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $downloadUrl -OutFile $tempExe -UseBasicParsing
+        Invoke-WebRequest -Uri $checksumsUrl -OutFile $tempChecksums -UseBasicParsing
     }
+
+    if (-not $quiet) {
+        Write-Host "==> Verifying SHA-256 checksum..." -ForegroundColor Cyan
+    }
+
+    $checksumLines = Get-Content $tempChecksums -ErrorAction Stop
+    $expectedHash = ""
+    foreach ($line in $checksumLines) {
+        $trimmed = $line.Trim()
+        if ($trimmed -match '^([a-fA-F0-9]{64})\s+[*]?(.+)$') {
+            if ($matches[2].Trim() -ieq $binaryName) {
+                $expectedHash = $matches[1].ToLower()
+                break
+            }
+        }
+    }
+    if (-not $expectedHash) {
+        throw "Checksum for $binaryName not found in checksums.txt (fail-closed)."
+    }
+
+    $actualHash = (Get-FileHash -Path $tempExe -Algorithm SHA256).Hash.ToLower()
+    if ($expectedHash -ne $actualHash) {
+        throw "SHA-256 checksum mismatch for $binaryName! Expected: $expectedHash, Actual: $actualHash"
+    }
+    if (Test-Path $tempChecksums) { Remove-Item $tempChecksums -Force -ErrorAction SilentlyContinue }
 } catch {
     if (Test-Path $tempExe) { Remove-Item $tempExe -Force -ErrorAction SilentlyContinue }
-    Write-Error "Failed to download RMTE binary from $downloadUrl : $_"
+    if (Test-Path $tempChecksums) { Remove-Item $tempChecksums -Force -ErrorAction SilentlyContinue }
+    Write-Error "Failed to download/verify RMTE binary: $_"
     exit 1
 }
 

@@ -836,7 +836,7 @@
             } else {
                 histTbody.innerHTML = data.history.slice().reverse().map(h => {
                     const totalBytes = (h.bytes_rx || 0) + (h.bytes_tx || 0);
-                    const isBan = h.reason.toLowerCase().includes('ban');
+                    const isBan = (h.reason || '').toLowerCase().includes('ban');
                     const reasonClass = isBan ? 'badge-heavy' : 'badge-warn';
                     const timeStr = new Date(h.closed_at).toLocaleTimeString();
 

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -173,7 +174,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if existingSess, exists := sessions[reqID]; exists {
-				if existingSess.AuthToken != "" && existingSess.AuthToken == auth.AuthToken {
+				if existingSess.AuthToken != "" && subtle.ConstantTimeCompare([]byte(existingSess.AuthToken), []byte(auth.AuthToken)) == 1 {
 					fmt.Printf("Host reconnecting for active session %s from %s. Replacing stale connection.\n", reqID, r.RemoteAddr)
 					existingSess.Mutex.Lock()
 					if existingSess.ReconnectTimer != nil {
@@ -368,7 +369,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// S4: Validate auth token
-		if s.AuthToken != "" && auth.AuthToken != s.AuthToken {
+		if s.AuthToken != "" && subtle.ConstantTimeCompare([]byte(auth.AuthToken), []byte(s.AuthToken)) != 1 {
 			conn.WriteJSON(map[string]string{"type": "error", "message": "invalid password"})
 			fmt.Printf("Viewer %s rejected: invalid auth token for session %s\n", viewerID, sessionID)
 			return

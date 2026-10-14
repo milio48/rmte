@@ -60,12 +60,21 @@ When `--sandbox` is enabled on the host:
 - **Constant-Time Verification**: Calculated SHA-256 hashes are verified against expected release hashes using `subtle.ConstantTimeCompare` to avoid timing side-channel leaks.
 - *Bypass*: Verification can only be bypassed if explicitly requested via the `--skip-checksum-verify` flag.
 
+### 5. Web Client Hardening & Isolation (v0.7.15+)
+- **Opaque Preview Sandbox**: The Web Preview iframe runs strictly with `sandbox="allow-scripts allow-forms allow-modals allow-downloads"` (without `allow-same-origin`). This isolates previewed dev apps into an opaque (`null`) origin, preventing them from accessing `window.parent`, reading `sessionStorage`, or interacting with the IDE DOM.
+- **Subresource Integrity (SRI)**: All external CDN stylesheets and JavaScript dependencies (xterm.js, CodeMirror, asmCrypto) are pinned with SHA-384 SRI hashes and loaded with `crossorigin="anonymous"`.
+- **HTTP Security Headers**: The built-in web server automatically enforces `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN` (IDE UI) / `DENY` (Admin Dashboard), `Referrer-Policy: strict-origin-when-cross-origin`, and a strict `Content-Security-Policy` (`object-src 'none'; base-uri 'self'; form-action 'self'`).
+- **Admin CSRF Protection & Reverse Proxy Deployment**: State-changing POST endpoints on the relay admin dashboard (`/login`, `/logout`, `/terminate`, `/ban`, `/unban`) enforce fail-closed CSRF validation requiring `Origin` or `Referer` to match `r.Host`. When running the relay behind a reverse proxy (e.g., Nginx, Caddy, Traefik), the proxy **must** pass through the original Host header (e.g., `proxy_set_header Host $host;`).
+- **Preview Frame Navigation Caveats**:
+  - `frame-src 'self' about:` restricts iframe navigation to same-origin relay paths (`/p/...`) and `about:`. External navigations (such as third-party OAuth flows outside localhost) will be blocked by CSP.
+  - Because preview runs in an opaque origin, scripts inside the previewed application will see `window.location.origin === "null"`.
+
 ---
 
 ## Security Roadmap (v0.8.0)
 
 The following architectural enhancements are scheduled for the next major milestone:
-1. **Session Password Key Derivation (Argon2id)**: Transitioning from raw SHA-256 key hashing to memory-hard Argon2id derivation to resist offline brute-force attacks on weak passwords.
+1. **Session Password Key Derivation (PBKDF2-HMAC-SHA256)**: Transitioning from raw SHA-256 key hashing to standard library `crypto/pbkdf2` (available in Go 1.25 stdlib) and native browser WebCrypto PBKDF2 with public session salt, resisting offline precomputation attacks while maintaining zero external WASM/library bloat.
 2. **Control Channel Encryption**: Encrypting metadata control channel messages end-to-end to eliminate session intelligence exposure on unverified relay nodes.
 3. **Cryptographic Release Signing**: Adding Minisign / Cosign digital signatures alongside SHA-256 checksums for verified binary distribution.
 4. **Relay Rate Limiting**: Implementing IP-level and session-level throttling on public relay endpoints to mitigate resource abuse and denial of service.

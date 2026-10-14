@@ -231,7 +231,7 @@ func previewCookieName(sessionID string, port int) string {
 // generatePreviewCookieValue generates a verification hash for the cookie.
 func generatePreviewCookieValue(sessionID string, port int) string {
 	if rawEncryptionKey == nil {
-		return "ok"
+		return ""
 	}
 	h := hmac.New(sha256.New, rawEncryptionKey)
 	h.Write([]byte(fmt.Sprintf("rmte-cookie:%s:%d", sessionID, port)))
@@ -240,10 +240,13 @@ func generatePreviewCookieValue(sessionID string, port int) string {
 
 // validatePreviewCookie validates the cookie value.
 func validatePreviewCookie(sessionID string, port int, val string) bool {
-	if rawEncryptionKey == nil {
-		return true
+	if rawEncryptionKey == nil || val == "" {
+		return false
 	}
 	expected := generatePreviewCookieValue(sessionID, port)
+	if expected == "" {
+		return false
+	}
 	return hmac.Equal([]byte(val), []byte(expected))
 }
 
