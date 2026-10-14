@@ -771,6 +771,13 @@ async function onJson(msg) {
         // Persist only a name the user actually typed (not the random Web-XXXX fallback).
         const typedName=document.getElementById('username').value.trim();
         saveSessionCredentials(serverVal, sidVal, passVal, typedName, true);
+        try {
+            const curUrl = new URL(window.location.href);
+            if (curUrl.searchParams.get('session') !== sidVal) {
+                curUrl.searchParams.set('session', sidVal);
+                history.replaceState(null, '', curUrl.toString());
+            }
+        } catch(e) {}
         const s=document.getElementById('sb-connection');if(s){s.innerText='● Connected';s.style.color='#3fb950';}
         // Reset any file-op state left over from a previous connection.
         waitingForFileData=false;pendingFileBytes=null;pendingEditorPath=null;pendingDownload=false;pendingDownloadName=null;fileOpBusy=false;uploadActive=false;currentTransferId=0;
@@ -2039,6 +2046,17 @@ function toggleShareModal(show){
         const cliCmd=`rmte join --server-relay="${serverVal}" --id="${sid}" --pass="${pass||'<your-password>'}"`;
         const cliInp=document.getElementById('share-cli-input');
         if(cliInp)cliInp.value=cliCmd;
+
+        const mcpObj = {
+            command: "rmte",
+            args: ["mcp", `--server-relay=${serverVal}`, `--id=${sid}`, `--pass=${pass||'<your-password>'}`]
+        };
+        const mcpInp = document.getElementById('share-mcp-input');
+        if(mcpInp) mcpInp.value = JSON.stringify(mcpObj);
+
+        const execCmd = `rmte exec --server-relay="${serverVal}" --id="${sid}" --pass="${pass||'<your-password>'}" -- "<command>"`;
+        const execInp = document.getElementById('share-exec-input');
+        if(execInp) execInp.value = execCmd;
     }
 }
 
@@ -2052,6 +2070,18 @@ function copyCliCmd(){
     const inp=document.getElementById('share-cli-input');
     if(!inp)return;
     copyToClip(inp.value,document.getElementById('copy-cli-cmd-btn'));
+}
+
+function copyMcpConfig(){
+    const inp=document.getElementById('share-mcp-input');
+    if(!inp)return;
+    copyToClip(inp.value,document.getElementById('copy-mcp-btn'));
+}
+
+function copyExecCmd(){
+    const inp=document.getElementById('share-exec-input');
+    if(!inp)return;
+    copyToClip(inp.value,document.getElementById('copy-exec-btn'));
 }
 
 function copyToClip(text,btn){
@@ -2423,6 +2453,11 @@ function disconnectSession(){
     const sid=document.getElementById('sessionId').value||sessionStorage.getItem('rmte_active_session');
     if(sid)clearSessionAutoconnect(sid);
     if(ws)ws.close();
+    try {
+        const curUrl = new URL(window.location.href);
+        curUrl.searchParams.delete('session');
+        history.replaceState(null, '', curUrl.pathname + (curUrl.search ? curUrl.search : ''));
+    } catch(e) {}
     location.reload();
 }
 function showError(m){const e=document.getElementById('setup-error');e.style.display='block';e.innerText=m;}
@@ -2627,15 +2662,26 @@ window.addEventListener('DOMContentLoaded',async()=>{
     }
 
     // Load credentials specifically for targetSession (no cross-session leaks)
+    // Only autoconnect if the user explicitly provided a session parameter in the URL (?session=... or #pass=...)
+    // Root URL navigation (e.g. localhost:8048/ or my.rmte.biz.id/) always displays the login prompt.
     let shouldAutoconnect=false;
-    if(targetSession){
-        const creds=getSessionCredentials(targetSession);
-        if(creds){
-            if(creds.password&&!document.getElementById('password').value){
-                document.getElementById('password').value=creds.password;
+    if(paramSession || hashPass){
+        if(targetSession){
+            const creds=getSessionCredentials(targetSession);
+            if(creds){
+                if(creds.password&&!document.getElementById('password').value){
+                    document.getElementById('password').value=creds.password;
+                }
+                if(creds.autoconnect===true){
+                    shouldAutoconnect=true;
+                }
             }
-            if(creds.autoconnect===true){
-                shouldAutoconnect=true;
+        }
+    } else {
+        if(targetSession){
+            const creds=getSessionCredentials(targetSession);
+            if(creds && creds.password && !document.getElementById('password').value){
+                document.getElementById('password').value=creds.password;
             }
         }
     }

@@ -375,6 +375,22 @@
                     </div>
                     <span class="share-hint">Command to join from terminal using the RMTE CLI client.</span>
                 </div>
+                <div class="share-section" style="margin-top: 16px;">
+                    <label class="share-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon" style="margin-right:5px;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v2m6-2v2M9 21v2m6-2v2M1 9h2m-2 6h2M21 9h2m-2 6h2"/></svg>AI Agent MCP Config (Claude Desktop / Cursor)</label>
+                    <div class="share-input-group">
+                        <input type="text" id="share-mcp-input" readonly spellcheck="false" class="share-input share-mcp" onclick="this.select()">
+                        <button id="copy-mcp-btn" class="share-copy-btn" onclick="copyMcpConfig()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span>Copy</span></button>
+                    </div>
+                    <span class="share-hint">Paste into <code>claude_desktop_config.json</code> or Cursor MCP settings. Host requires <code>--allow-exec</code>.</span>
+                </div>
+                <div class="share-section" style="margin-top: 16px;">
+                    <label class="share-label"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon" style="margin-right:5px;"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>Headless CLI Exec Command</label>
+                    <div class="share-input-group">
+                        <input type="text" id="share-exec-input" readonly spellcheck="false" class="share-input share-exec" onclick="this.select()">
+                        <button id="copy-exec-btn" class="share-copy-btn" onclick="copyExecCmd()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span>Copy</span></button>
+                    </div>
+                    <span class="share-hint">Execute remote commands without opening a terminal window. Host requires <code>--allow-exec</code>.</span>
+                </div>
             </div>
         </div>
     </div>

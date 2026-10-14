@@ -185,6 +185,12 @@ func printBanner(b BannerInfo) {
 		line("Web Preview", "✅ Enabled (Proxied reverse-proxy)")
 	}
 
+	if b.AllowExec {
+		line("AI Exec / MCP", "✅ Enabled (--allow-exec)")
+	} else if b.Mode != modeRelay {
+		line("AI Exec / MCP", "❌ Disabled (start with --allow-exec)")
+	}
+
 	passDisplay := b.Pass
 	if passDisplay == "" {
 		passDisplay = "<your-password>"
@@ -206,6 +212,8 @@ func printBanner(b BannerInfo) {
 				b.RelayURL, b.SessionID, passDisplay)
 			fmt.Fprintf(&sb, "\nHeadless CLI Exec:\n  rmte exec --server-relay=\"%s\" --id=\"%s\" --pass=\"%s\" -- \"<command>\"\n",
 				b.RelayURL, b.SessionID, passDisplay)
+		} else {
+			fmt.Fprintf(&sb, "\nAI Agent (MCP Config) & Headless CLI Exec:\n  Disabled on host. To enable for Claude/Cursor: restart with --allow-exec\n")
 		}
 		if b.Mode == modeHybrid {
 			fmt.Fprintf(&sb, "\nConnect more hosts to this relay:\n  rmte share --server-relay=\"%s\" --pass=\"secret\"\n", b.RelayURL)

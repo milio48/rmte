@@ -2097,6 +2097,14 @@ kbd {
     color: var(--color-orange);
     background: var(--color-paper-3);
 }
+.share-mcp {
+    color: var(--color-purple);
+    background: var(--color-paper-3);
+}
+.share-exec {
+    color: var(--color-accent);
+    background: var(--color-paper-3);
+}
 .share-copy-btn {
     display: inline-flex;
     align-items: center;
