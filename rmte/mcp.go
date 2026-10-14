@@ -466,6 +466,40 @@ func handleMCPRequest(req mcpRequest, bot *BotClient, tools []mcpTool) *mcpRespo
 	}
 }
 
+// perMessageLimitReader limits bytes read for a single JSON-RPC message, resetting
+// its quota upon each message decoded. This prevents memory exhaustion from infinite
+// payload attacks while allowing the MCP session to process unlimited requests and
+// gigabytes of data over its lifetime.
+type perMessageLimitReader struct {
+	r         io.Reader
+	limit     int64
+	bytesRead int64
+}
+
+func newPerMessageLimitReader(r io.Reader, limit int64) *perMessageLimitReader {
+	return &perMessageLimitReader{
+		r:     r,
+		limit: limit,
+	}
+}
+
+func (lr *perMessageLimitReader) Read(p []byte) (int, error) {
+	if lr.bytesRead >= lr.limit {
+		return 0, fmt.Errorf("message size exceeded limit of %d bytes", lr.limit)
+	}
+	allowed := lr.limit - lr.bytesRead
+	if int64(len(p)) > allowed {
+		p = p[:allowed]
+	}
+	n, err := lr.r.Read(p)
+	lr.bytesRead += int64(n)
+	return n, err
+}
+
+func (lr *perMessageLimitReader) Reset() {
+	lr.bytesRead = 0
+}
+
 // runMCP initiates the Model Context Protocol stdio server connected to the remote session.
 func runMCP(serverURL, sessionID, password, name string, insecure bool) {
 	fmt.Fprintf(os.Stderr, "[RMTE MCP] Connecting to session %s at %s...\n", sessionID, serverURL)
@@ -479,7 +513,7 @@ func runMCP(serverURL, sessionID, password, name string, insecure bool) {
 
 	fmt.Fprintf(os.Stderr, "[RMTE MCP] Connected to session %s as %s. Serving MCP JSON-RPC on stdio.\n", sessionID, name)
 
-	limitReader := io.LimitReader(os.Stdin, 25*1024*1024)
+	limitReader := newPerMessageLimitReader(os.Stdin, 25*1024*1024)
 	decoder := json.NewDecoder(limitReader)
 	tools := getMCPToolsList()
 
@@ -493,6 +527,7 @@ func runMCP(serverURL, sessionID, password, name string, insecure bool) {
 			fmt.Fprintf(os.Stderr, "[RMTE MCP] JSON decode error: %v\n", err)
 			return
 		}
+		limitReader.Reset()
 
 		resp := handleMCPRequest(req, bot, tools)
 		if resp != nil {

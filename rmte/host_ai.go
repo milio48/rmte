@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	aiTabMu     sync.Mutex
 	aiExecMutex sync.Mutex
 	aiTabID     byte = 0
 	aiTabActive bool
@@ -25,21 +26,27 @@ func stripANSI(in []byte) string {
 }
 
 func ensureAITab(conn *SafeConn) (byte, *TabSession, error) {
-	tabsMu.Lock()
+	aiTabMu.Lock()
 	if aiTabActive {
+		tabsMu.RLock()
 		tab := tabs[aiTabID]
+		tabsMu.RUnlock()
 		if tab != nil && tab.Cmd != nil && tab.Cmd.Process != nil && tab.Cmd.ProcessState == nil {
-			tabsMu.Unlock()
-			return aiTabID, tab, nil
+			id := aiTabID
+			aiTabMu.Unlock()
+			return id, tab, nil
 		}
 		// Shell process has exited or is dead, clean up old tab entry
 		if tab != nil {
 			tab.Close()
+			tabsMu.Lock()
 			delete(tabs, aiTabID)
+			tabsMu.Unlock()
 		}
 		aiTabActive = false
 	}
 
+	tabsMu.Lock()
 	newID := nextTabID
 	nextTabID++
 	tabsMu.Unlock()
@@ -50,27 +57,45 @@ func ensureAITab(conn *SafeConn) (byte, *TabSession, error) {
 	tab := tabs[newID]
 	tabsMu.RUnlock()
 	if tab == nil {
+		aiTabMu.Unlock()
 		return 0, nil, fmt.Errorf("failed to create [AI] tab")
 	}
 
 	aiTabID = newID
 	aiTabActive = true
+	aiTabMu.Unlock()
 
 	// Readiness probe: send __RMTE_READY__ and wait for it to be echoed/executed
 	if tab.WriteCloser != nil {
+		readyChan := make(chan []byte, 10)
+		doneChan := make(chan struct{})
+
+		tab.AIListenerMu.Lock()
+		tab.AIListener = readyChan
+		tab.AIDoneChan = doneChan
+		tab.AIListenerMu.Unlock()
+
 		_, _ = tab.WriteCloser.Write([]byte("printf \"__RMTE_READY__\\n\"\n"))
 		readyTimeout := time.After(3 * time.Second)
 		ready := false
 		for !ready {
 			select {
-			case chunk := <-tab.AIOutputChan:
+			case chunk := <-readyChan:
 				if bytes.Contains(chunk, []byte("__RMTE_READY__")) {
 					ready = true
 				}
 			case <-readyTimeout:
 				ready = true // proceed without deadlock
+			case <-tab.AIProcessDone:
+				ready = true
 			}
 		}
+
+		tab.AIListenerMu.Lock()
+		tab.AIListener = nil
+		tab.AIDoneChan = nil
+		tab.AIListenerMu.Unlock()
+		close(doneChan)
 	}
 
 	logEvent(conn, "AI_TAB_INIT", "host", fmt.Sprintf("Initialized [AI] Tab %d", newID))
@@ -82,10 +107,21 @@ func executeAICommand(tab *TabSession, command string, timeoutSec int) (string, 
 		return "", 1, fmt.Errorf("AI tab not available")
 	}
 
-	// Drain any residual buffered chunks from previous commands
-	for len(tab.AIOutputChan) > 0 {
-		<-tab.AIOutputChan
-	}
+	outChan := make(chan []byte, 1000)
+	doneChan := make(chan struct{})
+
+	tab.AIListenerMu.Lock()
+	tab.AIListener = outChan
+	tab.AIDoneChan = doneChan
+	tab.AIListenerMu.Unlock()
+
+	defer func() {
+		tab.AIListenerMu.Lock()
+		tab.AIListener = nil
+		tab.AIDoneChan = nil
+		tab.AIListenerMu.Unlock()
+		close(doneChan)
+	}()
 
 	// Generate unique random nonce to avoid sentinel collision
 	nonceBytes := make([]byte, 8)
@@ -119,7 +155,7 @@ func executeAICommand(tab *TabSession, command string, timeoutSec int) (string, 
 
 	for !finished {
 		select {
-		case chunk, ok := <-tab.AIOutputChan:
+		case chunk, ok := <-outChan:
 			if !ok {
 				finished = true
 				break
@@ -176,9 +212,28 @@ func executeAICommand(tab *TabSession, command string, timeoutSec int) (string, 
 			finished = true
 
 		case <-timeoutTimer.C:
-			// Command timed out: send Ctrl+C (ETX) to PTY slave
+			// Command timed out: send Ctrl+C (SIGINT) to PTY slave
 			_, _ = tab.WriteCloser.Write([]byte{3})
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(200 * time.Millisecond)
+			_, _ = tab.WriteCloser.Write([]byte{3, '\n'})
+
+			// Check if process/shell returned or died; fallback kill if shell is completely stuck
+			time.Sleep(200 * time.Millisecond)
+			select {
+			case <-tab.AIProcessDone:
+				// Process died cleanly
+			default:
+				// If shell does not respond after timeout, kill tab process to prevent stuck state
+				// for future commands
+				if tab.Cmd != nil && tab.Cmd.Process != nil {
+					_ = tab.Cmd.Process.Kill()
+				}
+				tab.Close()
+				aiTabMu.Lock()
+				aiTabActive = false
+				aiTabMu.Unlock()
+			}
+
 			cleanOutput := stripANSI(rawBuf.Bytes())
 			if len(cleanOutput) > 1024*1024 {
 				cleanOutput = cleanOutput[:1024*1024] + "\n[Output truncated by RMTE buffer limit]"
@@ -246,7 +301,7 @@ func handleAIExec(ctrl map[string]interface{}, conn *SafeConn) {
 		nextTabID++
 		tabsMu.Unlock()
 
-		tabName := "AI-Worker"
+		tabName := "DevServer"
 		if tn, ok := ctrl["tab_name"].(string); ok && tn != "" {
 			tabName = tn
 		}

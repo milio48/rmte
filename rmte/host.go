@@ -48,6 +48,10 @@ type TabSession struct {
 	IsAI          bool
 	AIOutputChan  chan []byte
 	AIProcessDone chan struct{}
+	aiDoneOnce    sync.Once
+	AIListenerMu  sync.Mutex
+	AIListener    chan []byte
+	AIDoneChan    chan struct{}
 	Cmd           *exec.Cmd
 	Pid           int
 	ReadCloser    io.ReadCloser
@@ -63,17 +67,24 @@ type TabSession struct {
 	closeOnce  sync.Once
 }
 
+func (t *TabSession) notifyAIDone() {
+	if t == nil {
+		return
+	}
+	t.aiDoneOnce.Do(func() {
+		if t.AIProcessDone != nil {
+			close(t.AIProcessDone)
+		}
+	})
+}
+
 func (t *TabSession) Close() {
 	if t == nil {
 		return
 	}
 	t.closeOnce.Do(func() {
-		if t.IsAI && t.AIProcessDone != nil {
-			select {
-			case <-t.AIProcessDone:
-			default:
-				close(t.AIProcessDone)
-			}
+		if t.IsAI {
+			t.notifyAIDone()
 		}
 		if t.CloseFn != nil {
 			t.CloseFn()
@@ -1162,10 +1173,18 @@ func createTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) {
 			}
 			tab.Mutex.Unlock()
 
-			if tab.IsAI && tab.AIOutputChan != nil {
-				select {
-				case tab.AIOutputChan <- append([]byte(nil), data...):
-				default:
+			if tab.IsAI {
+				tab.AIListenerMu.Lock()
+				listener := tab.AIListener
+				doneChan := tab.AIDoneChan
+				tab.AIListenerMu.Unlock()
+
+				if listener != nil {
+					select {
+					case listener <- append([]byte(nil), data...):
+					case <-doneChan:
+					case <-tab.AIProcessDone:
+					}
 				}
 			}
 
@@ -1177,8 +1196,8 @@ func createTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) {
 				}
 			}
 		}
-		if tab.IsAI && tab.AIProcessDone != nil {
-			close(tab.AIProcessDone)
+		if tab.IsAI {
+			tab.notifyAIDone()
 		}
 		tab.Close()
 	}()
@@ -1245,10 +1264,18 @@ func runWithPipesWithTitle(id byte, c *exec.Cmd, ws *SafeConn, title string, isA
 			}
 			tab.Mutex.Unlock()
 
-			if tab.IsAI && tab.AIOutputChan != nil {
-				select {
-				case tab.AIOutputChan <- append([]byte(nil), data...):
-				default:
+			if tab.IsAI {
+				tab.AIListenerMu.Lock()
+				listener := tab.AIListener
+				doneChan := tab.AIDoneChan
+				tab.AIListenerMu.Unlock()
+
+				if listener != nil {
+					select {
+					case listener <- append([]byte(nil), data...):
+					case <-doneChan:
+					case <-tab.AIProcessDone:
+					}
 				}
 			}
 
@@ -1260,8 +1287,8 @@ func runWithPipesWithTitle(id byte, c *exec.Cmd, ws *SafeConn, title string, isA
 				}
 			}
 		}
-		if tab.IsAI && tab.AIProcessDone != nil {
-			close(tab.AIProcessDone)
+		if tab.IsAI {
+			tab.notifyAIDone()
 		}
 		c.Wait()
 	}()
@@ -1510,9 +1537,11 @@ func buildTabsPresence(pMap map[string]ViewersPresence) map[string][]string {
 }
 
 func buildBotViewers(pMap map[string]ViewersPresence) []string {
+	seen := make(map[string]bool)
 	bots := make([]string, 0)
 	for _, p := range pMap {
-		if p.IsBot {
+		if p.IsBot && !seen[p.ViewerName] {
+			seen[p.ViewerName] = true
 			bots = append(bots, p.ViewerName)
 		}
 	}

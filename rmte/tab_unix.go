@@ -9,13 +9,20 @@ import (
 	"os/exec"
 
 	"github.com/creack/pty"
-	"golang.org/x/term"
+	"golang.org/x/sys/unix"
 )
 
 func disablePTYEcho(f *os.File) {
-	if f != nil {
-		_, _ = term.MakeRaw(int(f.Fd()))
+	if f == nil {
+		return
 	}
+	termios, err := unix.IoctlGetTermios(int(f.Fd()), ioctlReadTermios)
+	if err != nil {
+		return
+	}
+	// Disable ECHO and ECHONL only, preserving ISIG (Ctrl+C / SIGINT), ICANON, and OPOST/ONLCR intact.
+	termios.Lflag &^= unix.ECHO | unix.ECHONL
+	_ = unix.IoctlSetTermios(int(f.Fd()), ioctlWriteTermios, termios)
 }
 
 func startPlatformTab(id byte, ws *SafeConn) (*TabSession, error) {

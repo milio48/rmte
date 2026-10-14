@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 )
@@ -167,5 +168,47 @@ func TestMCPToolCallMock(t *testing.T) {
 	}
 	if len(tResult.Content) == 0 || !strings.Contains(tResult.Content[0].Text, "Mock") {
 		t.Fatalf("expected mock result content, got: %+v", tResult)
+	}
+}
+
+func TestPerMessageLimitReader(t *testing.T) {
+	// 100 bytes limit per message
+	// Total input is 240 bytes across 3 messages (80 bytes each)
+	msg1 := strings.Repeat("A", 80)
+	msg2 := strings.Repeat("B", 80)
+	msg3 := strings.Repeat("C", 80)
+	input := msg1 + msg2 + msg3
+
+	r := strings.NewReader(input)
+	limiter := newPerMessageLimitReader(r, 100)
+
+	buf := make([]byte, len(msg1))
+	// Read msg1
+	n, err := io.ReadFull(limiter, buf)
+	if err != nil || n != len(msg1) {
+		t.Fatalf("msg1 read failed: n=%d err=%v", n, err)
+	}
+	limiter.Reset()
+
+	// Read msg2 (total read is now 160 bytes, which exceeds 100 limit, but resets per message!)
+	n, err = io.ReadFull(limiter, buf)
+	if err != nil || n != len(msg2) {
+		t.Fatalf("msg2 read failed: n=%d err=%v", n, err)
+	}
+	limiter.Reset()
+
+	// Read msg3 (total read is now 240 bytes)
+	n, err = io.ReadFull(limiter, buf)
+	if err != nil || n != len(msg3) {
+		t.Fatalf("msg3 read failed: n=%d err=%v", n, err)
+	}
+
+	// Test an oversized single message exceeding limit (150 bytes > 100 bytes limit)
+	bigMsg := strings.Repeat("X", 150)
+	bigLimiter := newPerMessageLimitReader(strings.NewReader(bigMsg), 100)
+	sink := make([]byte, 150)
+	_, err = io.ReadFull(bigLimiter, sink)
+	if err == nil {
+		t.Fatalf("expected error for oversized message, got nil")
 	}
 }
