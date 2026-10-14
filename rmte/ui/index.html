@@ -208,7 +208,7 @@
                                 <button class="preview-btn" id="preview-reload-btn" onclick="previewReload()" title="Reload"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>
                             </div>
                             <div class="preview-address-bar">
-                                <span class="preview-address-icon" title="Dev Preview: Shares session origin to support framework storage &amp; cookies. Only preview applications from hosts you trust."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+                                <span class="preview-address-icon" title="Dev Preview: Shares session origin for framework storage. Untrusted scripts running in preview can read active session credentials."><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
                                 <span class="preview-address-prefix">http://localhost:</span>
                                 <input type="number" id="preview-port-input" min="1" max="65535" placeholder="8080" onkeydown="handlePreviewPortKey(event)">
                                 <span class="preview-address-slash">/</span>
@@ -227,7 +227,7 @@
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ui-icon"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                             </span>
                             <div class="preview-security-content">
-                                <strong>Dev Preview:</strong> Shares session origin to support framework storage &amp; cookies. Only preview applications from hosts you trust.
+                                <strong>Dev Preview:</strong> Shares session origin for framework storage. Untrusted scripts running in preview can read active session credentials.
                             </div>
                             <button type="button" class="preview-security-close" onclick="dismissPreviewSecurityNotice()" title="Dismiss warning" aria-label="Dismiss warning">&times;</button>
                         </div>
