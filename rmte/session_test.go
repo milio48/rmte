@@ -1298,6 +1298,28 @@ func TestViewerConnectionUnlimitedWhenZero(t *testing.T) {
 			t.Fatalf("viewer %d expected auth_success with MaxViewers=0 (unlimited), got: %+v", i, vResp)
 		}
 	}
+
+	// Connect 4th connection from SAME viewer "user-1" (multi-tab scenario with MaxViewers=0)
+	vConnMulti, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("viewer multi-tab dial failed: %v", err)
+	}
+	defer vConnMulti.Close()
+
+	if err := vConnMulti.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "viewer",
+		"session_id":       "vzero",
+		"viewer_id":        "user-1",
+		"auth_token":       "vpass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("viewer multi-tab auth write failed: %v", err)
+	}
+	var vRespMulti map[string]interface{}
+	if err := vConnMulti.ReadJSON(&vRespMulti); err != nil || vRespMulti["type"] != "auth_success" {
+		t.Fatalf("viewer multi-tab expected auth_success with MaxViewers=0, got: %+v", vRespMulti)
+	}
 }
 
 
