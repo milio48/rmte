@@ -3345,9 +3345,12 @@ function previewReload() {
     const frame = document.getElementById('preview-frame');
     if (!frame) return;
     try {
-        frame.src = 'about:blank';
+        if (frame.contentWindow && frame.contentWindow.location) {
+            frame.contentWindow.location.reload();
+            return;
+        }
     } catch(e) {}
-    setTimeout(previewNavigate, 20);
+    previewNavigate();
 }
 
 async function previewOpenInNewTab() {

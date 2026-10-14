@@ -47,7 +47,7 @@ func TestWebHandlerSecurityHeaders(t *testing.T) {
 		"object-src 'none'",
 		"base-uri 'self'",
 		"form-action 'self'",
-		"frame-src 'self' about:",
+		"frame-src 'self' about: http: https: blob: data:",
 	}
 	for _, dir := range requiredDirectives {
 		if !strings.Contains(csp, dir) {
