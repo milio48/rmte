@@ -1299,6 +1299,9 @@
       <span class="brand-badge">v0.7.13</span>
     </a>
     <div class="nav-links">
+      <a href="mcp.html" class="nav-link" style="color: var(--accent-purple); font-weight: 600;">
+        🤖 AI &amp; MCP Guide
+      </a>
       <a href="https://github.com/milio48/rmte" target="_blank" rel="noopener" class="nav-link">
         GitHub
       </a>
@@ -1322,6 +1325,9 @@
       <div class="cta-group">
         <a href="#builder" class="btn-primary">
           ⚡ Command Builder
+        </a>
+        <a href="mcp.html" class="btn-secondary" style="border-color: rgba(188, 140, 255, 0.4); color: var(--accent-purple);">
+          🤖 AI Agent &amp; MCP Guide →
         </a>
         <a href="#workflow" class="btn-secondary">
           🔄 Architecture Flow
@@ -1566,8 +1572,8 @@
               <span style="font-size: 1.1rem;">👥</span>
             </div>
             <div class="node-title-group">
-              <h4>Web IDE & TUI Client</h4>
-              <div class="node-subtitle">Browser or Terminal Multiplexer</div>
+              <h4>Web IDE, TUI &amp; AI Clients</h4>
+              <div class="node-subtitle">Browser, Terminal TUI, or AI Agents (MCP)</div>
             </div>
             <div class="node-subcard">
               <div class="node-subcard-title">🌐 Web Browser (Web IDE)</div>
@@ -1578,6 +1584,10 @@
               <div class="node-subcard-title">💻 Terminal Client (TUI)</div>
               <p>Join directly from any command line via <code>rmte join</code>. Connects through interactive CLI
                 multiplexer with zero browser overhead.</p>
+            </div>
+            <div class="node-subcard" style="margin-top: 6px; border-color: rgba(188, 140, 255, 0.35); background: rgba(188, 140, 255, 0.05);">
+              <div class="node-subcard-title" style="color: var(--accent-purple);">🤖 AI Agents &amp; Headless CLI</div>
+              <p>Connect Claude Desktop, Cursor, Antigravity, or CI/CD automation via <code>rmte mcp</code> and <code>rmte exec</code> over E2EE into isolated <code>[AI]</code> tabs with read-only spectator protection.</p>
             </div>
           </div>
         </div>
@@ -1638,6 +1648,8 @@
                 <th><code>serve --mode=relay</code></th>
                 <th><code>rmte share</code> / <code>./rmte</code></th>
                 <th><code>rmte join</code></th>
+                <th><code>rmte exec</code></th>
+                <th><code>rmte mcp</code></th>
               </tr>
             </thead>
             <tbody>
@@ -1648,6 +1660,8 @@
                 <td>Dedicated Relay Only</td>
                 <td>Outbound Host</td>
                 <td>Client (TUI)</td>
+                <td>Client (Headless Exec)</td>
+                <td>Client (AI MCP Server)</td>
               </tr>
               <tr>
                 <td><strong>Opens Listening Port</strong></td>
@@ -1655,6 +1669,8 @@
                 <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span> (8048)</td>
                 <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span> (8048)</td>
                 <td><span style="color: #f85149; font-weight: 600;">❌ No</span> (Outbound)</td>
+                <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
+                <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
                 <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
               </tr>
               <tr>
@@ -1664,12 +1680,16 @@
                 <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
                 <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
                 <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
+                <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
+                <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
               </tr>
               <tr>
                 <td><strong>Accepts External Hosts</strong></td>
                 <td><span style="color: #f85149; font-weight: 600;">❌ No</span> (Rejected)</td>
                 <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
                 <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
+                <td>—</td>
+                <td>—</td>
                 <td>—</td>
                 <td>—</td>
               </tr>
@@ -1680,13 +1700,17 @@
                 <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
                 <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
                 <td>—</td>
+                <td>—</td>
+                <td>—</td>
               </tr>
               <tr>
                 <td><strong>Supported Flags</strong></td>
-                <td><code>--port</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>-q</code>, <code>--admin-pass</code>, <code>--admin-path</code></td>
-                <td><code>--port</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--public</code>, <code>--web-preview</code>, <code>-q</code>, <code>--admin-pass</code>, <code>--admin-path</code></td>
+                <td><code>--port</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code>, <code>--admin-pass</code></td>
+                <td><code>--port</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--public</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code></td>
                 <td><code>--port</code>, <code>--public</code>, <code>--admin-pass</code>, <code>--admin-path</code>, <code>--public-url</code>, <code>--web-path</code>, <code>--ws-path</code>, <code>-q</code></td>
-                <td><code>--server-relay</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>-q</code></td>
+                <td><code>--server-relay</code>, <code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code></td>
+                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--name</code></td>
+                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--timeout</code>, <code>--bg</code>, <code>--tab-name</code>, <code>--name</code></td>
                 <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--name</code></td>
               </tr>
             </tbody>
@@ -1880,6 +1904,57 @@
             </div>
             <p>Launches a central relay hub with real-time web administration at <code>/admin</code>. Monitor active sessions, live bandwidth (TX/RX), terminate rogue connections, and ban malicious IPs.</p>
           </div>
+
+          <!-- Item 11: Host with AI Remote Execution -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>🤖</span> AI Execution Host</h4>
+              <span class="cli-tag tag-public" style="background: rgba(188, 140, 255, 0.15); color: var(--accent-purple); border-color: rgba(188, 140, 255, 0.3);">AI Host</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('./rmte share --allow-exec -q', this)">Copy</button>
+              </div>
+              <code>./rmte share --allow-exec -q</code>
+            </div>
+            <p>Authorizes remote command execution by AI agents (MCP) and headless CLI scripts. Spawns an isolated <code>[AI]</code> spectator tab with full human read-only protection in the Web IDE.</p>
+          </div>
+
+          <!-- Item 12: Headless Remote Execution -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>⚡</span> Headless Remote Execution</h4>
+              <span class="cli-tag tag-client">rmte exec</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('./rmte exec --id=&quot;mysession&quot; --pass=&quot;secret123&quot; -- &quot;uptime&quot;', this)">Copy</button>
+              </div>
+              <code>./rmte exec --id="mysession" --pass="secret123" -- "uptime"</code>
+            </div>
+            <p>Executes commands remotely over E2EE relay from bash scripts or CI/CD pipelines. Streams output synchronously and exits with the exact remote status code. Supports <code>--bg</code> and <code>--tab-name</code>.</p>
+          </div>
+
+          <!-- Item 13: Model Context Protocol (MCP) -->
+          <div class="cli-item">
+            <div class="cli-item-header">
+              <h4><span>🔌</span> Model Context Protocol (MCP)</h4>
+              <span class="cli-tag tag-client" style="background: rgba(57, 197, 207, 0.15); color: var(--accent-cyan); border-color: rgba(57, 197, 207, 0.3);">rmte mcp</span>
+            </div>
+            <div class="cli-snippet">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span class="param-label" style="font-size:0.68rem;">COMMAND</span>
+                <button class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;"
+                  onclick="copySnippet('rmte mcp --id=&quot;mysession&quot; --pass=&quot;secret123&quot;', this)">Copy</button>
+              </div>
+              <code>rmte mcp --id="mysession" --pass="secret123"</code>
+            </div>
+            <p>Stdio JSON-RPC MCP server connecting Claude Desktop, Cursor, or Antigravity to remote workspaces. Exposes 7 tools: <code>rmte_exec</code>, file read/write, uploads/downloads, and info.</p>
+          </div>
         </div>
       </div>
 
@@ -1939,9 +2014,19 @@
                   <td>Embedded Web Browser Preview reverse proxy. Tunnel local web dev ports (e.g. <code>3000</code>, <code>8080</code>) through encrypted tab.</td>
                 </tr>
                 <tr>
+                  <td><code>--allow-exec</code>, <code>--enable-ai</code></td>
+                  <td><code>false</code></td>
+                  <td>Explicitly allow remote command execution via AI Agent MCP or headless CLI exec. Spawns an isolated <code>[AI]</code> spectator tab in Web IDE.</td>
+                </tr>
+                <tr>
                   <td><code>-q</code>, <code>--quiet</code></td>
                   <td><code>false</code></td>
                   <td>Detach into a background daemon immediately after printing connection URLs and process PID.</td>
+                </tr>
+                <tr>
+                  <td><code>--insecure</code>, <code>--skip-tls-verify</code></td>
+                  <td><code>false</code></td>
+                  <td>Skip TLS certificate verification for custom/self-signed relay domains.</td>
                 </tr>
               </tbody>
             </table>
@@ -2039,9 +2124,19 @@
                   <td>Soft restriction rejecting incoming connections originating from CLI / TUI clients.</td>
                 </tr>
                 <tr>
+                  <td><code>--allow-exec</code>, <code>--enable-ai</code></td>
+                  <td><code>false</code></td>
+                  <td>Allow remote command execution via MCP or CLI exec on local host session. <em>(Ignored in <code>relay</code> mode)</em>.</td>
+                </tr>
+                <tr>
                   <td><code>-q</code>, <code>--quiet</code></td>
                   <td><code>false</code></td>
                   <td>Run detached in background daemon mode and print process PID.</td>
+                </tr>
+                <tr>
+                  <td><code>--insecure</code>, <code>--skip-tls-verify</code></td>
+                  <td><code>false</code></td>
+                  <td>Skip TLS certificate verification (process-wide).</td>
                 </tr>
               </tbody>
             </table>
@@ -2082,6 +2177,116 @@
                   <td><code>--name</code></td>
                   <td><em>Interactive Prompt</em></td>
                   <td>Display name of the viewer in the collaborative terminal presence and chat.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="margin-top: 28px;">
+          <h4 style="font-size: 0.95rem; font-weight: 700; color: #39c5cf; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
+            <span>⚡</span> <code>rmte exec</code> (Headless Remote CLI Execution)
+          </h4>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Executes a shell command remotely over E2EE relay and streams the output directly to your local terminal with exact exit status code propagation.</p>
+          <div class="table-container">
+            <table class="cheat-table">
+              <thead>
+                <tr>
+                  <th style="width: 28%;">Flag & Aliases</th>
+                  <th style="width: 24%;">Default Value</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>--server-relay</code>, <code>--server</code></td>
+                  <td><code>wss://my.rmte.biz.id/ws-rmte</code></td>
+                  <td>Relay server WebSocket URL.</td>
+                </tr>
+                <tr>
+                  <td><code>--id</code></td>
+                  <td><em>Required</em></td>
+                  <td>Target host Session ID to execute command on.</td>
+                </tr>
+                <tr>
+                  <td><code>--pass</code>, <code>--password</code></td>
+                  <td><em>Required</em></td>
+                  <td>Shared E2EE password for session decryption.</td>
+                </tr>
+                <tr>
+                  <td><code>--timeout</code></td>
+                  <td><code>60</code> (seconds)</td>
+                  <td>Execution timeout limit. Process is cleanly reaped and terminated if exceeded.</td>
+                </tr>
+                <tr>
+                  <td><code>--bg</code>, <code>--background</code></td>
+                  <td><code>false</code></td>
+                  <td>Run command asynchronously in a dedicated background tab rather than the shared <code>[AI]</code> tab.</td>
+                </tr>
+                <tr>
+                  <td><code>--tab-name</code>, <code>--name-tab</code></td>
+                  <td><em>Empty</em></td>
+                  <td>Custom display title for the background tab (e.g. <code>--tab-name="DevServer"</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>--name</code></td>
+                  <td><code>rmte-exec</code></td>
+                  <td>Client display name shown in Web IDE presence badge.</td>
+                </tr>
+                <tr>
+                  <td><code>--insecure</code>, <code>--skip-tls-verify</code></td>
+                  <td><code>false</code></td>
+                  <td>Skip TLS certificate verification for self-signed relay setups.</td>
+                </tr>
+                <tr>
+                  <td><code>-- &lt;command&gt;</code></td>
+                  <td><em>Required</em></td>
+                  <td>Positional arguments after double-dash representing the full command string to execute.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="margin-top: 28px;">
+          <h4 style="font-size: 0.95rem; font-weight: 700; color: #bc8cff; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
+            <span>🤖</span> <code>rmte mcp</code> (Model Context Protocol AI Server)
+          </h4>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Launches a standard stdio JSON-RPC 2.0 MCP server enabling AI coding assistants (Claude Desktop, Cursor, Antigravity) to control remote host workspaces.</p>
+          <div class="table-container">
+            <table class="cheat-table">
+              <thead>
+                <tr>
+                  <th style="width: 28%;">Flag & Aliases</th>
+                  <th style="width: 24%;">Default Value</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>--server-relay</code>, <code>--server</code></td>
+                  <td><code>wss://my.rmte.biz.id/ws-rmte</code></td>
+                  <td>Relay server WebSocket URL.</td>
+                </tr>
+                <tr>
+                  <td><code>--id</code></td>
+                  <td><em>Required</em></td>
+                  <td>Target host Session ID to connect AI assistant to.</td>
+                </tr>
+                <tr>
+                  <td><code>--pass</code>, <code>--password</code></td>
+                  <td><em>Required</em></td>
+                  <td>Shared E2EE password for session decryption.</td>
+                </tr>
+                <tr>
+                  <td><code>--name</code></td>
+                  <td><code>Claude-MCP</code></td>
+                  <td>Bot display name shown in Web IDE presence badge (e.g. <code>[AI] Claude-MCP</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>--insecure</code>, <code>--skip-tls-verify</code></td>
+                  <td><code>false</code></td>
+                  <td>Skip TLS certificate verification for self-signed relay setups.</td>
                 </tr>
               </tbody>
             </table>
@@ -2202,6 +2407,11 @@
       adminPass: '',
       adminPath: '/admin',
       webPreview: false,
+      allowExec: false,
+      execCmd: 'uname -a',
+      execBg: false,
+      execTabName: '',
+      execTimeout: '60',
       quiet: false,
       publicBind: true,
       updateCheck: false,
@@ -2237,6 +2447,8 @@
       public: [
         { id: 'share', label: '🚀 Share Terminal (rmte)', desc: 'Share terminal & Web IDE to public relay with zero-config or custom flags' },
         { id: 'join', label: '👥 Join Session (rmte join)', desc: 'Connect to a live terminal host from interactive TUI client' },
+        { id: 'exec', label: '⚡ Headless Exec (rmte exec)', desc: 'Execute remote commands synchronously over E2EE with exact exit code' },
+        { id: 'mcp', label: '🤖 AI Agent MCP (rmte mcp)', desc: 'Start Model Context Protocol server for Claude Desktop, Cursor, or Antigravity' },
         { id: 'stop', label: '🛑 Stop Daemon (rmte stop)', desc: 'Cleanly terminate a running detached session by ID or PID' },
         { id: 'update', label: '🔄 In-Place Update (rmte update)', desc: 'Update rmte binary directly from official GitHub releases' }
       ],
@@ -2246,8 +2458,10 @@
         { id: 'relay-only', label: '🌐 Dedicated Relay Hub', desc: 'Priority 3 (Case 2): Central relay router without local terminal' },
         { id: 'hybrid', label: '🔄 Hybrid Server', desc: 'Priority 4: Relay server running local host and accepting external hosts' },
         { id: 'join-self', label: '👥 Client Join (TUI)', desc: 'Priority 5: Connect to a private session via interactive terminal client' },
-        { id: 'stop', label: '🛑 Stop Daemon (rmte stop)', desc: 'Priority 6: Cleanly terminate a running detached server or host' },
-        { id: 'update', label: '🔄 In-Place Update (rmte update)', desc: 'Priority 7: Update binary directly from GitHub releases' }
+        { id: 'exec-self', label: '⚡ Headless Exec (Private)', desc: 'Priority 6: Run headless commands against a private relay host' },
+        { id: 'mcp-self', label: '🤖 AI Agent MCP (Private)', desc: 'Priority 7: Run MCP stdio server against a private relay host' },
+        { id: 'stop', label: '🛑 Stop Daemon (rmte stop)', desc: 'Priority 8: Cleanly terminate a running detached server or host' },
+        { id: 'update', label: '🔄 In-Place Update (rmte update)', desc: 'Priority 9: Update binary directly from GitHub releases' }
       ]
     };
 
@@ -2521,6 +2735,10 @@
                 Enable Embedded Browser Preview (--web-preview)
               </label>
               <label class="checkbox-label">
+                <input type="checkbox" ${state.allowExec ? 'checked' : ''} onchange="updateParam('allowExec', this.checked)">
+                Allow remote AI &amp; CLI execution (--allow-exec)
+              </label>
+              <label class="checkbox-label">
                 <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
                 Run detached in background daemon (-q)
               </label>
@@ -2546,6 +2764,64 @@
             <div class="param-field">
               <label class="param-label">Viewer Display Name (--name)</label>
               <input type="text" class="param-input" placeholder="Optional display name" value="${escapeAttr(state.name)}" oninput="updateParam('name', this.value)">
+            </div>
+          `;
+          return;
+        } else if (act === 'exec') {
+          container.innerHTML = `
+            <div class="param-field" style="grid-column: 1 / -1;">
+              <label class="param-label">Remote Command to Execute (Positional Args)</label>
+              <input type="text" class="param-input" placeholder="e.g. uname -a" value="${escapeAttr(state.execCmd)}" oninput="updateParam('execCmd', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Target Session ID (--id)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regenerateSessionId()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Required session ID" value="${escapeAttr(state.sessionId)}" oninput="updateParam('sessionId', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Session Password (--pass)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regeneratePassword()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Required E2EE password" value="${escapeAttr(state.password)}" oninput="updateParam('password', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Execution Timeout (--timeout in sec)</label>
+              <input type="number" class="param-input" placeholder="60" value="${escapeAttr(state.execTimeout)}" oninput="updateParam('execTimeout', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Background Tab Title (--tab-name)</label>
+              <input type="text" class="param-input" placeholder="Optional background tab name" value="${escapeAttr(state.execTabName)}" oninput="updateParam('execTabName', this.value)">
+            </div>
+            <div class="param-checkboxes">
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.execBg ? 'checked' : ''} onchange="updateParam('execBg', this.checked)">
+                Run asynchronously in background tab (--bg)
+              </label>
+            </div>
+          `;
+          return;
+        } else if (act === 'mcp') {
+          container.innerHTML = `
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Target Session ID (--id)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regenerateSessionId()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Required session ID" value="${escapeAttr(state.sessionId)}" oninput="updateParam('sessionId', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Session Password (--pass)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regeneratePassword()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Required E2EE password" value="${escapeAttr(state.password)}" oninput="updateParam('password', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">AI Bot Display Name (--name)</label>
+              <input type="text" class="param-input" placeholder="Claude-MCP" value="${escapeAttr(state.name)}" oninput="updateParam('name', this.value)">
             </div>
           `;
           return;
@@ -2595,6 +2871,10 @@
                 Enable Embedded Browser Preview (--web-preview)
               </label>
               <label class="checkbox-label">
+                <input type="checkbox" ${state.allowExec ? 'checked' : ''} onchange="updateParam('allowExec', this.checked)">
+                Allow remote AI &amp; CLI execution (--allow-exec)
+              </label>
+              <label class="checkbox-label">
                 <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
                 Run detached in background (-q)
               </label>
@@ -2633,6 +2913,10 @@
               <label class="checkbox-label">
                 <input type="checkbox" ${state.webPreview ? 'checked' : ''} onchange="updateParam('webPreview', this.checked)">
                 Enable Embedded Browser Preview (--web-preview)
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.allowExec ? 'checked' : ''} onchange="updateParam('allowExec', this.checked)">
+                Allow remote AI &amp; CLI execution (--allow-exec)
               </label>
               <label class="checkbox-label">
                 <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
@@ -2706,6 +2990,10 @@
                 Enable Embedded Browser Preview (--web-preview)
               </label>
               <label class="checkbox-label">
+                <input type="checkbox" ${state.allowExec ? 'checked' : ''} onchange="updateParam('allowExec', this.checked)">
+                Allow remote AI &amp; CLI execution (--allow-exec)
+              </label>
+              <label class="checkbox-label">
                 <input type="checkbox" ${state.quiet ? 'checked' : ''} onchange="updateParam('quiet', this.checked)">
                 Run detached in background daemon (-q)
               </label>
@@ -2735,6 +3023,72 @@
             <div class="param-field">
               <label class="param-label">Viewer Display Name (--name)</label>
               <input type="text" class="param-input" placeholder="Optional" value="${escapeAttr(state.name)}" oninput="updateParam('name', this.value)">
+            </div>
+          `;
+          return;
+        } else if (act === 'exec-self') {
+          container.innerHTML = `
+            <div class="param-field" style="grid-column: 1 / -1;">
+              <label class="param-label">Private Relay WebSocket URL (--server-relay)</label>
+              <input type="text" class="param-input" placeholder="ws://relay.example.com:8048/ws-rmte" value="${escapeAttr(state.relayUrl)}" oninput="updateParam('relayUrl', this.value)">
+            </div>
+            <div class="param-field" style="grid-column: 1 / -1;">
+              <label class="param-label">Remote Command to Execute (Positional Args)</label>
+              <input type="text" class="param-input" placeholder="e.g. uname -a" value="${escapeAttr(state.execCmd)}" oninput="updateParam('execCmd', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Target Session ID (--id)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regenerateSessionId()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Required session ID" value="${escapeAttr(state.sessionId)}" oninput="updateParam('sessionId', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Session Password (--pass)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regeneratePassword()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Required E2EE password" value="${escapeAttr(state.password)}" oninput="updateParam('password', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Execution Timeout (--timeout in sec)</label>
+              <input type="number" class="param-input" placeholder="60" value="${escapeAttr(state.execTimeout)}" oninput="updateParam('execTimeout', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">Background Tab Title (--tab-name)</label>
+              <input type="text" class="param-input" placeholder="Optional background tab name" value="${escapeAttr(state.execTabName)}" oninput="updateParam('execTabName', this.value)">
+            </div>
+            <div class="param-checkboxes">
+              <label class="checkbox-label">
+                <input type="checkbox" ${state.execBg ? 'checked' : ''} onchange="updateParam('execBg', this.checked)">
+                Run asynchronously in background tab (--bg)
+              </label>
+            </div>
+          `;
+          return;
+        } else if (act === 'mcp-self') {
+          container.innerHTML = `
+            <div class="param-field" style="grid-column: 1 / -1;">
+              <label class="param-label">Private Relay WebSocket URL (--server-relay)</label>
+              <input type="text" class="param-input" placeholder="ws://relay.example.com:8048/ws-rmte" value="${escapeAttr(state.relayUrl)}" oninput="updateParam('relayUrl', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Target Session ID (--id)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regenerateSessionId()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Required session ID" value="${escapeAttr(state.sessionId)}" oninput="updateParam('sessionId', this.value)">
+            </div>
+            <div class="param-field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="param-label">Session Password (--pass)</label>
+                <button type="button" class="df-copy-btn" style="padding:2px 8px; font-size:0.7rem;" onclick="regeneratePassword()">🎲 Re-roll</button>
+              </div>
+              <input type="text" class="param-input" placeholder="Required E2EE password" value="${escapeAttr(state.password)}" oninput="updateParam('password', this.value)">
+            </div>
+            <div class="param-field">
+              <label class="param-label">AI Bot Display Name (--name)</label>
+              <input type="text" class="param-input" placeholder="Claude-MCP" value="${escapeAttr(state.name)}" oninput="updateParam('name', this.value)">
             </div>
           `;
           return;
@@ -2803,12 +3157,29 @@
           if (state.dir) cmd += ` --dir="${state.dir}"`;
           if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
           if (state.webPreview) cmd += ' --web-preview';
+          if (state.allowExec) cmd += ' --allow-exec';
           if (state.quiet) cmd += ' -q';
           return cmd;
         } else if (act === 'join') {
           const sId = state.sessionId || 'a1b2c3d4';
           const sPass = state.password || 'secret123';
           let cmd = `${bin} join --id="${sId}" --pass="${sPass}"`;
+          if (state.name) cmd += ` --name="${state.name}"`;
+          return cmd;
+        } else if (act === 'exec') {
+          const sId = state.sessionId || 'a1b2c3d4';
+          const sPass = state.password || 'secret123';
+          let cmd = `${bin} exec --id="${sId}" --pass="${sPass}"`;
+          if (state.execTimeout && state.execTimeout !== '60') cmd += ` --timeout=${state.execTimeout}`;
+          if (state.execBg) cmd += ' --bg';
+          if (state.execTabName) cmd += ` --tab-name="${state.execTabName}"`;
+          const cmdStr = state.execCmd || 'uname -a';
+          cmd += ` -- "${cmdStr}"`;
+          return cmd;
+        } else if (act === 'mcp') {
+          const sId = state.sessionId || 'a1b2c3d4';
+          const sPass = state.password || 'secret123';
+          let cmd = `${bin} mcp --id="${sId}" --pass="${sPass}"`;
           if (state.name) cmd += ` --name="${state.name}"`;
           return cmd;
         } else if (act === 'stop') {
@@ -2826,6 +3197,7 @@
           if (state.dir) cmd += ` --dir="${state.dir}"`;
           if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
           if (state.webPreview) cmd += ' --web-preview';
+          if (state.allowExec) cmd += ' --allow-exec';
           if (state.adminPass) {
             cmd += ` --admin-pass="${state.adminPass}"`;
             if (state.adminPath && state.adminPath !== '/admin') cmd += ` --admin-path="${state.adminPath}"`;
@@ -2840,6 +3212,7 @@
           if (state.dir) cmd += ` --dir="${state.dir}"`;
           if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
           if (state.webPreview) cmd += ' --web-preview';
+          if (state.allowExec) cmd += ' --allow-exec';
           if (state.quiet) cmd += ' -q';
           return cmd;
         } else if (act === 'relay-only') {
@@ -2861,6 +3234,7 @@
           if (state.dir) cmd += ` --dir="${state.dir}"`;
           if (state.buffer && state.buffer !== '1') cmd += ` --buffer=${state.buffer}`;
           if (state.webPreview) cmd += ' --web-preview';
+          if (state.allowExec) cmd += ' --allow-exec';
           if (state.adminPass) {
             cmd += ` --admin-pass="${state.adminPass}"`;
             if (state.adminPath && state.adminPath !== '/admin') cmd += ` --admin-path="${state.adminPath}"`;
@@ -2872,6 +3246,24 @@
           const sId = state.sessionId || 'mysession';
           const sPass = state.password || 'secret123';
           let cmd = `${bin} join --server-relay="${url}" --id="${sId}" --pass="${sPass}"`;
+          if (state.name) cmd += ` --name="${state.name}"`;
+          return cmd;
+        } else if (act === 'exec-self') {
+          const url = state.relayUrl || 'ws://relay.example.com:8048/ws-rmte';
+          const sId = state.sessionId || 'mysession';
+          const sPass = state.password || 'secret123';
+          let cmd = `${bin} exec --server-relay="${url}" --id="${sId}" --pass="${sPass}"`;
+          if (state.execTimeout && state.execTimeout !== '60') cmd += ` --timeout=${state.execTimeout}`;
+          if (state.execBg) cmd += ' --bg';
+          if (state.execTabName) cmd += ` --tab-name="${state.execTabName}"`;
+          const cmdStr = state.execCmd || 'uname -a';
+          cmd += ` -- "${cmdStr}"`;
+          return cmd;
+        } else if (act === 'mcp-self') {
+          const url = state.relayUrl || 'ws://relay.example.com:8048/ws-rmte';
+          const sId = state.sessionId || 'mysession';
+          const sPass = state.password || 'secret123';
+          let cmd = `${bin} mcp --server-relay="${url}" --id="${sId}" --pass="${sPass}"`;
           if (state.name) cmd += ` --name="${state.name}"`;
           return cmd;
         } else if (act === 'stop') {
@@ -2937,6 +3329,10 @@
             html = '🚀 <strong>Share Terminal Workspace:</strong> Shares your local terminal shell and embedded Web IDE to public relay <code>my.rmte.biz.id</code>. You can customize the Session ID, Password, and flags below, or clear them for zero-config defaults.';
           } else if (act === 'join') {
             html = '👥 <strong>Interactive TUI Client:</strong> Connects to a host session on <code>my.rmte.biz.id</code> using the built-in RMTE client multiplexer. Automatically connects to the public relay by default without needing <code>--server-relay</code>.';
+          } else if (act === 'exec') {
+            html = '⚡ <strong>Headless Remote CLI Exec:</strong> Executes remote shell commands synchronously over E2EE relay and exits with the exact status code. Use in bash scripts, CI/CD pipelines, or with <code>--bg</code> for persistent services.';
+          } else if (act === 'mcp') {
+            html = '🤖 <strong>Model Context Protocol Gateway:</strong> Runs an MCP stdio server. Configure this in Claude Desktop (<code>claude_desktop_config.json</code>) or Cursor to grant your AI coding assistant full access to remote files and terminals! <a href="mcp.html" style="color:var(--accent); text-decoration:underline;">View MCP Guide →</a>';
           } else if (act === 'stop') {
             html = '🛑 <strong>Terminate Background Daemon:</strong> Cleanly stops a running detached background process (<code>-q</code>) and purges session lockfiles.';
           }
@@ -2952,6 +3348,10 @@
             html = '🔄 <strong>Hybrid Relay & Host:</strong> Serves a local host workspace while simultaneously acting as a central relay accepting external <code>rmte share</code> connections.';
           } else if (act === 'join-self') {
             html = '👥 <strong>Private TUI Join:</strong> Connects from a terminal client to a session hosted on your private relay server.';
+          } else if (act === 'exec-self') {
+            html = '⚡ <strong>Private Headless Exec:</strong> Runs remote commands against a host connected to your private self-hosted relay server.';
+          } else if (act === 'mcp-self') {
+            html = '🤖 <strong>Private AI Agent MCP:</strong> Connects Claude Desktop or Cursor to a private host on your self-hosted relay server. <a href="mcp.html" style="color:var(--accent); text-decoration:underline;">View MCP Guide →</a>';
           } else if (act === 'stop') {
             html = '🛑 <strong>Terminate Background Daemon:</strong> Cleanly stops a running detached background process (<code>-q</code>) on your server.';
           }

@@ -354,6 +354,8 @@ Add a new stdio MCP server:
 * `rmte_list_files`: List directory contents on the remote host.
 * `rmte_get_info`: Inspect remote host environment metadata (OS, architecture, hostname, working directory, PID, active tabs).
 
+> 📖 **Complete Documentation & Config Generator:** For a deep dive into security sandboxing, persistent vs background AI tabs, and interactive configuration generation for Claude Desktop and Cursor, see the **[RMTE AI & MCP Guide](https://rmte.biz.id/mcp.html)** (or [`docs/mcp.html`](docs/mcp.html)).
+
 ### 🛡️ Relay Admin Dashboard
 Self-hosting your own relay server (`standalone`, `hybrid`, or `relay`)? You can enable the real-time web administration dashboard by specifying `--admin-pass`:
 ```bash
