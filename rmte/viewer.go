@@ -236,6 +236,10 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 		"type":   "control",
 		"action": "get_tabs",
 	})
+	_ = vc.WriteJSON(map[string]interface{}{
+		"type":   "control",
+		"action": "get_chat_history",
+	})
 
 	var currentTab atomic.Uint32
 	currentTab.Store(0)
@@ -330,6 +334,10 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 						"type":   "control",
 						"action": "get_tabs",
 					})
+					_ = vc.WriteJSON(map[string]interface{}{
+						"type":   "control",
+						"action": "get_chat_history",
+					})
 					inChatModeMu.RLock()
 					chatting := inChatMode
 					inChatModeMu.RUnlock()
@@ -374,7 +382,27 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 				if err := json.Unmarshal(data, &ctrl); err == nil {
 					if ctrl.Action == "chat_history" {
 						chatHistoryMu.Lock()
-						chatHistory = ctrl.History
+						if len(chatHistory) == 0 {
+							chatHistory = ctrl.History
+						} else {
+							seen := make(map[string]bool)
+							var merged []map[string]interface{}
+							for _, m := range ctrl.History {
+								key := fmt.Sprintf("%v|%v|%v", m["time"], m["sender"], m["message"])
+								if !seen[key] {
+									seen[key] = true
+									merged = append(merged, m)
+								}
+							}
+							for _, m := range chatHistory {
+								key := fmt.Sprintf("%v|%v|%v", m["time"], m["sender"], m["message"])
+								if !seen[key] {
+									seen[key] = true
+									merged = append(merged, m)
+								}
+							}
+							chatHistory = merged
+						}
 						chatHistoryMu.Unlock()
 					} else if ctrl.Action == "chat" {
 						chatHistoryMu.Lock()
@@ -577,6 +605,13 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 			fmt.Println("\n=======================================================")
 			fmt.Println("   RMTE CHAT ROOM - Press Enter empty or type /exit to leave")
 			fmt.Println("=======================================================")
+
+			// Request fresh chat history from host
+			_ = vc.WriteJSON(map[string]interface{}{
+				"type":   "control",
+				"action": "get_chat_history",
+			})
+			time.Sleep(50 * time.Millisecond)
 
 			// Show past history
 			chatHistoryMu.Lock()

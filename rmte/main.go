@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -209,7 +210,7 @@ func main() {
 	case "serve":
 		cmdServe()
 	case "share":
-		runShare(os.Args)
+		runShare(os.Args[1:])
 	case "join":
 		cmdJoin()
 	case "exec":
@@ -424,8 +425,12 @@ func cmdServe() {
 	runServeAndShare(&cfg)
 }
 
-func runShare(args []string) {
-	fs := flag.NewFlagSet("share", flag.ExitOnError)
+func parseShareOptions(args []string) (HostOptions, error) {
+	if len(args) > 0 && args[0] == "share" {
+		args = args[1:]
+	}
+	fs := flag.NewFlagSet("share", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
 	server := fs.String("server-relay", defaultPublicRelay, "Relay server WebSocket URL")
 	serverAlias := fs.String("server", "", "Alias for --server-relay")
 	pass := fs.String("pass", "", "Password for E2EE (random if empty)")
@@ -446,15 +451,9 @@ func runShare(args []string) {
 	skipTLS := fs.Bool("skip-tls-verify", false, "Alias for --insecure")
 
 	if len(args) > 0 {
-		_ = fs.Parse(args)
-	}
-
-	if *insecure || *skipTLS {
-		setupTLSConfig(true)
-	}
-
-	if (*quiet || *q) && !isDaemonChild() {
-		runAsDaemon()
+		if err := fs.Parse(args); err != nil {
+			return HostOptions{}, err
+		}
 	}
 
 	relayURL := *server
@@ -481,12 +480,12 @@ func runShare(args []string) {
 
 	resolvedPass, passSource, err := resolveCredential(chosenPass, passSet, *passFile, "RMTE_PASS", "")
 	if err != nil {
-		fatalf("Error resolving session password: %v", err)
+		return HostOptions{}, fmt.Errorf("error resolving session password: %w", err)
 	}
 
 	resolvedID, _, err := resolveCredential(*id, idSet, "", "RMTE_ID", "")
 	if err != nil {
-		fatalf("Error resolving session ID: %v", err)
+		return HostOptions{}, fmt.Errorf("error resolving session ID: %w", err)
 	}
 
 	resolvedServer, _, _ := resolveCredential(relayURL, serverSet, "", "RMTE_SERVER_RELAY", defaultPublicRelay)
@@ -498,14 +497,14 @@ func runShare(args []string) {
 	relayURL = resolvedServer
 
 	if *bufferMB < 1 {
-		fatalf("Error: --buffer must be >= 1")
+		return HostOptions{}, fmt.Errorf("--buffer must be >= 1")
 	}
 
 	var cleanID string
 	if resolvedID != "" {
 		cleanID = strings.ToLower(strings.TrimSpace(resolvedID))
 		if err := validateSessionID(cleanID); err != nil {
-			fatalf("Error: invalid --id: %v", err)
+			return HostOptions{}, fmt.Errorf("invalid --id: %w", err)
 		}
 	}
 
@@ -513,11 +512,11 @@ func runShare(args []string) {
 	if *dir != "" {
 		absDir, err := filepath.Abs(*dir)
 		if err != nil {
-			fatalf("Error: invalid --dir=%q: %v", *dir, err)
+			return HostOptions{}, fmt.Errorf("invalid --dir=%q: %w", *dir, err)
 		}
 		st, err := os.Stat(absDir)
 		if err != nil || !st.IsDir() {
-			fatalf("Error: --dir=%q does not exist or is not a directory", *dir)
+			return HostOptions{}, fmt.Errorf("--dir=%q does not exist or is not a directory", *dir)
 		}
 		cleanDir = filepath.ToSlash(absDir)
 	}
@@ -534,12 +533,29 @@ func runShare(args []string) {
 		Preview:    *webPreview && *preview,
 		AllowExec:  *allowExec || *enableAI,
 		Sandbox:    *sandbox || *dirOnly,
+		Insecure:   *insecure || *skipTLS,
+		Quiet:      *quiet || *q,
 	}
 	if opts.Pass == "" {
 		opts.Pass = generatePassword(12)
 		opts.PassGenerated = true
 		opts.PassSource = CredSourceDefault
-	} else if opts.PassSource == CredSourceEnv {
+	}
+	return opts, nil
+}
+
+func runShare(args []string) {
+	opts, err := parseShareOptions(args)
+	if err != nil {
+		fatalf("Error: %v", err)
+	}
+	if opts.Insecure {
+		setupTLSConfig(true)
+	}
+	if opts.Quiet && !isDaemonChild() {
+		runAsDaemon()
+	}
+	if opts.PassSource == CredSourceEnv {
 		fmt.Printf("⚠️  [Auth] Using pre-set password from RMTE_PASS environment variable (NOT random).\n")
 	}
 	runHost(opts)

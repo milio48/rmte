@@ -216,11 +216,6 @@ func TestServerAllowsHostReconnectWithSameAuthToken(t *testing.T) {
 	if err := viewerConn.ReadJSON(&viewerResp); err != nil || viewerResp["type"] != "auth_success" {
 		t.Fatalf("viewer auth failed: %v, resp: %+v", err, viewerResp)
 	}
-	// Read chat_history initial message
-	var chatHistMsg map[string]interface{}
-	if err := viewerConn.ReadJSON(&chatHistMsg); err != nil {
-		t.Fatalf("viewer read chat history failed: %v", err)
-	}
 
 	// Viewer sends a chat message
 	testChat := map[string]interface{}{
@@ -251,13 +246,10 @@ func TestServerAllowsHostReconnectWithSameAuthToken(t *testing.T) {
 
 	// 5. Verify that session "rcbox" STILL EXISTS on the relay (grace period active)
 	sessionMu.RLock()
-	activeSess, sessExists := sessions["rcbox"]
+	_, sessExists := sessions["rcbox"]
 	sessionMu.RUnlock()
 	if !sessExists {
 		t.Fatalf("session rcbox was destroyed immediately instead of entering grace period!")
-	}
-	if len(activeSess.ChatHistory) == 0 {
-		t.Fatalf("expected chat history to be preserved in session")
 	}
 
 	// 6. Imposter tries to hijack "rcbox" with wrong token -> Must be rejected!
@@ -394,8 +386,6 @@ func TestHostGracePeriodExpiration(t *testing.T) {
 	_ = viewerConn.WriteJSON(viewerAuth)
 	var viewerResp map[string]interface{}
 	_ = viewerConn.ReadJSON(&viewerResp)
-	var chatHist map[string]interface{}
-	_ = viewerConn.ReadJSON(&chatHist)
 
 	// Host drops
 	_ = hostConn.Close()
@@ -754,11 +744,6 @@ func TestPresenceLobbyInitialAndFocus(t *testing.T) {
 	var viewerAuthResp map[string]interface{}
 	if err := viewerWS.ReadJSON(&viewerAuthResp); err != nil || viewerAuthResp["type"] != "auth_success" {
 		t.Fatalf("viewer auth failed: %v, resp: %+v", err, viewerAuthResp)
-	}
-	// Consume chat_history
-	var chatHistoryResp map[string]interface{}
-	if err := viewerWS.ReadJSON(&chatHistoryResp); err != nil {
-		t.Fatalf("viewer read chat history failed: %v", err)
 	}
 
 	// 3. Viewer sends initial unfocus (announcing presence in Lobby before joining any tab)
@@ -1319,6 +1304,280 @@ func TestViewerConnectionUnlimitedWhenZero(t *testing.T) {
 	var vRespMulti map[string]interface{}
 	if err := vConnMulti.ReadJSON(&vRespMulti); err != nil || vRespMulti["type"] != "auth_success" {
 		t.Fatalf("viewer multi-tab expected auth_success with MaxViewers=0, got: %+v", vRespMulti)
+	}
+}
+
+func TestHostManagedChatHistory(t *testing.T) {
+	serverCfg = &ServeConfig{
+		Mode:    modeHybrid,
+		Port:    0,
+		WebPath: "/",
+		WSPath:  "/ws-rmte",
+	}
+
+	sessionMu.Lock()
+	sessions = make(map[string]*Session)
+	sessionMu.Unlock()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleWS(w, r)
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws-rmte"
+	dialer := websocket.Dialer{}
+
+	// 1. Connect Host
+	hostConn, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("host dial failed: %v", err)
+	}
+	defer hostConn.Close()
+
+	if err := hostConn.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "host",
+		"session_id":       "chathost",
+		"auth_token":       "testpass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("host auth write failed: %v", err)
+	}
+	var hResp map[string]interface{}
+	if err := hostConn.ReadJSON(&hResp); err != nil || hResp["type"] != "auth_success" {
+		t.Fatalf("host auth failed: %v, resp: %+v", err, hResp)
+	}
+
+	// 2. Connect Viewer 1
+	vConn1, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("viewer 1 dial failed: %v", err)
+	}
+	defer vConn1.Close()
+
+	if err := vConn1.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "viewer",
+		"session_id":       "chathost",
+		"viewer_id":        "v1",
+		"auth_token":       "testpass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("viewer 1 auth failed: %v", err)
+	}
+	var vResp1 map[string]interface{}
+	if err := vConn1.ReadJSON(&vResp1); err != nil || vResp1["type"] != "auth_success" {
+		t.Fatalf("viewer 1 auth failed: %v", err)
+	}
+
+	// Viewer 1 sends a chat message
+	testChat := map[string]interface{}{
+		"type":    "control",
+		"action":  "chat",
+		"sender":  "Alice",
+		"message": "Hello from Alice",
+		"time":    "12:00",
+	}
+	if err := vConn1.WriteJSON(testChat); err != nil {
+		t.Fatalf("viewer 1 send chat failed: %v", err)
+	}
+
+	// Host should receive the chat message from relay!
+	var hostChatMsg map[string]interface{}
+	_ = hostConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if err := hostConn.ReadJSON(&hostChatMsg); err != nil {
+		t.Fatalf("host expected chat message forwarded by relay, got: %v", err)
+	}
+	if hostChatMsg["action"] != "chat" || hostChatMsg["message"] != "Hello from Alice" {
+		t.Fatalf("host unexpected chat message: %+v", hostChatMsg)
+	}
+
+	// 3. Connect Viewer 2 and request chat history
+	vConn2, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("viewer 2 dial failed: %v", err)
+	}
+	defer vConn2.Close()
+
+	if err := vConn2.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "viewer",
+		"session_id":       "chathost",
+		"viewer_id":        "v2",
+		"auth_token":       "testpass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("viewer 2 auth failed: %v", err)
+	}
+	var vResp2 map[string]interface{}
+	if err := vConn2.ReadJSON(&vResp2); err != nil || vResp2["type"] != "auth_success" {
+		t.Fatalf("viewer 2 auth failed: %v", err)
+	}
+
+	// Viewer 2 requests chat history
+	if err := vConn2.WriteJSON(map[string]interface{}{
+		"type":   "control",
+		"action": "get_chat_history",
+	}); err != nil {
+		t.Fatalf("viewer 2 get_chat_history failed: %v", err)
+	}
+
+	// Host receives get_chat_history with target_conn injected by relay
+	var hostGetChat map[string]interface{}
+	_ = hostConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if err := hostConn.ReadJSON(&hostGetChat); err != nil {
+		t.Fatalf("host expected get_chat_history, got: %v", err)
+	}
+	if hostGetChat["action"] != "get_chat_history" {
+		t.Fatalf("expected action get_chat_history, got: %+v", hostGetChat)
+	}
+	targetConn, ok := hostGetChat["target_conn"].(string)
+	if !ok || targetConn == "" {
+		t.Fatalf("relay failed to inject target_conn into get_chat_history: %+v", hostGetChat)
+	}
+
+	// Host sends chat_history back to Viewer 2 via target_conn
+	if err := hostConn.WriteJSON(map[string]interface{}{
+		"type":        "control",
+		"action":      "chat_history",
+		"target_conn": targetConn,
+		"history": []map[string]interface{}{
+			{
+				"sender":  "Alice",
+				"message": "Hello from Alice",
+				"time":    "12:00",
+			},
+		},
+	}); err != nil {
+		t.Fatalf("host send chat_history failed: %v", err)
+	}
+
+	// Viewer 2 receives chat_history!
+	var v2ChatHistory map[string]interface{}
+	_ = vConn2.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if err := vConn2.ReadJSON(&v2ChatHistory); err != nil {
+		t.Fatalf("viewer 2 failed to read chat_history: %v", err)
+	}
+	if v2ChatHistory["action"] != "chat_history" {
+		t.Fatalf("viewer 2 expected action chat_history, got: %+v", v2ChatHistory)
+	}
+	hist, _ := v2ChatHistory["history"].([]interface{})
+	if len(hist) != 1 {
+		t.Fatalf("viewer 2 expected 1 history item, got: %d", len(hist))
+	}
+}
+
+func TestChatNoDuplicateDelivery(t *testing.T) {
+	serverCfg = &ServeConfig{
+		Mode:    modeHybrid,
+		Port:    0,
+		WebPath: "/",
+		WSPath:  "/ws-rmte",
+	}
+
+	sessionMu.Lock()
+	sessions = make(map[string]*Session)
+	sessionMu.Unlock()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handleWS(w, r)
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws-rmte"
+	dialer := websocket.Dialer{}
+
+	// 1. Host
+	hostConn, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("host dial failed: %v", err)
+	}
+	defer hostConn.Close()
+
+	if err := hostConn.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "host",
+		"session_id":       "nodup",
+		"auth_token":       "noduppass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("host auth failed: %v", err)
+	}
+	var hResp map[string]interface{}
+	if err := hostConn.ReadJSON(&hResp); err != nil || hResp["type"] != "auth_success" {
+		t.Fatalf("host auth failed: %v", err)
+	}
+
+	// 2. Viewer 1
+	vConn1, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("v1 dial failed: %v", err)
+	}
+	defer vConn1.Close()
+	if err := vConn1.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "viewer",
+		"session_id":       "nodup",
+		"viewer_id":        "v1",
+		"auth_token":       "noduppass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("v1 auth failed: %v", err)
+	}
+	var vResp1 map[string]interface{}
+	if err := vConn1.ReadJSON(&vResp1); err != nil || vResp1["type"] != "auth_success" {
+		t.Fatalf("v1 auth failed: %v", err)
+	}
+
+	// 3. Viewer 2
+	vConn2, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("v2 dial failed: %v", err)
+	}
+	defer vConn2.Close()
+	if err := vConn2.WriteJSON(map[string]interface{}{
+		"type":             "auth",
+		"role":             "viewer",
+		"session_id":       "nodup",
+		"viewer_id":        "v2",
+		"auth_token":       "noduppass",
+		"protocol_version": "0.5",
+	}); err != nil {
+		t.Fatalf("v2 auth failed: %v", err)
+	}
+	var vResp2 map[string]interface{}
+	if err := vConn2.ReadJSON(&vResp2); err != nil || vResp2["type"] != "auth_success" {
+		t.Fatalf("v2 auth failed: %v", err)
+	}
+
+	// Viewer 1 sends a single chat message
+	testMsg := map[string]interface{}{
+		"type":    "control",
+		"action":  "chat",
+		"sender":  "v1",
+		"message": "Only-Once-Test",
+		"time":    "12:34",
+	}
+	if err := vConn1.WriteJSON(testMsg); err != nil {
+		t.Fatalf("v1 write chat failed: %v", err)
+	}
+
+	// Viewer 2 must receive the chat message EXACTLY ONCE
+	var v2Msg1 map[string]interface{}
+	_ = vConn2.SetReadDeadline(time.Now().Add(1 * time.Second))
+	if err := vConn2.ReadJSON(&v2Msg1); err != nil {
+		t.Fatalf("viewer 2 expected to receive chat message: %v", err)
+	}
+	if v2Msg1["action"] != "chat" || v2Msg1["message"] != "Only-Once-Test" {
+		t.Fatalf("viewer 2 received unexpected message: %+v", v2Msg1)
+	}
+
+	// Viewer 2 should NOT receive a duplicate delivery
+	_ = vConn2.SetReadDeadline(time.Now().Add(250 * time.Millisecond))
+	var dupMsg map[string]interface{}
+	err = vConn2.ReadJSON(&dupMsg)
+	if err == nil {
+		t.Fatalf("DUPLICATE CHAT DETECTED: viewer 2 received chat a second time: %+v", dupMsg)
 	}
 }
 

@@ -29,8 +29,7 @@ type Session struct {
 	ID          string
 	Host        *SafeConn
 	Viewers     map[string]map[string]*SafeConn // viewerID -> connID -> Conn
-	ChatHistory []map[string]interface{}
-	AuthToken   string // S4: password-derived token for access control
+	AuthToken   string                          // S4: password-derived token for access control
 	Mutex       sync.RWMutex
 
 	// Preview Proxy fields
@@ -256,7 +255,6 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 				ID:             sessionID,
 				Host:           conn,
 				Viewers:        make(map[string]map[string]*SafeConn),
-				ChatHistory:    make([]map[string]interface{}, 0),
 				AuthToken:      auth.AuthToken,
 				PreviewEnabled: auth.Preview,
 				ProxySecret:    proxySecret,
@@ -429,15 +427,6 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 			"viewer_id": viewerID,
 			"conn_id":   connID,
 		})
-
-		s.Mutex.RLock()
-		historyMsg := map[string]interface{}{
-			"type":    "control",
-			"action":  "chat_history",
-			"history": s.ChatHistory,
-		}
-		s.Mutex.RUnlock()
-		conn.WriteJSON(historyMsg)
 		fmt.Printf("Viewer %s connected to session %s (Conn: %s, Protocol: %s)\n", viewerID, sessionID, connID, auth.ProtocolVersion)
 
 		defer func() {
@@ -542,13 +531,15 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 
 				if role == "viewer" {
 					if action == "chat" {
-						s.Mutex.Lock()
-						s.ChatHistory = append(s.ChatHistory, ctrl)
-						if len(s.ChatHistory) > 50 {
-							s.ChatHistory = s.ChatHistory[1:]
+						// Forward to host so host maintains chat history
+						s.Mutex.RLock()
+						hostConn := s.Host
+						s.Mutex.RUnlock()
+						if hostConn != nil {
+							hostConn.WriteMessage(websocket.TextMessage, data)
 						}
-						s.Mutex.Unlock()
 
+						// Broadcast to all viewers
 						s.Mutex.RLock()
 						for _, conns := range s.Viewers {
 							for _, vConn := range conns {
@@ -577,7 +568,9 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 								action == "rename_file" ||
 								action == "delete_file" ||
 								action == "ai_exec" ||
-								action == "ai_get_info" {
+								action == "ai_get_info" ||
+								action == "get_events" ||
+								action == "get_chat_history" {
 								// Inject caller's connID so host can route responses back
 								ctrl["target_conn"] = connID
 								newData, _ := json.Marshal(ctrl)
@@ -601,15 +594,6 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 						}
 						s.Mutex.RUnlock()
 					} else {
-						if action == "chat" {
-							s.Mutex.Lock()
-							s.ChatHistory = append(s.ChatHistory, ctrl)
-							if len(s.ChatHistory) > 50 {
-								s.ChatHistory = s.ChatHistory[1:]
-							}
-							s.Mutex.Unlock()
-						}
-
 						s.Mutex.RLock()
 						// Broadcast to all viewers
 						for _, conns := range s.Viewers {

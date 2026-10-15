@@ -27,7 +27,7 @@ RMTE provides remote terminal and workspace sharing over zero-inbound WebSocket 
 
 ### 1. Data Plane vs. Control Plane
 - **Data Plane (E2EE)**: Terminal PTY streams (keystrokes, terminal output) and Web Preview reverse-proxy streams are encrypted end-to-end between the host and viewers using **AES-256-GCM** (via native Go crypto on the CLI and WebCrypto API in the browser). The relay server acts strictly as a dumb blind pipe and cannot decrypt session terminal traffic.
-- **Control Plane**: Session orchestration messages (connection handshakes, tab presence, room ID, viewer list) traverse the relay unencrypted for routing purposes. Sensitive authentication tokens are exchanged over TLS (WSS/HTTPS) to the relay.
+- **Control Plane & Zero-Relay Storage**: Session orchestration messages (connection handshakes, tab presence, room ID, viewer list) traverse the relay for routing purposes. **The relay server stores zero user content, zero terminal buffers, and zero chat history.** Chat history is retained in-memory strictly by the Host process and served directly to authorized viewers upon request (`get_chat_history`). Sensitive authentication tokens are exchanged over TLS (WSS/HTTPS) to the relay.
 
 ### 2. Credential Security & Ingestion Methods
 RMTE supports multiple methods for supplying session passwords and relay secrets, with differing trade-offs:

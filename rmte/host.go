@@ -170,6 +170,10 @@ var (
 	eventHistory   []map[string]interface{}
 	eventHistoryMu sync.RWMutex
 
+	// Chat history (max 50 in memory on host)
+	hostChatHistory   []map[string]interface{}
+	hostChatHistoryMu sync.RWMutex
+
 	// Active host WebSocket connection (supports seamless reconnect)
 	currentHostConnMu sync.RWMutex
 	currentHostConn   *SafeConn
@@ -202,6 +206,8 @@ type HostOptions struct {
 	Preview       bool         // enable Embedded Web Browser Preview reverse proxy
 	AllowExec     bool         // allow remote command execution via MCP or CLI exec
 	Sandbox       bool         // restrict file manager and MCP file tools to Dir root
+	Insecure      bool         // skip TLS certificate verification
+	Quiet         bool         // run in background (daemon)
 	Serve         *ServeConfig // non-nil when embedded in `serve`
 }
 
@@ -697,6 +703,18 @@ func runHost(opts HostOptions) {
 						"target_conn": targetConn,
 						"events":      evts,
 					})
+				case "get_chat_history":
+					targetConn, _ := ctrl["target_conn"].(string)
+					hostChatHistoryMu.RLock()
+					chats := make([]map[string]interface{}, len(hostChatHistory))
+					copy(chats, hostChatHistory)
+					hostChatHistoryMu.RUnlock()
+					conn.WriteJSON(map[string]interface{}{
+						"type":        "control",
+						"action":      "chat_history",
+						"target_conn": targetConn,
+						"history":     chats,
+					})
 				case "unfocus":
 					viewerID, _ := ctrl["viewer_id"].(string)
 					viewerName, _ := ctrl["viewer_name"].(string)
@@ -734,8 +752,12 @@ func runHost(opts HostOptions) {
 						"bot_viewers": botViewers,
 					})
 				case "chat":
-					// Broadcast to all viewers
-					conn.WriteMessage(websocket.TextMessage, data)
+					hostChatHistoryMu.Lock()
+					hostChatHistory = append(hostChatHistory, ctrl)
+					if len(hostChatHistory) > 50 {
+						hostChatHistory = hostChatHistory[1:]
+					}
+					hostChatHistoryMu.Unlock()
 
 				// ===== FILE MANAGER ACTIONS =====
 				case "req_dir":

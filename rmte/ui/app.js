@@ -784,6 +784,7 @@ async function onJson(msg) {
         sendJson({type:'control',action:'unfocus',viewer_id:myViewerId,viewer_name:myUsername});
         sendJson({type:'control',action:'get_tabs'});
         sendJson({type:'control',action:'get_events'});
+        sendJson({type:'control',action:'get_chat_history'});
         processUploadQueue();
         setTimeout(initDragAndDrop, 200);
         return;
@@ -808,11 +809,31 @@ async function onJson(msg) {
         case'chat_history':{
             const cm=document.getElementById('chat-messages');
             if(cm){
-                cm.innerHTML='';
-                if(!msg.history || msg.history.length===0){
+                const history = msg.history || [];
+                const existing = cm.querySelectorAll('.chat-msg');
+                if(history.length === 0 && existing.length === 0){
                     cm.innerHTML=`<div class="chat-empty-state"><div class="chat-empty-icon">${svgIcon('messageSquare', { size: 32 })}</div><div class="chat-empty-title">Session Chat</div><div class="chat-empty-sub">Messages sent here are encrypted and shared live with all Web and CLI collaborators.</div></div>`;
-                } else {
-                    msg.history.forEach(m=>appendChat(m.sender,m.message,m.time));
+                } else if(history.length > 0) {
+                    const empty = cm.querySelector('.chat-empty-state');
+                    if(empty) empty.remove();
+                    if(existing.length === 0){
+                        history.forEach(m=>appendChat(m.sender,m.message,m.time));
+                    } else {
+                        const seen = new Set();
+                        existing.forEach(el => {
+                            const s = el.querySelector('.chat-msg-sender')?.innerText || '';
+                            const t = el.querySelector('.chat-msg-time')?.innerText || '';
+                            const b = el.querySelector('.chat-msg-body')?.innerText || '';
+                            seen.add(`${t}|${s}|${b}`);
+                        });
+                        const firstMsg = existing[0];
+                        history.forEach(m => {
+                            const key = `${m.time||''}|${m.sender||''}|${m.message||''}`;
+                            if(!seen.has(key)){
+                                appendChat(m.sender, m.message, m.time, firstMsg);
+                            }
+                        });
+                    }
                 }
             }
             break;
@@ -2186,7 +2207,7 @@ function sendChatMessage(){
     sendJson({type:'control',action:'chat',sender:myUsername,message:t,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})});
     i.value='';
 }
-function appendChat(sender,msg,time){
+function appendChat(sender,msg,time,beforeEl){
     const c=document.getElementById('chat-messages');
     if(!c)return;
     const empty=c.querySelector('.chat-empty-state');
@@ -2202,7 +2223,11 @@ function appendChat(sender,msg,time){
         </div>
         <div class="chat-msg-body">${esc(msg)}</div>
     `;
-    c.appendChild(el);
+    if(beforeEl){
+        c.insertBefore(el, beforeEl);
+    } else {
+        c.appendChild(el);
+    }
     c.scrollTop=c.scrollHeight;
 
     const ws=document.getElementById('workspace');
