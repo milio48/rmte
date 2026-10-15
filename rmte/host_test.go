@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -231,6 +232,56 @@ func TestHostSandboxEdgeCases(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "escapes sandbox root") {
 			t.Errorf("expected symlink escape to be denied, got %v", err)
 		}
+	}
+}
+
+func TestHostChatHistoryMaxChat(t *testing.T) {
+	// Reset hostChatHistory before test
+	hostChatHistoryMu.Lock()
+	hostChatHistory = nil
+	hostChatHistoryMu.Unlock()
+
+	// 1. With MaxChat = 3
+	setHostOptions(HostOptions{
+		MaxChat: 3,
+	})
+
+	for i := 1; i <= 5; i++ {
+		appendHostChatHistory(map[string]interface{}{
+			"type":    "control",
+			"action":  "chat",
+			"sender":  "Alice",
+			"message": fmt.Sprintf("msg %d", i),
+		})
+	}
+
+	chats := getHostChatHistory()
+	if len(chats) != 3 {
+		t.Fatalf("expected 3 chats retained, got %d", len(chats))
+	}
+	if chats[0]["message"] != "msg 3" || chats[1]["message"] != "msg 4" || chats[2]["message"] != "msg 5" {
+		t.Errorf("unexpected chat messages order: %+v", chats)
+	}
+
+	// 2. With MaxChat = 0 (disabled/ephemeral mode)
+	hostChatHistoryMu.Lock()
+	hostChatHistory = nil
+	hostChatHistoryMu.Unlock()
+
+	setHostOptions(HostOptions{
+		MaxChat: 0,
+	})
+
+	appendHostChatHistory(map[string]interface{}{
+		"type":    "control",
+		"action":  "chat",
+		"sender":  "Bob",
+		"message": "ephemeral msg",
+	})
+
+	chatsZero := getHostChatHistory()
+	if len(chatsZero) != 0 {
+		t.Errorf("expected 0 chats with MaxChat=0, got %d", len(chatsZero))
 	}
 }
 

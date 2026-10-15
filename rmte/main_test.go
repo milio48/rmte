@@ -130,10 +130,35 @@ func TestParseShareOptions(t *testing.T) {
 	if optsDefault.Pass == "" || !optsDefault.PassGenerated {
 		t.Errorf("expected generated password, got %q (generated=%v)", optsDefault.Pass, optsDefault.PassGenerated)
 	}
+	if optsDefault.MaxChat != DefaultMaxChat {
+		t.Errorf("expected default MaxChat %d, got %d", DefaultMaxChat, optsDefault.MaxChat)
+	}
 
 	// 4. Invalid buffer error
 	_, err = parseShareOptions([]string{"share", "--buffer=0"})
 	if err == nil {
 		t.Errorf("expected error for --buffer=0, got nil")
+	}
+
+	// 5. MaxChat flag tests
+	optsCustomChat, err := parseShareOptions([]string{"share", "--max-chat=100"})
+	if err != nil {
+		t.Fatalf("unexpected error for --max-chat=100: %v", err)
+	}
+	if optsCustomChat.MaxChat != 100 {
+		t.Errorf("expected MaxChat 100, got %d", optsCustomChat.MaxChat)
+	}
+
+	optsZeroChat, err := parseShareOptions([]string{"share", "--max-chat=0"})
+	if err != nil {
+		t.Fatalf("unexpected error for --max-chat=0: %v", err)
+	}
+	if optsZeroChat.MaxChat != 0 {
+		t.Errorf("expected MaxChat 0, got %d", optsZeroChat.MaxChat)
+	}
+
+	_, err = parseShareOptions([]string{"share", "--max-chat=-1"})
+	if err == nil {
+		t.Errorf("expected error for --max-chat=-1, got nil")
 	}
 }

@@ -173,6 +173,7 @@ type ServeConfig struct {
 	MaxBuffer     int    // Max buffer limit in MB per session (0 = unlimited / opt-in)
 	MaxSessions   int    // Max concurrent active sessions (0 = unlimited)
 	MaxViewers    int    // Max viewer connections per session
+	MaxChat       int    // Max chat history messages retained in memory on host (default 50; 0 to disable)
 }
 
 var origArgs []string
@@ -243,6 +244,7 @@ func cmdServe() {
 	flag.IntVar(&cfg.MaxBuffer, "max-buffer", 0, "Max buffer limit in MB per session (0 = unlimited; relay multi-tenant recommended)")
 	flag.IntVar(&cfg.MaxSessions, "max-sessions", 100, "Max concurrent active sessions (0 = unlimited)")
 	flag.IntVar(&cfg.MaxViewers, "max-viewers", 50, "Max viewer connections per session (0 = unlimited)")
+	flag.IntVar(&cfg.MaxChat, "max-chat", DefaultMaxChat, "Max chat history retained in memory on host (default 50; 0 to disable)")
 	flag.StringVar(&cfg.WebPath, "web-path", "/", "HTTP path for the Web UI")
 	flag.StringVar(&cfg.WSPath, "ws-path", defaultWSPath, "WebSocket path")
 	flag.StringVar(&cfg.PublicURL, "public-url", "", "Full public base URL or domain (e.g. https://my.rmte.biz.id or http://host:8041)")
@@ -320,6 +322,9 @@ func cmdServe() {
 	}
 	if cfg.Buffer < 1 {
 		fatalf("Error: --buffer must be >= 1")
+	}
+	if cfg.MaxChat < 0 {
+		fatalf("Error: --max-chat must be >= 0")
 	}
 
 	if cfg.Dir != "" {
@@ -438,6 +443,7 @@ func parseShareOptions(args []string) (HostOptions, error) {
 	passFile := fs.String("pass-file", "", "Path to file containing session password")
 	id := fs.String("id", "", "Custom Session ID (lowercase a-z, 0-9, max 10 chars; random if empty)")
 	bufferMB := fs.Int("buffer", 1, "Max buffer size in MB (terminal ring buffer and file manager)")
+	maxChat := fs.Int("max-chat", DefaultMaxChat, "Max chat history messages retained in memory on host (default 50; 0 to disable)")
 	dir := fs.String("dir", "", "Initial working directory for File Explorer and terminal")
 	webPreview := fs.Bool("web-preview", true, "Enable Embedded Web Browser Preview reverse proxy")
 	preview := fs.Bool("preview", true, "Alias for --web-preview")
@@ -499,6 +505,9 @@ func parseShareOptions(args []string) (HostOptions, error) {
 	if *bufferMB < 1 {
 		return HostOptions{}, fmt.Errorf("--buffer must be >= 1")
 	}
+	if *maxChat < 0 {
+		return HostOptions{}, fmt.Errorf("--max-chat must be >= 0")
+	}
 
 	var cleanID string
 	if resolvedID != "" {
@@ -527,6 +536,7 @@ func parseShareOptions(args []string) (HostOptions, error) {
 		Pass:       resolvedPass,
 		PassSource: passSource,
 		Buffer:     *bufferMB,
+		MaxChat:    *maxChat,
 		Mode:       modeShare,
 		Dir:        cleanDir,
 		ID:         cleanID,
@@ -780,6 +790,7 @@ func runServeAndShare(cfg *ServeConfig) {
 		Pass:          cfg.Pass,
 		PassGenerated: cfg.PassGenerated,
 		Buffer:        cfg.Buffer,
+		MaxChat:       cfg.MaxChat,
 		InternalToken: cfg.InternalToken,
 		Mode:          cfg.Mode,
 		Dir:           cfg.Dir,
@@ -840,13 +851,13 @@ Instant Sharing:
   rmte --allow-exec                     Enable AI agent execution (MCP & CLI exec)
 
 Usage:
-  rmte       [--pass="secret"] [--id="mysession"] [--dir="path"] [--buffer=1] [--allow-exec] [-q]
-  rmte share [--server-relay="%s"] [--pass="secret"] [--id="mysession"] [--buffer=1] [--dir="path"] [--allow-exec] [-q]
+  rmte       [--pass="secret"] [--id="mysession"] [--dir="path"] [--buffer=1] [--allow-exec] [-q] [--max-chat=50]
+  rmte share [--server-relay="%s"] [--pass="secret"] [--id="mysession"] [--buffer=1] [--dir="path"] [--allow-exec] [-q] [--max-chat=50]
   rmte serve [--mode=standalone|hybrid|relay] [--port=%d] [--pass="secret"] [--id="mysession"]
              [--buffer=1] [--dir="path"] [--web-path="/"] [--ws-path="%s"] [--public-url="https://example.com"]
              [--public] [--no-web | --no-cli] [--web-preview] [--allow-exec] [-q | --quiet]
              [--admin-path="/admin"] [--admin-pass="secret"]
-             [--max-buffer=0] [--max-sessions=100] [--max-viewers=50]
+             [--max-buffer=0] [--max-sessions=100] [--max-viewers=50] [--max-chat=50]
   rmte join  [--server-relay="%s"] --id="..." --pass="secret" [--name="name"]
   rmte exec  [--server-relay="%s"] --id="..." --pass="secret" [--timeout=60] [--bg] -- <command>
   rmte mcp   [--server-relay="%s"] --id="..." --pass="secret" [--name="Claude-MCP"]

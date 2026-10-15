@@ -170,7 +170,7 @@ var (
 	eventHistory   []map[string]interface{}
 	eventHistoryMu sync.RWMutex
 
-	// Chat history (max 50 in memory on host)
+	// Chat history (retained in memory on host, capped by HostOptions.MaxChat)
 	hostChatHistory   []map[string]interface{}
 	hostChatHistoryMu sync.RWMutex
 
@@ -191,6 +191,29 @@ func getHostConn() *SafeConn {
 	return currentHostConn
 }
 
+const DefaultMaxChat = 50
+
+func appendHostChatHistory(ctrl map[string]interface{}) {
+	maxChat := getHostOptions().MaxChat
+	if maxChat <= 0 {
+		return
+	}
+	hostChatHistoryMu.Lock()
+	defer hostChatHistoryMu.Unlock()
+	hostChatHistory = append(hostChatHistory, ctrl)
+	if len(hostChatHistory) > maxChat {
+		hostChatHistory = hostChatHistory[len(hostChatHistory)-maxChat:]
+	}
+}
+
+func getHostChatHistory() []map[string]interface{} {
+	hostChatHistoryMu.RLock()
+	defer hostChatHistoryMu.RUnlock()
+	chats := make([]map[string]interface{}, len(hostChatHistory))
+	copy(chats, hostChatHistory)
+	return chats
+}
+
 // HostOptions configures a host session (used by `serve` and `share`).
 type HostOptions struct {
 	DialURL       string // URL actually dialed (may be loopback)
@@ -199,6 +222,7 @@ type HostOptions struct {
 	PassGenerated bool
 	PassSource    CredentialSource
 	Buffer        int
+	MaxChat       int          // Max chat history retained on host (default 50; 0 disables retention)
 	InternalToken string
 	Mode          string       // standalone | hybrid | share
 	Dir           string       // initial working directory
@@ -286,6 +310,9 @@ func logEvent(conn *SafeConn, eventType, user, message string) {
 }
 
 func runHost(opts HostOptions) {
+	if opts.MaxChat < 0 {
+		opts.MaxChat = 0
+	}
 	setHostOptions(opts)
 	setMaxBufferSize(opts.Buffer * 1024 * 1024)
 
@@ -705,10 +732,7 @@ func runHost(opts HostOptions) {
 					})
 				case "get_chat_history":
 					targetConn, _ := ctrl["target_conn"].(string)
-					hostChatHistoryMu.RLock()
-					chats := make([]map[string]interface{}, len(hostChatHistory))
-					copy(chats, hostChatHistory)
-					hostChatHistoryMu.RUnlock()
+					chats := getHostChatHistory()
 					conn.WriteJSON(map[string]interface{}{
 						"type":        "control",
 						"action":      "chat_history",
@@ -752,12 +776,7 @@ func runHost(opts HostOptions) {
 						"bot_viewers": botViewers,
 					})
 				case "chat":
-					hostChatHistoryMu.Lock()
-					hostChatHistory = append(hostChatHistory, ctrl)
-					if len(hostChatHistory) > 50 {
-						hostChatHistory = hostChatHistory[1:]
-					}
-					hostChatHistoryMu.Unlock()
+					appendHostChatHistory(ctrl)
 
 				// ===== FILE MANAGER ACTIONS =====
 				case "req_dir":
