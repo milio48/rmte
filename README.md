@@ -307,7 +307,7 @@ Open the shareable link printed by `serve`/`share` (or browse to the relay's web
 3. Double-click the breadcrumb to input any absolute path directly.
 
 ### 🤖 AI Agent Integration (MCP & Headless CLI Exec)
-You can connect local AI coding agents (Claude Desktop, Cursor, Claude Code, Antigravity) to execute commands, read/write files, and transfer data inside remote host environments over secure E2EE with zero open inbound ports!
+You can connect local AI coding agents (Claude Desktop, Cursor, Claude Code, Antigravity) to execute commands, read/write files, and transfer data inside remote host environments over secure E2EE with zero open inbound ports! **Fully supported on Linux, macOS, and Windows hosts.**
 
 #### 1. Enable on Remote Host:
 Start the host session with `--allow-exec`:
@@ -316,11 +316,19 @@ Start the host session with `--allow-exec`:
 # or for self-hosted standalone:
 ./rmte serve --allow-exec
 ```
+> **Platform Execution Details:**
+> - **Linux & macOS Hosts**: Commands execute inside an isolated interactive PTY shell in tab `[AI]`.
+> - **Windows Hosts**: Commands execute via headless process pipes (`pwsh.exe` $\rightarrow$ `powershell.exe` $\rightarrow$ `cmd.exe`) with full UTF-8 output encoding support and automatic process-tree cleanup on timeout. Live command outputs stream in real-time to the web viewer's `[AI]` spectator canvas without console prompt noise.
+> - **Non-Interactive Stdin**: Executed commands run non-interactively (stdin is non-interactive; commands requiring input should accept CLI flags or environment variables).
 
 #### 2. Headless CLI Execution (`rmte exec`):
 Run remote commands from local shell scripts and propagate exit codes:
 ```bash
+# Execute command and return remote exit code:
 ./rmte exec --id="session_id" --pass="secret" -- "uname -a"
+
+# Windows host example:
+./rmte exec --id="session_id" --pass="secret" -- "dir"
 
 # Launch long-running commands in a dedicated background tab:
 ./rmte exec --id="session_id" --pass="secret" --bg --tab-name="DevServer" -- "npm run dev"

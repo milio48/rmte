@@ -8,6 +8,3 @@ package main
 func interruptTabProcess(tab *TabSession) {
 }
 
-func killProcessTree(pid uint32) {
-}
-

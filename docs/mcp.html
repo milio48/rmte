@@ -683,7 +683,7 @@
             <span>💻</span>
           </div>
           <p class="flow-node-desc">
-            Runs <code>--allow-exec</code>. Executes commands in isolated <code>[AI]</code> tab with live read-only spectator view.
+            Runs <code>--allow-exec</code>. Fully cross-platform (Linux, macOS, and Windows hosts). Executes commands with a live read-only spectator view in tab <code>[AI]</code>.
           </p>
         </div>
       </div>
@@ -711,7 +711,7 @@
         <div class="pillar-box">
           <h5><span>⚡</span> Process Reaping &amp; Safety</h5>
           <p>
-            Clean process termination via <code>cmd.Wait()</code> prevents zombie shells. Host-level <code>--buffer</code> (default 1 MB) bounds file operations, while 25MB per-message limits protect against oversized JSON-RPC envelope panics.
+            Clean process termination via <code>cmd.Wait()</code> and recursive process-tree termination on Windows prevent zombie processes. Commands run non-interactively. Host-level <code>--buffer</code> (default 1 MB) bounds file operations, while 25MB per-message limits protect against oversized JSON-RPC envelope panics.
           </p>
         </div>
       </div>
@@ -857,7 +857,7 @@ RMTE_PASS="supersecret123" claude mcp add rmte -- rmte mcp --id="my-server"</cod
             <span>⚡</span>
           </div>
           <p class="tool-desc">
-            Executes a shell command on the host. In synchronous mode (default), output is captured until completion and returned with duration and exit code. Supports persistent shell state in the <code>[AI]</code> tab.
+            Executes a shell command on the host (POSIX PTY on Linux/macOS; native headless pipes with UTF-8 encoding on Windows). In synchronous mode (default), output is captured until completion and returned with duration and exit code. Spectators can watch live in the <code>[AI]</code> tab.
           </p>
           <div class="tool-args">
             Arguments: <code>cmd</code> (string, req), <code>background</code> (bool, opt), <code>tab_name</code> (string, opt), <code>timeout</code> (int sec, opt)
