@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -17,6 +18,23 @@ func startPlatformTab(id byte, ws *SafeConn) (*TabSession, error) {
 }
 
 func startPlatformTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) (*TabSession, error) {
+	if isAI {
+		pr, pw := io.Pipe()
+		tab := &TabSession{
+			Title:       title,
+			IsAI:        true,
+			ReadCloser:  pr,
+			WriteCloser: pw,
+			IsPipe:      true,
+			CloseFn: func() error {
+				_ = pw.Close()
+				_ = pr.Close()
+				return nil
+			},
+		}
+		return tab, nil
+	}
+
 	shell := "cmd.exe"
 	if os.Getenv("COMSPEC") != "" {
 		shell = os.Getenv("COMSPEC")

@@ -73,9 +73,9 @@ func TestHandleAIExecSecurityGuardDisabled(t *testing.T) {
 	}
 }
 
-func TestHandleAIExecWindowsRejectionNotice(t *testing.T) {
+func TestHandleAIExecWindowsSuccess(t *testing.T) {
 	if runtime.GOOS != "windows" {
-		t.Skip("skipping Windows rejection test on non-windows platform")
+		t.Skip("skipping Windows execution test on non-windows platform")
 	}
 
 	setHostOptions(HostOptions{
@@ -94,7 +94,7 @@ func TestHandleAIExecWindowsRejectionNotice(t *testing.T) {
 		ctrl := map[string]interface{}{
 			"action":      "ai_exec",
 			"target_conn": "c-viewer-456",
-			"command":     "dir",
+			"command":     "Write-Output \"RMTE_WIN_SUCCESS_TEST\"",
 		}
 		handleAIExec(ctrl, conn)
 	}))
@@ -108,14 +108,181 @@ func TestHandleAIExecWindowsRejectionNotice(t *testing.T) {
 	defer clientRaw.Close()
 
 	var resp map[string]interface{}
-	err = clientRaw.ReadJSON(&resp)
-	if err != nil {
-		t.Fatalf("read response failed: %v", err)
+	for {
+		err = clientRaw.ReadJSON(&resp)
+		if err != nil {
+			t.Fatalf("read response failed: %v", err)
+		}
+		if resp["action"] == "ai_exec_result" {
+			break
+		}
 	}
 
-	errMsg, _ := resp["error"].(string)
-	if !strings.Contains(errMsg, "Linux/POSIX host") {
-		t.Errorf("expected error mentioning Linux/POSIX host requirement, got %q", errMsg)
+	stdout, _ := resp["stdout"].(string)
+	if !strings.Contains(stdout, "RMTE_WIN_SUCCESS_TEST") {
+		t.Errorf("expected stdout containing RMTE_WIN_SUCCESS_TEST, got %q", stdout)
+	}
+	exitCode, _ := resp["exit_code"].(float64)
+	if exitCode != 0 {
+		t.Errorf("expected exit_code 0, got %v", exitCode)
+	}
+}
+
+func TestHandleAIExecWindowsExitCode(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("skipping Windows execution test on non-windows platform")
+	}
+
+	setHostOptions(HostOptions{
+		AllowExec: true,
+	})
+
+	upgrader := websocket.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer raw.Close()
+
+		conn := &SafeConn{Conn: raw}
+		ctrl := map[string]interface{}{
+			"action":      "ai_exec",
+			"target_conn": "c-viewer-789",
+			"command":     "exit 7",
+		}
+		handleAIExec(ctrl, conn)
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	clientRaw, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial failed: %v", err)
+	}
+	defer clientRaw.Close()
+
+	var resp map[string]interface{}
+	for {
+		err = clientRaw.ReadJSON(&resp)
+		if err != nil {
+			t.Fatalf("read response failed: %v", err)
+		}
+		if resp["action"] == "ai_exec_result" {
+			break
+		}
+	}
+
+	exitCode, _ := resp["exit_code"].(float64)
+	if exitCode != 7 {
+		t.Errorf("expected exit_code 7, got %v (resp: %+v)", exitCode, resp)
+	}
+}
+
+func TestHandleAIExecWindowsUTF8(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("skipping Windows execution test on non-windows platform")
+	}
+
+	setHostOptions(HostOptions{
+		AllowExec: true,
+	})
+
+	upgrader := websocket.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer raw.Close()
+
+		conn := &SafeConn{Conn: raw}
+		ctrl := map[string]interface{}{
+			"action":      "ai_exec",
+			"target_conn": "c-viewer-utf8",
+			"command":     "Write-Output \"Halo Dunia! 🚀 🇮🇩 café déjà vu\"",
+		}
+		handleAIExec(ctrl, conn)
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	clientRaw, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial failed: %v", err)
+	}
+	defer clientRaw.Close()
+
+	var resp map[string]interface{}
+	for {
+		err = clientRaw.ReadJSON(&resp)
+		if err != nil {
+			t.Fatalf("read response failed: %v", err)
+		}
+		if resp["action"] == "ai_exec_result" {
+			break
+		}
+	}
+
+	stdout, _ := resp["stdout"].(string)
+	if !strings.Contains(stdout, "Halo Dunia! 🚀 🇮🇩 café déjà vu") {
+		t.Errorf("expected stdout containing UTF-8 string, got %q", stdout)
+	}
+	exitCode, _ := resp["exit_code"].(float64)
+	if exitCode != 0 {
+		t.Errorf("expected exit_code 0, got %v", exitCode)
+	}
+}
+
+func TestHandleAIExecWindowsTimeout(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("skipping Windows execution test on non-windows platform")
+	}
+
+	setHostOptions(HostOptions{
+		AllowExec: true,
+	})
+
+	upgrader := websocket.Upgrader{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer raw.Close()
+
+		conn := &SafeConn{Conn: raw}
+		ctrl := map[string]interface{}{
+			"action":          "ai_exec",
+			"target_conn":     "c-viewer-timeout",
+			"command":         "Start-Sleep -Seconds 10",
+			"timeout_seconds": float64(1),
+		}
+		handleAIExec(ctrl, conn)
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	clientRaw, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial failed: %v", err)
+	}
+	defer clientRaw.Close()
+
+	var resp map[string]interface{}
+	for {
+		err = clientRaw.ReadJSON(&resp)
+		if err != nil {
+			t.Fatalf("read response failed: %v", err)
+		}
+		if resp["action"] == "ai_exec_result" {
+			break
+		}
+	}
+
+	exitCode, _ := resp["exit_code"].(float64)
+	if exitCode != 124 {
+		t.Errorf("expected exit_code 124 for timeout, got %v (resp: %+v)", exitCode, resp)
 	}
 }
 

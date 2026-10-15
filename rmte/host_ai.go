@@ -31,7 +31,17 @@ func ensureAITab(conn *SafeConn) (byte, *TabSession, error) {
 		tabsMu.RLock()
 		tab := tabs[aiTabID]
 		tabsMu.RUnlock()
-		if tab != nil && tab.Cmd != nil && tab.Cmd.Process != nil && tab.Cmd.ProcessState == nil {
+		isAlive := false
+		if tab != nil {
+			if runtime.GOOS == "windows" {
+				isAlive = tab.IsAI && tab.WriteCloser != nil
+			} else {
+				if tab.Cmd != nil && tab.Cmd.Process != nil && tab.Cmd.ProcessState == nil {
+					isAlive = true
+				}
+			}
+		}
+		if isAlive {
 			id := aiTabID
 			aiTabMu.Unlock()
 			return id, tab, nil
@@ -52,6 +62,14 @@ func ensureAITab(conn *SafeConn) (byte, *TabSession, error) {
 	tabsMu.Unlock()
 
 	createTabWithTitle(newID, conn, "[AI]", true)
+	if conn != nil {
+		_ = conn.WriteJSON(map[string]interface{}{
+			"type":   "control",
+			"action": "tab_created",
+			"tab_id": newID,
+			"title":  "[AI]",
+		})
+	}
 
 	tabsMu.RLock()
 	tab := tabs[newID]
@@ -65,8 +83,8 @@ func ensureAITab(conn *SafeConn) (byte, *TabSession, error) {
 	aiTabActive = true
 	aiTabMu.Unlock()
 
-	// Readiness probe: send __RMTE_READY__ and wait for it to be echoed/executed
-	if tab.WriteCloser != nil {
+	// Readiness probe: send __RMTE_READY__ and wait for it to be echoed/executed (POSIX only)
+	if runtime.GOOS != "windows" && tab.WriteCloser != nil {
 		readyChan := make(chan []byte, 10)
 		doneChan := make(chan struct{})
 
@@ -292,17 +310,6 @@ func handleAIExec(ctrl map[string]interface{}, conn *SafeConn) {
 		return
 	}
 
-	if runtime.GOOS == "windows" {
-		conn.WriteJSON(map[string]interface{}{
-			"type":        "control",
-			"action":      "ai_exec_result",
-			"target_conn": targetConn,
-			"error":       "Remote execution in v1 requires a Linux/POSIX host (Docker/Kubernetes/VPS). Windows host execution will be available in v2.",
-			"exit_code":   1,
-		})
-		return
-	}
-
 	command, _ := ctrl["command"].(string)
 	if command == "" {
 		conn.WriteJSON(map[string]interface{}{
@@ -371,7 +378,13 @@ func handleAIExec(ctrl map[string]interface{}, conn *SafeConn) {
 	}
 	_ = tabID
 
-	stdout, exitCode, err := executeAICommand(tab, command, timeoutSec)
+	var stdout string
+	var exitCode int
+	if runtime.GOOS == "windows" {
+		stdout, exitCode, err = executeAICommandWindows(tab, command, timeoutSec)
+	} else {
+		stdout, exitCode, err = executeAICommand(tab, command, timeoutSec)
+	}
 	if err != nil {
 		conn.WriteJSON(map[string]interface{}{
 			"type":        "control",

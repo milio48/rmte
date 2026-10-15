@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"io"
 )
 
@@ -31,6 +32,9 @@ func setupCrypto(password string) error {
 }
 
 func encryptBinary(tabID byte, plaintext []byte) ([]byte, error) {
+	if aesGCM == nil {
+		return nil, errors.New("crypto not initialized")
+	}
 	nonce := make([]byte, aesGCM.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, err
@@ -47,6 +51,9 @@ func encryptBinary(tabID byte, plaintext []byte) ([]byte, error) {
 }
 
 func decryptBinary(payload []byte) (byte, []byte, error) {
+	if aesGCM == nil {
+		return 0, nil, errors.New("crypto not initialized")
+	}
 	if len(payload) < 1+12 {
 		return 0, nil, io.ErrUnexpectedEOF
 	}
