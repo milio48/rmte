@@ -28,14 +28,15 @@ RMTE provides remote terminal and workspace sharing over zero-inbound WebSocket 
 ### 1. What Is and Is Not End-to-End Encrypted
 
 > [!WARNING]
-> **The relay is currently a trusted party.** Only terminal streams and file contents are end-to-end encrypted. A malicious relay operator (including the operator of the shared public relay `my.rmte.biz.id`) can read and forge control messages. On a host started with `--allow-exec`, that is equivalent to shell access. Run your own relay for anything sensitive.
+> **The relay is still partly trusted.** Terminal streams, file contents and all viewer↔host control messages are end-to-end encrypted and authenticated (protocol 0.7+). However, the relay serves the browser UI and sees Web Preview traffic. A malicious relay operator (including the operator of the shared public relay `my.rmte.biz.id`) can capture the password of anyone who opens the web UI from that relay, and with it act as a viewer. On a host started with `--allow-exec`, that is equivalent to shell access. Run your own relay for anything sensitive, or use CLI/MCP clients.
 
 | Channel | E2EE? | What the relay can do |
 | --- | --- | --- |
 | Terminal I/O (binary tab frames) | ✅ AES-256-GCM | Cannot read or modify. The frame header (direction, tab id) is authenticated (protocol 0.6+), so frames cannot be redirected to another tab or reflected back. **Can replay** a captured frame on the same tab. |
 | File contents (Tab 255) | ✅ AES-256-GCM | Cannot read or modify. Transfer id and direction are authenticated, so a download cannot be re-uploaded or re-wrapped. |
-| Control messages (JSON) | ❌ | Reads and **forges** everything: file paths and directory listings, `create_file` / `rename_file` / `delete_file`, `prepare_save` targets, `ai_exec` commands and their stdout/stderr, tab list, viewer list. |
-| Chat | ❌ | Reads and forges chat messages. |
+| Control messages (file ops, `ai_exec`, tabs, presence) | ✅ AES-256-GCM envelope (protocol 0.7+) | Sees only the routing id (`target_conn`), size and timing. Cannot read, forge, reorder or replay: each sender numbers its messages, and viewer→host messages are bound to the host's per-process epoch, so commands captured earlier (even from a previous host process with the same password) are rejected. The host acts on no plaintext viewer message. |
+| Chat | ✅ (inside the control envelope) | Cannot read or forge. The host, not the relay, fans chat out to viewers. |
+| Relay status notices (`host_status`, `session_closed`, `viewer_disconnected`, `pong`) | ❌ (relay-originated) | Can spoof them. They only affect status display and presence, never host actions. |
 | Web Preview (`/p/...`) | ❌ | Browser↔relay is plain HTTP(S) and relay↔host is an unencrypted smux stream. The relay sees preview requests, responses and the preview cookie. |
 | Web UI (`app.js`) | n/a | Served by the relay. A malicious relay, or a network attacker when using plain HTTP, can serve modified JavaScript that captures the password. CLI clients are not affected. |
 
@@ -43,6 +44,7 @@ Other notes:
 - **No relay storage.** The relay stores no terminal buffers, files or chat history. Chat history is kept in memory by the host process and served to viewers on request (`get_chat_history`).
 - **Authentication tokens** are `SHA-256("rmte-auth:" + password)` and are sent to the relay, so a relay can brute-force weak passwords offline. The random default password (12 characters) is not practical to brute-force; user-chosen `--pass` values may be.
 - **Host and viewer credentials are the same.** Anyone who knows the session password can also register as the host for that session.
+- **Envelope replay state** is kept in memory per host process for up to 4096 viewer streams (one per viewer connection); the least recently used stream is forgotten first. A relay could replay messages from a forgotten stream only if more than 4096 newer viewer connections were made in the same host process.
 - **`--sandbox` is off by default.** Without it, forged file operations can reach any path the host user can access.
 
 ### 2. Credential Security & Ingestion Methods
@@ -96,6 +98,6 @@ When `--sandbox` is enabled on the host:
 
 The following architectural enhancements are scheduled for the next major milestone:
 1. **Session Password Key Derivation (PBKDF2-HMAC-SHA256)**: Transitioning from raw SHA-256 key hashing to standard library `crypto/pbkdf2` (available in Go 1.25 stdlib) and native browser WebCrypto PBKDF2 with public session salt, resisting offline precomputation attacks while maintaining zero external WASM/library bloat.
-2. **Control Channel Encryption & Authentication (security fix, highest priority)**: Wrapping every viewer↔host control message in an AES-GCM envelope with a monotonic sequence number and session-bound AAD, so the relay can no longer read or forge file operations and `ai_exec` commands, and cannot replay frames.
+2. **Binary Frame Sequence Numbers**: Extending the replay protection of the control envelope (done in protocol 0.7) to terminal and file-channel binary frames.
 3. **Cryptographic Release Signing**: Adding Minisign / Cosign digital signatures alongside SHA-256 checksums for verified binary distribution.
 4. **Relay Rate Limiting**: Implementing IP-level and session-level throttling on public relay endpoints to mitigate resource abuse and denial of service.

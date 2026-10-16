@@ -411,19 +411,25 @@ func TestBotClientDeadlockFreeEndToEnd(t *testing.T) {
 			"session_id": "test-session-dl",
 		})
 
-		// 3. Service client requests
+		// 3. Service client requests over the sealed control channel
+		conn := &SafeConn{Conn: raw, ctl: newCtlChannel(aesGCM, "test-session-dl", true)}
+		announceHostEpoch(conn)
 		for {
-			var msg map[string]interface{}
-			if err := raw.ReadJSON(&msg); err != nil {
+			_, data, err := raw.ReadMessage()
+			if err != nil {
 				return
+			}
+			msg, ok := hostAcceptControl(conn, data)
+			if !ok {
+				continue
 			}
 			action, _ := msg["action"].(string)
 			switch action {
-			case "unfocus":
-				// bot initial presence announce
+			case "unfocus", ctlHelloAction:
+				// bot initial presence announce / epoch request
 			case "ai_exec":
 				cmd, _ := msg["command"].(string)
-				_ = raw.WriteJSON(map[string]interface{}{
+				_ = conn.WriteJSON(map[string]interface{}{
 					"type":        "control",
 					"action":      "ai_exec_result",
 					"target_conn": "test-bot",
@@ -431,7 +437,7 @@ func TestBotClientDeadlockFreeEndToEnd(t *testing.T) {
 					"exit_code":   0,
 				})
 			case "ai_get_info":
-				_ = raw.WriteJSON(map[string]interface{}{
+				_ = conn.WriteJSON(map[string]interface{}{
 					"type":        "control",
 					"action":      "ai_get_info_result",
 					"target_conn": "test-bot",
@@ -442,7 +448,7 @@ func TestBotClientDeadlockFreeEndToEnd(t *testing.T) {
 					},
 				})
 			case "req_dir":
-				_ = raw.WriteJSON(map[string]interface{}{
+				_ = conn.WriteJSON(map[string]interface{}{
 					"type":        "control",
 					"action":      "dir_data",
 					"target_conn": "test-bot",

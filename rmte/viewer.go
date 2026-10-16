@@ -27,7 +27,7 @@ func backoffDelay(attempt int) time.Duration {
 	return d
 }
 
-func dialAndAuthViewer(serverURL, sessionID, password, viewerID, displayName string) (*SafeConn, error) {
+func dialAndAuthViewer(serverURL, sessionID, password, viewerID, displayName string, ctl *ctlChannel) (*SafeConn, error) {
 	u, err := url.Parse(serverURL)
 	if err != nil {
 		return nil, err
@@ -70,6 +70,13 @@ func dialAndAuthViewer(serverURL, sessionID, password, viewerID, displayName str
 	if authSuccess.Type != "auth_success" {
 		_ = conn.Close()
 		return nil, fmt.Errorf("relay rejected viewer: %s", authSuccess.Message)
+	}
+
+	// Seal all further control messages and ask the host for its epoch.
+	conn.ctl = ctl
+	if err := conn.WriteJSON(map[string]interface{}{"type": "control", "action": ctlHelloAction}); err != nil {
+		_ = conn.Close()
+		return nil, err
 	}
 
 	return conn, nil
@@ -207,7 +214,8 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 	}
 
 	viewerID := generateViewerID()
-	conn, err := dialAndAuthViewer(serverURL, sessionID, password, viewerID, myDispName)
+	ctl := newCtlChannel(aesGCM, sessionID, false)
+	conn, err := dialAndAuthViewer(serverURL, sessionID, password, viewerID, myDispName, ctl)
 	if err != nil {
 		fatalf("Connection failed: %v", err)
 	}
@@ -289,7 +297,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 
 					elapsed := int(time.Since(reconnectStart).Seconds())
 					fmt.Printf("\r\x1b[K[Reconnecting attempt %d (elapsed %ds/60s)...]", attempt, elapsed)
-					nc, rerr := dialAndAuthViewer(serverURL, sessionID, password, viewerID, myDispName)
+					nc, rerr := dialAndAuthViewer(serverURL, sessionID, password, viewerID, myDispName, ctl)
 					if rerr == nil {
 						newConn = nc
 						break
@@ -379,7 +387,12 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 					Time    string                   `json:"time"`
 					History []map[string]interface{} `json:"history"`
 				}
-				if err := json.Unmarshal(data, &ctrl); err == nil {
+				msg, ok := clientAcceptControl(activeRaw, data)
+				if !ok {
+					continue
+				}
+				plain, _ := json.Marshal(msg)
+				if err := json.Unmarshal(plain, &ctrl); err == nil {
 					if ctrl.Action == "chat_history" {
 						chatHistoryMu.Lock()
 						if len(chatHistory) == 0 {

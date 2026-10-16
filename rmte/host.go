@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -25,6 +24,9 @@ import (
 type SafeConn struct {
 	*websocket.Conn
 	mu sync.Mutex
+	// ctl, when set, seals every WriteJSON in an end-to-end control envelope.
+	// It is attached only after the relay handshake, which stays plaintext.
+	ctl *ctlChannel
 }
 
 func (c *SafeConn) WriteMessage(messageType int, data []byte) error {
@@ -36,7 +38,15 @@ func (c *SafeConn) WriteMessage(messageType int, data []byte) error {
 func (c *SafeConn) WriteJSON(v interface{}) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.Conn.WriteJSON(v)
+	if c.ctl == nil {
+		return c.Conn.WriteJSON(v)
+	}
+	// Seal under the write lock so sequence numbers hit the wire in order.
+	payload, err := c.ctl.seal(v)
+	if err != nil || payload == nil {
+		return err
+	}
+	return c.Conn.WriteMessage(websocket.TextMessage, payload)
 }
 
 func (c *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time) error {
@@ -436,6 +446,11 @@ func runHost(opts HostOptions) {
 		go runHostProxy(opts, authResp.SessionID, authResp.ProxySecret, proxyPath)
 	}
 
+	// From here on every control message to viewers is sealed.
+	hostCtl = newCtlChannel(aesGCM, authResp.SessionID, true)
+	conn.ctl = hostCtl
+	announceHostEpoch(conn)
+
 	// Initialize Event Log file on Host
 	initEventLog(authResp.SessionID)
 	logEvent(conn, "HOST_START", "host", fmt.Sprintf("Host session %s active in %s", authResp.SessionID, hostWorkDir))
@@ -586,10 +601,17 @@ func runHost(opts HostOptions) {
 				}
 			}
 		} else if mt == websocket.TextMessage {
-			var ctrl map[string]interface{}
-			if err := json.Unmarshal(data, &ctrl); err == nil {
+			if ctrl, ok := hostAcceptControl(conn, data); ok {
 				action, _ := ctrl["action"].(string)
 				switch action {
+				case ctlHelloAction:
+					// A viewer asks for the current epoch; any sealed reply carries it.
+					targetConn, _ := ctrl["target_conn"].(string)
+					conn.WriteJSON(map[string]interface{}{
+						"type":        "control",
+						"action":      ctlHelloAction,
+						"target_conn": targetConn,
+					})
 				case "get_tabs":
 					tabsMu.RLock()
 					activeTabs := make([]int, 0)
@@ -773,6 +795,14 @@ func runHost(opts HostOptions) {
 					})
 				case "chat":
 					appendHostChatHistory(ctrl)
+					// The relay can no longer read chat, so the host fans it out.
+					bcast := make(map[string]interface{}, len(ctrl))
+					for k, v := range ctrl {
+						if k != "target_conn" {
+							bcast[k] = v
+						}
+					}
+					conn.WriteJSON(bcast)
 
 				// ===== FILE MANAGER ACTIONS =====
 				case "req_dir":
@@ -919,6 +949,8 @@ func reconnectToRelay(opts HostOptions, sessionID string, timeout time.Duration)
 
 		fmt.Printf("✅ [Host] Reconnected to relay successfully! Session %s resumed.\n\n", sessionID)
 		log.Printf("[Host] Reconnected to relay successfully! Session %s resumed.", sessionID)
+		conn.ctl = hostCtl
+		announceHostEpoch(conn)
 		return conn, nil
 	}
 

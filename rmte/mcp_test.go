@@ -336,17 +336,23 @@ func TestMCPToolCallWithRealBot(t *testing.T) {
 			"session_id": "test-mcp-real",
 		})
 
+		conn := &SafeConn{Conn: raw, ctl: newCtlChannel(aesGCM, "test-mcp-real", true)}
+		announceHostEpoch(conn)
 		for {
-			var msg map[string]interface{}
-			if err := raw.ReadJSON(&msg); err != nil {
+			_, data, err := raw.ReadMessage()
+			if err != nil {
 				return
+			}
+			msg, ok := hostAcceptControl(conn, data)
+			if !ok {
+				continue
 			}
 			action, _ := msg["action"].(string)
 			switch action {
-			case "unfocus":
+			case "unfocus", ctlHelloAction:
 			case "ai_exec":
 				cmd, _ := msg["command"].(string)
-				_ = raw.WriteJSON(map[string]interface{}{
+				_ = conn.WriteJSON(map[string]interface{}{
 					"type":        "control",
 					"action":      "ai_exec_result",
 					"target_conn": "test-bot",
@@ -354,7 +360,7 @@ func TestMCPToolCallWithRealBot(t *testing.T) {
 					"exit_code":   0,
 				})
 			case "ai_get_info":
-				_ = raw.WriteJSON(map[string]interface{}{
+				_ = conn.WriteJSON(map[string]interface{}{
 					"type":        "control",
 					"action":      "ai_get_info_result",
 					"target_conn": "test-bot",

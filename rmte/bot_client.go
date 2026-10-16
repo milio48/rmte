@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -63,7 +62,7 @@ func newBotClient(serverURL, sessionID, password, name string, insecure bool) (*
 		name = "rmte-bot"
 	}
 
-	conn, err := dialAndAuthViewer(serverURL, sessionID, password, viewerID, name)
+	conn, err := dialAndAuthViewer(serverURL, sessionID, password, viewerID, name, newCtlChannel(aesGCM, sessionID, false))
 	if err != nil {
 		return nil, fmt.Errorf("relay auth failed: %w", err)
 	}
@@ -119,8 +118,8 @@ func (b *BotClient) readLoop() {
 		}
 
 		if mt == websocket.TextMessage {
-			var msg map[string]interface{}
-			if err := json.Unmarshal(data, &msg); err != nil {
+			msg, ok := clientAcceptControl(b.conn, data)
+			if !ok {
 				continue
 			}
 

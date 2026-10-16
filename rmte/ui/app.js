@@ -667,12 +667,13 @@ async function connect() {
         const keyHash=await rmteCrypto.sha256(enc.encode(password));
         rawAesKeyBytes=keyHash;
         aesKey=await rmteCrypto.importKey(keyHash);
+        ctl=newCtlState(sessionId);
         const authHash=await rmteCrypto.sha256(enc.encode('rmte-auth:'+password));
         const authToken=Array.from(authHash).map(b=>b.toString(16).padStart(2,'0')).join('');
         ws=new WebSocket(server); ws.binaryType='arraybuffer';
         ws.onopen=()=>{
             _log.info('WS connected');
-            sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.6',client:'web'}));
+            sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.7',client:'web'}));
             startPing();
         };
         ws.onclose=e=>{
@@ -695,7 +696,11 @@ async function connect() {
                 btn.disabled=false;
             }
         };
-        ws.onmessage=async e=>{try{typeof e.data==='string'?await onJson(JSON.parse(e.data)):await onBinary(new Uint8Array(e.data));}catch(err){_log.err('msg handler',err);}};
+        const sock=ws;
+        ws.onmessage=e=>{rxChain=rxChain.then(async()=>{
+            if(sock!==ws)return;
+            try{typeof e.data==='string'?await onText(e.data):await onBinary(new Uint8Array(e.data));}catch(err){_log.err('msg handler',err);}
+        });};
     } catch(e){_log.err('connect',e);showError(e.message);btn.innerText='Establish Connection';btn.disabled=false;}
 }
 
@@ -703,7 +708,7 @@ function startPing(){
     stopPing();
     pingTimer=setInterval(()=>{
         if(ws&&ws.readyState===WebSocket.OPEN){
-            sendJson({type:'control',action:'ping',t:Date.now()});
+            sendRaw(JSON.stringify({type:'control',action:'ping',t:Date.now()}));
         }
     },5000);
 }
@@ -736,7 +741,70 @@ function clearReconnectTimer(){
 }
 
 function sendRaw(d){if(ws&&ws.readyState===1)ws.send(d);else _log.err('WS not open');}
-function sendJson(m){_log.out('json:'+m.action,m);sendRaw(JSON.stringify(m));}
+// ===== CONTROL ENVELOPE =====
+// Every viewer<->host control message is sealed so the relay can neither read
+// nor forge it. Must match ctl.go:
+//   outer {"type":"e2e","target_conn"?,"d":base64(iv||ct)}
+//   inner {"s":stream,"n":seq,"e":hostEpoch,"m":message}
+//   AAD   "rmte-ctl-v1" | direction | session id
+const CTL_AAD_PREFIX='rmte-ctl-v1', CTL_HELLO='ctl_hello', CTL_RESYNC='ctl_resync';
+// Plaintext the relay itself sends; it already controls these, so they carry no host authority.
+const RELAY_PLAIN_TYPES=new Set(['auth_success','error']);
+const RELAY_PLAIN_ACTIONS=new Set(['pong','host_status','session_closed']);
+let ctl=null, rxChain=Promise.resolve();
+function newCtlState(sessionId){
+    const id=Array.from(rmteCrypto.randomBytes(16)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    return {sessionId, stream:id, seq:0, epoch:null, seen:new Map(), queue:[], tx:Promise.resolve()};
+}
+function ctlAAD(dir){
+    const enc=new TextEncoder(), p=enc.encode(CTL_AAD_PREFIX), sid=enc.encode(ctl.sessionId);
+    const a=new Uint8Array(p.length+1+sid.length);a.set(p);a[p.length]=dir;a.set(sid,p.length+1);return a;
+}
+function bytesToB64(u8){let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s);}
+function b64ToBytes(b64){return Uint8Array.from(atob(b64),c=>c.charCodeAt(0));}
+function sendJson(m){
+    _log.out('json:'+m.action,m);
+    if(!ctl){_log.err('Control channel not ready');return;}
+    // Until the host epoch is known only ctl_hello may go out.
+    if(!ctl.epoch&&m.action!==CTL_HELLO){ctl.queue.push(m);return;}
+    const c=ctl;
+    c.tx=c.tx.then(async()=>{
+        if(c!==ctl)return;
+        c.seq++;
+        const inner={s:c.stream,n:c.seq,m};
+        if(c.epoch)inner.e=c.epoch;
+        const iv=rmteCrypto.randomBytes(12);
+        const ct=await rmteCrypto.encrypt(iv,aesKey,new TextEncoder().encode(JSON.stringify(inner)),ctlAAD(DIR_TO_HOST));
+        const d=new Uint8Array(12+ct.byteLength);d.set(iv);d.set(ct,12);
+        sendRaw(JSON.stringify({type:'e2e',d:bytesToB64(d)}));
+    }).catch(e=>_log.err('seal',e));
+}
+async function openCtl(outer){
+    const raw=b64ToBytes(outer.d||'');
+    if(raw.length<13)throw new Error('short envelope');
+    const plain=await rmteCrypto.decrypt(raw.slice(0,12),aesKey,raw.slice(12),ctlAAD(DIR_TO_VIEWER));
+    const inner=JSON.parse(new TextDecoder().decode(plain));
+    if(!inner||typeof inner.s!=='string'||!(inner.n>0)||!inner.m)throw new Error('malformed envelope');
+    const last=ctl.seen.get(inner.s)||0;
+    if(inner.n<=last)throw new Error('replayed control message');
+    ctl.seen.set(inner.s,inner.n);
+    if(ctl.epoch!==inner.s){
+        ctl.epoch=inner.s;
+        const q=ctl.queue;ctl.queue=[];q.forEach(sendJson);
+    }
+    return inner.m;
+}
+async function onText(text){
+    const msg=JSON.parse(text);
+    if(msg.type==='e2e'){
+        let inner;
+        try{inner=await openCtl(msg);}catch(e){_log.warn('Dropped control envelope: '+e.message);return;}
+        if(inner.action===CTL_HELLO||inner.action===CTL_RESYNC)return;
+        return onJson(inner);
+    }
+    if(RELAY_PLAIN_TYPES.has(msg.type)||RELAY_PLAIN_ACTIONS.has(msg.action))return onJson(msg);
+    _log.warn('Dropped unauthenticated control message',{action:msg.action});
+}
 // Binary frame AAD: "rmte-v6" | direction | tab id | transfer id (BE u32).
 // Binds the cleartext frame header to the ciphertext so the relay cannot
 // redirect, reflect or re-wrap frames. Must match frameAAD in crypto.go.
@@ -787,6 +855,7 @@ async function onJson(msg) {
         const s=document.getElementById('sb-connection');if(s){s.innerText='● Connected';s.style.color='#3fb950';}
         // Reset any file-op state left over from a previous connection.
         waitingForFileData=false;pendingFileBytes=null;pendingEditorPath=null;pendingDownload=false;pendingDownloadName=null;fileOpBusy=false;uploadActive=false;currentTransferId=0;
+        sendJson({type:'control',action:CTL_HELLO});
         sendJson({type:'control',action:'unfocus',viewer_id:myViewerId,viewer_name:myUsername});
         sendJson({type:'control',action:'get_tabs'});
         sendJson({type:'control',action:'get_events'});
@@ -818,7 +887,7 @@ async function onJson(msg) {
                 const history = msg.history || [];
                 const existing = cm.querySelectorAll('.chat-msg');
                 if(history.length === 0 && existing.length === 0){
-                    cm.innerHTML=`<div class="chat-empty-state"><div class="chat-empty-icon">${svgIcon('messageSquare', { size: 32 })}</div><div class="chat-empty-title">Session Chat</div><div class="chat-empty-sub">Messages are shared live with all Web and CLI collaborators. Chat is not end-to-end encrypted: the relay can read it.</div></div>`;
+                    cm.innerHTML=`<div class="chat-empty-state"><div class="chat-empty-icon">${svgIcon('messageSquare', { size: 32 })}</div><div class="chat-empty-title">Session Chat</div><div class="chat-empty-sub">Messages are end-to-end encrypted and shared live with all Web and CLI collaborators.</div></div>`;
                 } else if(history.length > 0) {
                     const empty = cm.querySelector('.chat-empty-state');
                     if(empty) empty.remove();

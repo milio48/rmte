@@ -530,56 +530,25 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 				action, _ := ctrl["action"].(string)
 
 				if role == "viewer" {
-					if action == "chat" {
-						// Forward to host so host maintains chat history
+					if msgType, _ := ctrl["type"].(string); msgType == ctlEnvelopeType {
+						// Sealed viewer->host message: stamp the sender's connID so the
+						// host can address its reply. The relay cannot read the payload.
+						ctrl["target_conn"] = connID
 						s.Mutex.RLock()
 						hostConn := s.Host
 						s.Mutex.RUnlock()
 						if hostConn != nil {
-							hostConn.WriteMessage(websocket.TextMessage, data)
+							newData, _ := json.Marshal(ctrl)
+							hostConn.WriteMessage(websocket.TextMessage, newData)
 						}
-
-						// Broadcast to all viewers
-						s.Mutex.RLock()
-						for _, conns := range s.Viewers {
-							for _, vConn := range conns {
-								vConn.WriteMessage(websocket.TextMessage, data)
-							}
-						}
-						s.Mutex.RUnlock()
 					} else if action == "ping" {
 						conn.WriteJSON(map[string]interface{}{
 							"type":   "control",
 							"action": "pong",
 							"t":      ctrl["t"],
 						})
-					} else {
-						s.Mutex.RLock()
-						hostConn := s.Host
-						s.Mutex.RUnlock()
-						if hostConn != nil {
-							if action == "req_sync" ||
-								action == "req_dir" ||
-								action == "req_read_file" ||
-								action == "prepare_save" ||
-								action == "prepare_upload" ||
-								action == "create_file" ||
-								action == "create_dir" ||
-								action == "rename_file" ||
-								action == "delete_file" ||
-								action == "ai_exec" ||
-								action == "ai_get_info" ||
-								action == "get_events" ||
-								action == "get_chat_history" {
-								// Inject caller's connID so host can route responses back
-								ctrl["target_conn"] = connID
-								newData, _ := json.Marshal(ctrl)
-								hostConn.WriteMessage(websocket.TextMessage, newData)
-							} else {
-								hostConn.WriteMessage(websocket.TextMessage, data)
-							}
-						}
 					}
+					// Anything else is dropped: viewer->host control must be sealed.
 				} else {
 					targetConn, hasTarget := ctrl["target_conn"].(string)
 

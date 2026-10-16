@@ -217,20 +217,6 @@ func TestServerAllowsHostReconnectWithSameAuthToken(t *testing.T) {
 		t.Fatalf("viewer auth failed: %v, resp: %+v", err, viewerResp)
 	}
 
-	// Viewer sends a chat message
-	testChat := map[string]interface{}{
-		"type":    "control",
-		"action":  "chat",
-		"user":    "Alice",
-		"message": "Hello from viewer",
-	}
-	if err := viewerConn.WriteJSON(testChat); err != nil {
-		t.Fatalf("viewer send chat failed: %v", err)
-	}
-	// Drain the chat broadcast on viewer
-	var chatEcho map[string]interface{}
-	_ = viewerConn.ReadJSON(&chatEcho)
-
 	// 3. Host 1 suddenly drops (TCP disconnect)
 	_ = conn1.Close()
 
@@ -756,6 +742,13 @@ func TestPresenceLobbyInitialAndFocus(t *testing.T) {
 		t.Fatalf("viewer auth failed: %v, resp: %+v", err, viewerAuthResp)
 	}
 
+	if err := setupCrypto("prespass"); err != nil {
+		t.Fatal(err)
+	}
+	host := sealPeer(hostWS, "presbox", true)
+	viewer := sealPeer(viewerWS, "presbox", false)
+	linkEpoch(host, viewer)
+
 	// 3. Viewer sends initial unfocus (announcing presence in Lobby before joining any tab)
 	unfocusMsg := map[string]interface{}{
 		"type":        "control",
@@ -763,14 +756,13 @@ func TestPresenceLobbyInitialAndFocus(t *testing.T) {
 		"viewer_id":   "v-test-1",
 		"viewer_name": "fzclitui",
 	}
-	if err := viewerWS.WriteJSON(unfocusMsg); err != nil {
+	if err := viewer.WriteJSON(unfocusMsg); err != nil {
 		t.Fatalf("viewer write unfocus failed: %v", err)
 	}
 
 	// Host reads the unfocus control message and handles it like host.go does
-	var hostCtrl map[string]interface{}
-	_ = hostWS.SetReadDeadline(time.Now().Add(2 * time.Second))
-	if err := hostWS.ReadJSON(&hostCtrl); err != nil {
+	hostCtrl, err := readSealed(host, 2*time.Second)
+	if err != nil {
 		t.Fatalf("host read unfocus control message failed: %v", err)
 	}
 	if hostCtrl["action"] != "unfocus" {
@@ -785,14 +777,13 @@ func TestPresenceLobbyInitialAndFocus(t *testing.T) {
 			"255": {"fzclitui"},
 		},
 	}
-	if err := hostWS.WriteJSON(presenceBroad); err != nil {
+	if err := host.WriteJSON(presenceBroad); err != nil {
 		t.Fatalf("host broadcast presence failed: %v", err)
 	}
 
 	// Viewer receives presence broadcast with Lobby (255)
-	var viewerPres map[string]interface{}
-	_ = viewerWS.SetReadDeadline(time.Now().Add(2 * time.Second))
-	if err := viewerWS.ReadJSON(&viewerPres); err != nil {
+	viewerPres, err := readSealed(viewer, 2*time.Second)
+	if err != nil {
 		t.Fatalf("viewer read presence broadcast failed: %v", err)
 	}
 	if viewerPres["action"] != "presence" {
@@ -815,11 +806,11 @@ func TestPresenceLobbyInitialAndFocus(t *testing.T) {
 		"viewer_name": "fzclitui",
 		"tab_id":      0,
 	}
-	if err := viewerWS.WriteJSON(setFocusMsg); err != nil {
+	if err := viewer.WriteJSON(setFocusMsg); err != nil {
 		t.Fatalf("viewer write set_focus failed: %v", err)
 	}
 
-	if err := hostWS.ReadJSON(&hostCtrl); err != nil {
+	if hostCtrl, err = readSealed(host, 2*time.Second); err != nil {
 		t.Fatalf("host read set_focus failed: %v", err)
 	}
 	if hostCtrl["action"] != "set_focus" {
@@ -834,11 +825,11 @@ func TestPresenceLobbyInitialAndFocus(t *testing.T) {
 			"0": {"fzclitui"},
 		},
 	}
-	if err := hostWS.WriteJSON(presenceTab0); err != nil {
+	if err := host.WriteJSON(presenceTab0); err != nil {
 		t.Fatalf("host broadcast presence tab 0 failed: %v", err)
 	}
 
-	if err := viewerWS.ReadJSON(&viewerPres); err != nil {
+	if viewerPres, err = readSealed(viewer, 2*time.Second); err != nil {
 		t.Fatalf("viewer read presence tab 0 failed: %v", err)
 	}
 	tabs0, _ := viewerPres["tabs"].(map[string]interface{})
@@ -1380,6 +1371,13 @@ func TestHostManagedChatHistory(t *testing.T) {
 		t.Fatalf("viewer 1 auth failed: %v", err)
 	}
 
+	if err := setupCrypto("testpass"); err != nil {
+		t.Fatal(err)
+	}
+	host := sealPeer(hostConn, "chathost", true)
+	v1 := sealPeer(vConn1, "chathost", false)
+	linkEpoch(host, v1)
+
 	// Viewer 1 sends a chat message
 	testChat := map[string]interface{}{
 		"type":    "control",
@@ -1388,14 +1386,13 @@ func TestHostManagedChatHistory(t *testing.T) {
 		"message": "Hello from Alice",
 		"time":    "12:00",
 	}
-	if err := vConn1.WriteJSON(testChat); err != nil {
+	if err := v1.WriteJSON(testChat); err != nil {
 		t.Fatalf("viewer 1 send chat failed: %v", err)
 	}
 
-	// Host should receive the chat message from relay!
-	var hostChatMsg map[string]interface{}
-	_ = hostConn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	if err := hostConn.ReadJSON(&hostChatMsg); err != nil {
+	// Host should receive the sealed chat message from relay
+	hostChatMsg, err := readSealed(host, 2*time.Second)
+	if err != nil {
 		t.Fatalf("host expected chat message forwarded by relay, got: %v", err)
 	}
 	if hostChatMsg["action"] != "chat" || hostChatMsg["message"] != "Hello from Alice" {
@@ -1423,9 +1420,11 @@ func TestHostManagedChatHistory(t *testing.T) {
 	if err := vConn2.ReadJSON(&vResp2); err != nil || vResp2["type"] != "auth_success" {
 		t.Fatalf("viewer 2 auth failed: %v", err)
 	}
+	v2 := sealPeer(vConn2, "chathost", false)
+	linkEpoch(host, v2)
 
 	// Viewer 2 requests chat history
-	if err := vConn2.WriteJSON(map[string]interface{}{
+	if err := v2.WriteJSON(map[string]interface{}{
 		"type":   "control",
 		"action": "get_chat_history",
 	}); err != nil {
@@ -1433,9 +1432,8 @@ func TestHostManagedChatHistory(t *testing.T) {
 	}
 
 	// Host receives get_chat_history with target_conn injected by relay
-	var hostGetChat map[string]interface{}
-	_ = hostConn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	if err := hostConn.ReadJSON(&hostGetChat); err != nil {
+	hostGetChat, err := readSealed(host, 2*time.Second)
+	if err != nil {
 		t.Fatalf("host expected get_chat_history, got: %v", err)
 	}
 	if hostGetChat["action"] != "get_chat_history" {
@@ -1447,7 +1445,7 @@ func TestHostManagedChatHistory(t *testing.T) {
 	}
 
 	// Host sends chat_history back to Viewer 2 via target_conn
-	if err := hostConn.WriteJSON(map[string]interface{}{
+	if err := host.WriteJSON(map[string]interface{}{
 		"type":        "control",
 		"action":      "chat_history",
 		"target_conn": targetConn,
@@ -1463,9 +1461,8 @@ func TestHostManagedChatHistory(t *testing.T) {
 	}
 
 	// Viewer 2 receives chat_history!
-	var v2ChatHistory map[string]interface{}
-	_ = vConn2.SetReadDeadline(time.Now().Add(2 * time.Second))
-	if err := vConn2.ReadJSON(&v2ChatHistory); err != nil {
+	v2ChatHistory, err := readSealed(v2, 2*time.Second)
+	if err != nil {
 		t.Fatalf("viewer 2 failed to read chat_history: %v", err)
 	}
 	if v2ChatHistory["action"] != "chat_history" {
@@ -1560,6 +1557,14 @@ func TestChatNoDuplicateDelivery(t *testing.T) {
 		t.Fatalf("v2 auth failed: %v", err)
 	}
 
+	if err := setupCrypto("noduppass"); err != nil {
+		t.Fatal(err)
+	}
+	host := sealPeer(hostConn, "nodup", true)
+	v1 := sealPeer(vConn1, "nodup", false)
+	v2 := sealPeer(vConn2, "nodup", false)
+	linkEpoch(host, v1, v2)
+
 	// Viewer 1 sends a single chat message
 	testMsg := map[string]interface{}{
 		"type":    "control",
@@ -1568,14 +1573,24 @@ func TestChatNoDuplicateDelivery(t *testing.T) {
 		"message": "Only-Once-Test",
 		"time":    "12:34",
 	}
-	if err := vConn1.WriteJSON(testMsg); err != nil {
+	if err := v1.WriteJSON(testMsg); err != nil {
 		t.Fatalf("v1 write chat failed: %v", err)
 	}
 
+	// The relay cannot read chat, so it must not fan it out itself; the host
+	// receives it and broadcasts it once (as host.go does).
+	hostChat, err := readSealed(host, 2*time.Second)
+	if err != nil || hostChat["action"] != "chat" {
+		t.Fatalf("host expected sealed chat, got %+v (%v)", hostChat, err)
+	}
+	delete(hostChat, "target_conn")
+	if err := host.WriteJSON(hostChat); err != nil {
+		t.Fatalf("host broadcast chat failed: %v", err)
+	}
+
 	// Viewer 2 must receive the chat message EXACTLY ONCE
-	var v2Msg1 map[string]interface{}
-	_ = vConn2.SetReadDeadline(time.Now().Add(1 * time.Second))
-	if err := vConn2.ReadJSON(&v2Msg1); err != nil {
+	v2Msg1, err := readSealed(v2, 1*time.Second)
+	if err != nil {
 		t.Fatalf("viewer 2 expected to receive chat message: %v", err)
 	}
 	if v2Msg1["action"] != "chat" || v2Msg1["message"] != "Only-Once-Test" {
@@ -1583,9 +1598,7 @@ func TestChatNoDuplicateDelivery(t *testing.T) {
 	}
 
 	// Viewer 2 should NOT receive a duplicate delivery
-	_ = vConn2.SetReadDeadline(time.Now().Add(250 * time.Millisecond))
-	var dupMsg map[string]interface{}
-	err = vConn2.ReadJSON(&dupMsg)
+	dupMsg, err := readSealed(v2, 250*time.Millisecond)
 	if err == nil {
 		t.Fatalf("DUPLICATE CHAT DETECTED: viewer 2 received chat a second time: %+v", dupMsg)
 	}
