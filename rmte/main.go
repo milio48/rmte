@@ -89,7 +89,7 @@ func setupDNSFallback() {
 }
 
 const (
-	protocolVersion = "0.5"
+	protocolVersion = "0.6"
 
 	defaultPort        = 8048
 	defaultWSPath      = "/ws-rmte"

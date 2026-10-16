@@ -6,8 +6,42 @@ on:
       - 'v*'
 
 jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: ./rmte
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: rmte/go.mod
+          cache-dependency-path: rmte/go.sum
+
+      - name: Check formatting
+        if: runner.os == 'Linux'
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Files need gofmt:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -count=1 ./...
+
   build:
     name: Build and Release
+    needs: test
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -38,14 +72,14 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 'stable'
-          cache: true
+          go-version-file: rmte/go.mod
+          cache-dependency-path: rmte/go.sum
 
       - name: Build Binary
         working-directory: ./rmte
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-s -w -X main.appVersion=${VERSION}" -o ../rmte-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags "-s -w -X main.appVersion=${VERSION}" -o ../rmte-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

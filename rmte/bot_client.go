@@ -102,7 +102,7 @@ func (b *BotClient) readLoop() {
 
 		if mt == websocket.BinaryMessage {
 			if len(data) > 0 && data[0] == dataChannelTabID {
-				transferID, plaintext, err := decryptDataChannel(data)
+				transferID, plaintext, err := decryptDataChannel(dirToViewer, data)
 				if err == nil {
 					b.xferMu.Lock()
 					pt := b.pendingXfer[transferID]
@@ -430,7 +430,7 @@ func (b *BotClient) WriteFile(remotePath string, data []byte) error {
 		return fmt.Errorf("connection closed")
 	}
 
-	payload, err := encryptDataChannel(transferID, data)
+	payload, err := encryptDataChannel(dirToHost, transferID, data)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt file payload: %w", err)
 	}

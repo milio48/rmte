@@ -525,6 +525,16 @@ func TestDNSFallbackBypassesPhantomLoopback(t *testing.T) {
 	// dialing [::1]:53 or 127.0.0.1:53 must be bypassed to trusted public DNS.
 	// If system HAS /etc/resolv.conf (Linux server/desktop), it should NOT be bypassed.
 	for _, phantom := range []string{"[::1]:53", "127.0.0.1:53"} {
+		// Without IPv6 (some containers) the plain dial fails and the resolver
+		// falls back to public DNS for an unrelated reason; skip that case.
+		if hasSystemResolv {
+			probe, perr := net.Dial("udp", phantom)
+			if perr != nil {
+				t.Logf("skipping %s: loopback not dialable here: %v", phantom, perr)
+				continue
+			}
+			probe.Close()
+		}
 		conn, err := resolver.Dial(context.Background(), "udp", phantom)
 		if err != nil {
 			t.Fatalf("failed to dial phantom %s: %v", phantom, err)
@@ -1580,8 +1590,3 @@ func TestChatNoDuplicateDelivery(t *testing.T) {
 		t.Fatalf("DUPLICATE CHAT DETECTED: viewer 2 received chat a second time: %+v", dupMsg)
 	}
 }
-
-
-
-
-

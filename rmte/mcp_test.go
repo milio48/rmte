@@ -426,4 +426,3 @@ func TestMCPToolCallWithRealBot(t *testing.T) {
 		t.Fatalf("rmte_get_info unexpected content: %s", resInfoTool.Content[0].Text)
 	}
 }
-

@@ -354,7 +354,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 				if len(data) > 0 && data[0] == dataChannelTabID {
 					continue // Tab 255 is the file channel; the CLI client does not use it
 				}
-				tabID, plaintext, err := decryptBinary(data)
+				tabID, plaintext, err := decryptBinary(dirToViewer, data)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, "\n[E2EE Error: Decryption failed. Please check if --pass matches the host's password exactly!]")
 					continue
@@ -479,7 +479,7 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 							if len(payload) > 0 && payload[0] == dataChannelTabID {
 								continue // Tab 255 is the file channel; the CLI client does not use it
 							}
-							tabID, plaintext, err := decryptBinary(payload)
+							tabID, plaintext, err := decryptBinary(dirToViewer, payload)
 							if err != nil {
 								fmt.Fprintln(os.Stderr, "\n[E2EE Error: Sync data decryption failed. Please check if --pass matches the host's password exactly!]")
 							} else {
@@ -707,7 +707,7 @@ func enterRawTerminal(vc *ViewerConn, tabID byte) {
 			return
 		}
 
-		payload, err := encryptBinary(tabID, buf[:n])
+		payload, err := encryptBinary(dirToHost, tabID, buf[:n])
 		if err == nil {
 			_ = vc.WriteMessage(websocket.BinaryMessage, payload)
 		}

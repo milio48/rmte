@@ -34,7 +34,7 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
   * **Interactive Toolbar & Responsive 390px Mobile View**: Smart address bar, navigation controls (`[◀] [▶] [⟳]`), and mobile device inspection frame.
 * **Windows Native ConPTY:**
   * Full pseudo-terminal support on Windows 10/11 using ConPTY: command history recall with arrow keys (`↑` / `↓`), horizontal cursor navigation (`←` / `→`), tab completion, and native ANSI color rendering.
-* **Absolute Privacy (AES-GCM 256-bit):** Encryption keys and terminal/file I/O payloads are processed locally. The central relay server acts as a "dumb pipe" that only routes encrypted binary frames. It never sees your plaintext data, your files, or your password.
+* **E2EE Terminal & File Contents (AES-GCM 256-bit):** Terminal I/O and file contents are encrypted locally; the relay only forwards ciphertext for those streams and never receives your password. Control messages, Web Preview traffic and chat are **not** end-to-end encrypted yet, so the relay must still be trusted. See the security model limits below and [SECURITY.md](SECURITY.md).
 * **Single-Command Setup:** Run `rmte serve` to start a relay and host session in one process. A random password and a shareable link are printed automatically.
 * **HTTP Compatible:** Works on plain HTTP (no HTTPS required). A built-in crypto polyfill (asmcrypto.js) handles AES-GCM when `crypto.subtle` is unavailable.
 * **Shareable Links & Auto-fill UI:** Running a host session generates a web URL with pre-filled `?server=` and `?session=` parameters. The Web UI parses these and auto-focuses the password input for seamless onboarding.
@@ -82,17 +82,27 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
 
 ```
 ┌───────────────┐                  ┌──────────────┐                  ┌───────────────┐
-│               │  E2EE Control    │              │  E2EE Control    │               │
+│               │ Control (JSON,   │              │ Control (JSON,   │               │
+│               │  not encrypted)  │              │  not encrypted)  │               │
 │               ├─────────────────►│              │◄─────────────────┤               │
 │   Host Go     │                  │  Relay Go    │                  │  Viewer JS    │
-│  Workspace    │  E2EE Tab 255    │  (WebSockets)│  E2EE Tab 255    │   Browser     │
+│  Workspace    │ E2EE terminal +  │  (WebSockets)│ E2EE terminal +  │   Browser     │
+│               │ file (Tab 255)   │              │ file (Tab 255)   │               │
 │               │◄─────────────────┤              ├─────────────────►│               │
 └───────────────┘  (Raw Binary)    └──────────────┘  (Raw Binary)    └───────────────┘
 ```
 
-1. **E2EE Key Derivation**: A 256-bit key is derived locally from the shared password using SHA-256.
-2. **AES-GCM Payload Envelope**: Control messages (JSON) and binary streams (terminal I/O & file operations) are encrypted using AES-GCM with a unique 12-byte initialization vector (IV) prepended to the ciphertext.
-3. **Zero-Knowledge Relay**: The server only proxies binary envelopes and target routing IDs. It cannot read your commands, terminal outputs, or files.
+1. **E2EE Key Derivation**: A 256-bit key is derived locally from the shared password using SHA-256 (no salt or KDF yet, so use the random default password or a strong `--pass`).
+2. **AES-GCM Binary Frames**: Terminal I/O and file contents (Tab 255) are encrypted with AES-GCM and a random 12-byte IV per frame. The frame header (direction, tab id, transfer id) is authenticated as additional data, so the relay cannot redirect, reflect or re-wrap frames.
+
+**Current limits: the relay is trusted for the following.**
+
+* **Control messages are plain JSON.** File paths, directory listings, file operations (create/rename/delete), `ai_exec` commands and their output, and chat pass through the relay unencrypted and unauthenticated. A malicious relay can read them and **forge** them: it can delete or move files on the host and, if the host runs with `--allow-exec`, run commands without knowing the password.
+* **Web Preview is not E2EE.** The browser talks HTTP to the relay, which can see preview requests, responses and cookies.
+* **The browser UI is served by the relay.** A malicious relay (or anyone on the network when using plain HTTP) can serve JavaScript that captures the password before encryption. CLI clients (`rmte join`, `exec`, `mcp`) are not affected by this.
+* **Replay** of a terminal frame on the same tab is still possible.
+
+Use `--allow-exec` only with a relay you run yourself. End-to-end encryption of control messages is the top item on the security roadmap in [SECURITY.md](SECURITY.md).
 
 </details>
 

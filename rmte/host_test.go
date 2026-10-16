@@ -32,6 +32,10 @@ func TestIsInternalRmteFile(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		// filepath.Base only splits on '\' on Windows.
+		if strings.Contains(tc.input, "\\") && runtime.GOOS != "windows" {
+			continue
+		}
 		got := isInternalRmteFile(tc.input)
 		if got != tc.expected {
 			t.Errorf("isInternalRmteFile(%q) = %v; want %v", tc.input, got, tc.expected)
@@ -284,5 +288,3 @@ func TestHostChatHistoryMaxChat(t *testing.T) {
 		t.Errorf("expected 0 chats with MaxChat=0, got %d", len(chatsZero))
 	}
 }
-
-

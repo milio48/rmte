@@ -672,7 +672,7 @@ async function connect() {
         ws=new WebSocket(server); ws.binaryType='arraybuffer';
         ws.onopen=()=>{
             _log.info('WS connected');
-            sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.5',client:'web'}));
+            sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.6',client:'web'}));
             startPing();
         };
         ws.onclose=e=>{
@@ -737,7 +737,13 @@ function clearReconnectTimer(){
 
 function sendRaw(d){if(ws&&ws.readyState===1)ws.send(d);else _log.err('WS not open');}
 function sendJson(m){_log.out('json:'+m.action,m);sendRaw(JSON.stringify(m));}
-async function sendBin(tabId,plain){const iv=rmteCrypto.randomBytes(12);const ct=await rmteCrypto.encrypt(iv,aesKey,plain);const p=new Uint8Array(1+12+ct.byteLength);p[0]=tabId;p.set(iv,1);p.set(ct,13);sendRaw(p);}
+// Binary frame AAD: "rmte-v6" | direction | tab id | transfer id (BE u32).
+// Binds the cleartext frame header to the ciphertext so the relay cannot
+// redirect, reflect or re-wrap frames. Must match frameAAD in crypto.go.
+const DIR_TO_HOST=1, DIR_TO_VIEWER=2;
+const AAD_PREFIX=new TextEncoder().encode('rmte-v6');
+function frameAAD(dir,tabId,transferId){const a=new Uint8Array(AAD_PREFIX.length+6);a.set(AAD_PREFIX);a[AAD_PREFIX.length]=dir;a[AAD_PREFIX.length+1]=tabId;new DataView(a.buffer).setUint32(AAD_PREFIX.length+2,transferId>>>0,false);return a;}
+async function sendBin(tabId,plain){const iv=rmteCrypto.randomBytes(12);const ct=await rmteCrypto.encrypt(iv,aesKey,plain,frameAAD(DIR_TO_HOST,tabId,0));const p=new Uint8Array(1+12+ct.byteLength);p[0]=tabId;p.set(iv,1);p.set(ct,13);sendRaw(p);}
 // Data-channel frames add a 4-byte transfer id so concurrent file operations
 // from different viewers can be told apart (the relay broadcasts binary frames).
 let currentTransferId=0;
@@ -745,7 +751,7 @@ function newTransferId(){return (Math.floor(Math.random()*0xFFFFFFFF)>>>0)||1;}
 async function sendDataChannel(plain){
     const id=currentTransferId>>>0;
     const iv=rmteCrypto.randomBytes(12);
-    const ct=await rmteCrypto.encrypt(iv,aesKey,plain);
+    const ct=await rmteCrypto.encrypt(iv,aesKey,plain,frameAAD(DIR_TO_HOST,DATA_CH,id));
     const p=new Uint8Array(1+4+12+ct.byteLength);
     p[0]=DATA_CH;
     new DataView(p.buffer).setUint32(1,id,false);
@@ -812,7 +818,7 @@ async function onJson(msg) {
                 const history = msg.history || [];
                 const existing = cm.querySelectorAll('.chat-msg');
                 if(history.length === 0 && existing.length === 0){
-                    cm.innerHTML=`<div class="chat-empty-state"><div class="chat-empty-icon">${svgIcon('messageSquare', { size: 32 })}</div><div class="chat-empty-title">Session Chat</div><div class="chat-empty-sub">Messages sent here are encrypted and shared live with all Web and CLI collaborators.</div></div>`;
+                    cm.innerHTML=`<div class="chat-empty-state"><div class="chat-empty-icon">${svgIcon('messageSquare', { size: 32 })}</div><div class="chat-empty-title">Session Chat</div><div class="chat-empty-sub">Messages are shared live with all Web and CLI collaborators. Chat is not end-to-end encrypted: the relay can read it.</div></div>`;
                 } else if(history.length > 0) {
                     const empty = cm.querySelector('.chat-empty-state');
                     if(empty) empty.remove();
@@ -879,7 +885,7 @@ async function onBinary(raw) {
             if(transferId!==currentTransferId){_log.warn('Ignoring data-channel frame for another transfer',{transferId,currentTransferId});return;}
             const iv=raw.slice(5,17),ct=raw.slice(17);
             if(ct.length===0){_log.warn('Empty data-channel payload');return;}
-            const dec=await rmteCrypto.decrypt(iv,aesKey,ct);
+            const dec=await rmteCrypto.decrypt(iv,aesKey,ct,frameAAD(DIR_TO_VIEWER,DATA_CH,transferId));
             if(!waitingForFileData){_log.warn('Tab255 data but not waiting');return;}
             waitingForFileData=false;
             if(pendingDownload){
@@ -910,7 +916,7 @@ async function onBinary(raw) {
         }
         const iv=raw.slice(1,13),ct=raw.slice(13);
         if(ct.length===0){_log.warn('Empty ct',{tabId});return;}
-        const dec=await rmteCrypto.decrypt(iv,aesKey,ct);
+        const dec=await rmteCrypto.decrypt(iv,aesKey,ct,frameAAD(DIR_TO_VIEWER,tabId,0));
         if(!terminals[tabId])initTerminal(tabId);
         terminals[tabId].term.write(new Uint8Array(dec));
     }catch(e){

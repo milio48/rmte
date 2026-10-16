@@ -25,9 +25,25 @@ If you discover a security vulnerability within RMTE, please report it privately
 
 RMTE provides remote terminal and workspace sharing over zero-inbound WebSocket relay connections. Understanding the boundaries of the security model ensures safe deployment:
 
-### 1. Data Plane vs. Control Plane
-- **Data Plane (E2EE)**: Terminal PTY streams (keystrokes, terminal output) and Web Preview reverse-proxy streams are encrypted end-to-end between the host and viewers using **AES-256-GCM** (via native Go crypto on the CLI and WebCrypto API in the browser). The relay server acts strictly as a dumb blind pipe and cannot decrypt session terminal traffic.
-- **Control Plane & Zero-Relay Storage**: Session orchestration messages (connection handshakes, tab presence, room ID, viewer list) traverse the relay for routing purposes. **The relay server stores zero user content, zero terminal buffers, and zero chat history.** Chat history is retained in-memory strictly by the Host process and served directly to authorized viewers upon request (`get_chat_history`). Sensitive authentication tokens are exchanged over TLS (WSS/HTTPS) to the relay.
+### 1. What Is and Is Not End-to-End Encrypted
+
+> [!WARNING]
+> **The relay is currently a trusted party.** Only terminal streams and file contents are end-to-end encrypted. A malicious relay operator (including the operator of the shared public relay `my.rmte.biz.id`) can read and forge control messages. On a host started with `--allow-exec`, that is equivalent to shell access. Run your own relay for anything sensitive.
+
+| Channel | E2EE? | What the relay can do |
+| --- | --- | --- |
+| Terminal I/O (binary tab frames) | ✅ AES-256-GCM | Cannot read or modify. The frame header (direction, tab id) is authenticated (protocol 0.6+), so frames cannot be redirected to another tab or reflected back. **Can replay** a captured frame on the same tab. |
+| File contents (Tab 255) | ✅ AES-256-GCM | Cannot read or modify. Transfer id and direction are authenticated, so a download cannot be re-uploaded or re-wrapped. |
+| Control messages (JSON) | ❌ | Reads and **forges** everything: file paths and directory listings, `create_file` / `rename_file` / `delete_file`, `prepare_save` targets, `ai_exec` commands and their stdout/stderr, tab list, viewer list. |
+| Chat | ❌ | Reads and forges chat messages. |
+| Web Preview (`/p/...`) | ❌ | Browser↔relay is plain HTTP(S) and relay↔host is an unencrypted smux stream. The relay sees preview requests, responses and the preview cookie. |
+| Web UI (`app.js`) | n/a | Served by the relay. A malicious relay, or a network attacker when using plain HTTP, can serve modified JavaScript that captures the password. CLI clients are not affected. |
+
+Other notes:
+- **No relay storage.** The relay stores no terminal buffers, files or chat history. Chat history is kept in memory by the host process and served to viewers on request (`get_chat_history`).
+- **Authentication tokens** are `SHA-256("rmte-auth:" + password)` and are sent to the relay, so a relay can brute-force weak passwords offline. The random default password (12 characters) is not practical to brute-force; user-chosen `--pass` values may be.
+- **Host and viewer credentials are the same.** Anyone who knows the session password can also register as the host for that session.
+- **`--sandbox` is off by default.** Without it, forged file operations can reach any path the host user can access.
 
 ### 2. Credential Security & Ingestion Methods
 RMTE supports multiple methods for supplying session passwords and relay secrets, with differing trade-offs:
@@ -80,6 +96,6 @@ When `--sandbox` is enabled on the host:
 
 The following architectural enhancements are scheduled for the next major milestone:
 1. **Session Password Key Derivation (PBKDF2-HMAC-SHA256)**: Transitioning from raw SHA-256 key hashing to standard library `crypto/pbkdf2` (available in Go 1.25 stdlib) and native browser WebCrypto PBKDF2 with public session salt, resisting offline precomputation attacks while maintaining zero external WASM/library bloat.
-2. **Control Channel Encryption**: Encrypting metadata control channel messages end-to-end to eliminate session intelligence exposure on unverified relay nodes.
+2. **Control Channel Encryption & Authentication (security fix, highest priority)**: Wrapping every viewer↔host control message in an AES-GCM envelope with a monotonic sequence number and session-bound AAD, so the relay can no longer read or forge file operations and `ai_exec` commands, and cannot replay frames.
 3. **Cryptographic Release Signing**: Adding Minisign / Cosign digital signatures alongside SHA-256 checksums for verified binary distribution.
 4. **Relay Rate Limiting**: Implementing IP-level and session-level throttling on public relay endpoints to mitigate resource abuse and denial of service.

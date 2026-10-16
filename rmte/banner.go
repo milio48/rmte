@@ -187,6 +187,16 @@ func printBanner(b BannerInfo) {
 
 	if b.AllowExec {
 		line("AI Exec / MCP", "✅ Enabled (--allow-exec)")
+		if b.Mode == modeShare {
+			// Control messages (including ai_exec) are not yet end-to-end
+			// encrypted or authenticated, so a remote relay can forge them.
+			sb.WriteString("\n⚠️  WARNING: --allow-exec over a remote relay lets the relay operator run\n")
+			sb.WriteString("   commands on this host without the password (control messages are not\n")
+			sb.WriteString("   yet E2E-authenticated). Only use it with a relay you run yourself.\n")
+			if b.RelayURL == defaultPublicRelay {
+				sb.WriteString("   You are connected to the shared public relay (" + defaultPublicRelay + ").\n")
+			}
+		}
 	} else if b.Mode != modeRelay {
 		line("AI Exec / MCP", "❌ Disabled (start with --allow-exec)")
 	}

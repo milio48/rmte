@@ -7,4 +7,3 @@ package main
 // foreground process group.
 func interruptTabProcess(tab *TabSession) {
 }
-

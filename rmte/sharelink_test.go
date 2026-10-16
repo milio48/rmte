@@ -39,12 +39,12 @@ func TestBuildShareLinkNoPass(t *testing.T) {
 
 func TestResolvePublicRelayURL(t *testing.T) {
 	tests := []struct {
-		name         string
-		input        string
-		port         int
-		wsPath       string
-		wantRelay    string
-		wantDisplay  string
+		name        string
+		input       string
+		port        int
+		wsPath      string
+		wantRelay   string
+		wantDisplay string
 	}{
 		{
 			name:        "Full HTTPS URL (Cloudflare/Proxy)",

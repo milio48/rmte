@@ -12,12 +12,14 @@ const rmteCrypto = (function() {
         async importKey(rawKey) {
             return await crypto.subtle.importKey('raw', rawKey, {name:'AES-GCM'}, false, ['encrypt','decrypt']);
         },
-        async encrypt(iv, key, plaintext) {
-            const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, plaintext);
+        async encrypt(iv, key, plaintext, aad) {
+            const params = aad ? {name:'AES-GCM', iv, additionalData: aad} : {name:'AES-GCM', iv};
+            const ct = await crypto.subtle.encrypt(params, key, plaintext);
             return new Uint8Array(ct);
         },
-        async decrypt(iv, key, ciphertext) {
-            const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, ciphertext);
+        async decrypt(iv, key, ciphertext, aad) {
+            const params = aad ? {name:'AES-GCM', iv, additionalData: aad} : {name:'AES-GCM', iv};
+            const pt = await crypto.subtle.decrypt(params, key, ciphertext);
             return new Uint8Array(pt);
         },
         async hmacSha256(keyBytes, dataBytes) {
@@ -42,13 +44,13 @@ const rmteCrypto = (function() {
             // Just store the raw key bytes — asmcrypto uses them directly
             return new Uint8Array(rawKey);
         },
-        async encrypt(iv, key, plaintext) {
+        async encrypt(iv, key, plaintext, aad) {
             // asmCrypto.AES_GCM.encrypt(data, key, nonce, adata, tagSize)
-            return new Uint8Array(asmCrypto.AES_GCM.encrypt(plaintext, key, iv, undefined, 16));
+            return new Uint8Array(asmCrypto.AES_GCM.encrypt(plaintext, key, iv, aad, 16));
         },
-        async decrypt(iv, key, ciphertext) {
+        async decrypt(iv, key, ciphertext, aad) {
             // asmCrypto.AES_GCM.decrypt(data, key, nonce, adata, tagSize)
-            return new Uint8Array(asmCrypto.AES_GCM.decrypt(ciphertext, key, iv, undefined, 16));
+            return new Uint8Array(asmCrypto.AES_GCM.decrypt(ciphertext, key, iv, aad, 16));
         },
         async hmacSha256(keyBytes, dataBytes) {
             let key = keyBytes;

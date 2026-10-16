@@ -26,11 +26,11 @@ var upgrader = websocket.Upgrader{
 }
 
 type Session struct {
-	ID          string
-	Host        *SafeConn
-	Viewers     map[string]map[string]*SafeConn // viewerID -> connID -> Conn
-	AuthToken   string                          // S4: password-derived token for access control
-	Mutex       sync.RWMutex
+	ID        string
+	Host      *SafeConn
+	Viewers   map[string]map[string]*SafeConn // viewerID -> connID -> Conn
+	AuthToken string                          // S4: password-derived token for access control
+	Mutex     sync.RWMutex
 
 	// Preview Proxy fields
 	PreviewEnabled bool
@@ -625,4 +625,3 @@ func validateSessionID(id string) error {
 	}
 	return nil
 }
-

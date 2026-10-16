@@ -222,7 +222,7 @@ type HostOptions struct {
 	PassGenerated bool
 	PassSource    CredentialSource
 	Buffer        int
-	MaxChat       int          // Max chat history retained on host (default 50; 0 disables retention)
+	MaxChat       int // Max chat history retained on host (default 50; 0 disables retention)
 	InternalToken string
 	Mode          string       // standalone | hybrid | share
 	Dir           string       // initial working directory
@@ -501,19 +501,15 @@ func runHost(opts HostOptions) {
 		if mt == websocket.BinaryMessage {
 			// Tab 255 = Data Channel for file uploads/saves (framed with a transfer id)
 			if len(data) > 0 && data[0] == dataChannelTabID {
-				transferID, plaintext, err := decryptDataChannel(data)
+				transferID, plaintext, err := decryptDataChannel(dirToHost, data)
 				if err != nil {
-					// Legacy frame without transfer id: [255][nonce][ciphertext]
-					if _, legacy, lerr := decryptBinary(data); lerr == nil {
-						handleDataChannelWrite(0, legacy, conn)
-					}
 					continue
 				}
 				handleDataChannelWrite(transferID, plaintext, conn)
 				continue
 			}
 
-			tabID, plaintext, err := decryptBinary(data)
+			tabID, plaintext, err := decryptBinary(dirToHost, data)
 			if err != nil {
 				continue
 			}
@@ -531,7 +527,7 @@ func runHost(opts HostOptions) {
 					for _, b := range plaintext {
 						if b == '\r' || b == '\n' {
 							// Echo newline
-							payload, _ := encryptBinary(tabID, []byte("\r\n"))
+							payload, _ := encryptBinary(dirToViewer, tabID, []byte("\r\n"))
 							conn.WriteMessage(websocket.BinaryMessage, payload)
 
 							// Send to process
@@ -549,7 +545,7 @@ func runHost(opts HostOptions) {
 							tab.LineBuffer = nil
 							tab.Mutex.Unlock()
 
-							payload, _ := encryptBinary(tabID, []byte("^C\r\n"))
+							payload, _ := encryptBinary(dirToViewer, tabID, []byte("^C\r\n"))
 							conn.WriteMessage(websocket.BinaryMessage, payload)
 
 							tab.WriteCloser.Write([]byte{3})
@@ -564,7 +560,7 @@ func runHost(opts HostOptions) {
 							tab.Mutex.Unlock()
 
 							if hasChars {
-								payload, _ := encryptBinary(tabID, []byte("\b \b"))
+								payload, _ := encryptBinary(dirToViewer, tabID, []byte("\b \b"))
 								conn.WriteMessage(websocket.BinaryMessage, payload)
 							}
 						} else {
@@ -573,7 +569,7 @@ func runHost(opts HostOptions) {
 							tab.LineBuffer = append(tab.LineBuffer, b)
 							tab.Mutex.Unlock()
 
-							payload, _ := encryptBinary(tabID, []byte{b})
+							payload, _ := encryptBinary(dirToViewer, tabID, []byte{b})
 							conn.WriteMessage(websocket.BinaryMessage, payload)
 						}
 					}
@@ -668,7 +664,7 @@ func runHost(opts HostOptions) {
 						copy(history, tab.Buffer)
 						tab.Mutex.Unlock()
 
-						payload, _ := encryptBinary(tabID, history)
+						payload, _ := encryptBinary(dirToViewer, tabID, history)
 						encoded := base64.StdEncoding.EncodeToString(payload)
 						conn.WriteJSON(map[string]interface{}{
 							"type":        "control",
@@ -1171,7 +1167,7 @@ func handleReqReadFile(reqPath, targetConn string, transferID uint32, conn *Safe
 	logEvent(conn, "OPEN_FILE", targetConn, fmt.Sprintf("Opened %s (%d bytes)", filepath.ToSlash(absPath), len(fileData)))
 
 	// Send file content as encrypted binary on Tab 255
-	payload, err := encryptDataChannel(transferID, fileData)
+	payload, err := encryptDataChannel(dirToViewer, transferID, fileData)
 	if err != nil {
 		conn.WriteJSON(map[string]interface{}{
 			"type":        "control",
@@ -1351,7 +1347,7 @@ func createTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) {
 				}
 			}
 
-			payload, err := encryptBinary(id, data)
+			payload, err := encryptBinary(dirToViewer, id, data)
 			if err == nil {
 				c := getHostConn()
 				if c != nil {
@@ -1442,7 +1438,7 @@ func runWithPipesWithTitle(id byte, c *exec.Cmd, ws *SafeConn, title string, isA
 				}
 			}
 
-			payload, err := encryptBinary(id, data)
+			payload, err := encryptBinary(dirToViewer, id, data)
 			if err == nil {
 				c := getHostConn()
 				if c != nil {
