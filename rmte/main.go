@@ -64,27 +64,35 @@ func hasConfiguredNameservers(resolvPath string) bool {
 
 // setupDNSFallback ensures reliable DNS resolution on environments like Android, Termux,
 // or minimal containers where /etc/resolv.conf is missing/empty and Go defaults to unreachable [::1]:53 or 127.0.0.1:53.
+//
+// Only that phantom default is redirected to public DNS. A configured resolver
+// is always used as-is, even when it fails, so queries never leak out of a
+// corporate or split-horizon network. Set RMTE_DNS_FALLBACK=off to disable
+// the redirect entirely.
 func setupDNSFallback() {
-	defaultDialer := &net.Dialer{Timeout: 3 * time.Second}
-	hasSystemResolv := hasConfiguredNameservers("/etc/resolv.conf")
-
+	if strings.EqualFold(os.Getenv("RMTE_DNS_FALLBACK"), "off") {
+		return
+	}
 	net.DefaultResolver = &net.Resolver{
 		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			if !shouldBypassPhantomDNS(address, hasSystemResolv) {
-				conn, err := defaultDialer.DialContext(ctx, network, address)
-				if err == nil {
-					return conn, nil
-				}
-			}
+		Dial:     dnsDialFunc(hasConfiguredNameservers("/etc/resolv.conf")),
+	}
+}
 
-			// Fallback to trusted public DNS: Cloudflare (1.1.1.1:53) then Google (8.8.8.8:53)
-			conn, err := defaultDialer.DialContext(ctx, "udp", "1.1.1.1:53")
-			if err == nil {
-				return conn, nil
-			}
-			return defaultDialer.DialContext(ctx, "udp", "8.8.8.8:53")
-		},
+// dnsDialFunc returns the resolver dialer used by setupDNSFallback.
+func dnsDialFunc(hasSystemResolv bool) func(ctx context.Context, network, address string) (net.Conn, error) {
+	defaultDialer := &net.Dialer{Timeout: 3 * time.Second}
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		if !shouldBypassPhantomDNS(address, hasSystemResolv) {
+			return defaultDialer.DialContext(ctx, network, address)
+		}
+
+		// Phantom resolver: use trusted public DNS, Cloudflare (1.1.1.1:53) then Google (8.8.8.8:53)
+		conn, err := defaultDialer.DialContext(ctx, "udp", "1.1.1.1:53")
+		if err == nil {
+			return conn, nil
+		}
+		return defaultDialer.DialContext(ctx, "udp", "8.8.8.8:53")
 	}
 }
 
@@ -171,6 +179,7 @@ type ServeConfig struct {
 	Insecure      bool   // Skip TLS certificate verification
 	Sandbox       bool   // Restrict file manager and MCP file tools to Dir root
 	PreviewPorts  string // Fixed Web Preview port allowlist, e.g. "3000,5173" (empty = open on demand)
+	WSOrigins     string // Extra browser origins allowed to open WebSockets (comma-separated)
 	MaxBuffer     int    // Max buffer limit in MB per session (0 = relay default of 256 MB)
 	MaxSessions   int    // Max concurrent active sessions (0 = unlimited)
 	MaxViewers    int    // Max viewer connections per session
@@ -257,6 +266,7 @@ func cmdServe() {
 	flag.BoolVar(&cfg.NoCLI, "no-cli", false, "Reject CLI clients (soft restriction)")
 	flag.BoolVar(&cfg.Preview, "web-preview", false, "Enable Embedded Web Browser Preview reverse proxy")
 	flag.BoolVar(&cfg.Preview, "preview", false, "Alias for --web-preview")
+	flag.StringVar(&cfg.WSOrigins, "ws-origins", "", "Extra browser origins allowed to connect, e.g. https://ui.example.com (the relay's own origin is always allowed)")
 	flag.StringVar(&cfg.PreviewPorts, "preview-ports", "", "Only allow Web Preview of these ports, e.g. 3000,5173,8000-8010 (default: ports viewers open explicitly)")
 	flag.BoolVar(&cfg.AllowExec, "allow-exec", false, "Allow remote command execution via MCP or CLI exec")
 	flag.BoolVar(&cfg.AllowExec, "enable-ai", false, "Alias for --allow-exec")

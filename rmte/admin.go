@@ -6,9 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -262,6 +264,12 @@ func checkAdminCSRF(r *http.Request) bool {
 	return strings.EqualFold(u.Host, r.Host)
 }
 
+// isHTTPSRequest reports whether the browser reached us over HTTPS, directly
+// or through a TLS-terminating reverse proxy.
+func isHTTPSRequest(r *http.Request) bool {
+	return r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+}
+
 func checkAdminAuth(r *http.Request) bool {
 	cookie, err := r.Cookie("rmte_admin_token")
 	if err != nil {
@@ -288,20 +296,30 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 			http.Error(w, "Forbidden (CSRF check failed)", http.StatusForbidden)
 			return
 		}
+		clientIP := getClientIP(r)
+		if ok, wait := adminLoginAllowed(clientIP, time.Now()); !ok {
+			w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": "Too many failed logins; try again later"})
+			return
+		}
 		var req struct {
 			Password string `json:"password"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
 			return
 		}
 		if subtle.ConstantTimeCompare([]byte(req.Password), []byte(adminPass)) != 1 {
+			adminLoginFailed(clientIP, time.Now())
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": "Invalid admin password"})
 			return
 		}
 
+		adminLoginSucceeded(clientIP)
 		token := generateAdminToken()
 		adminTokenMu.Lock()
 		adminTokens[token] = time.Now().Add(24 * time.Hour)
@@ -313,6 +331,7 @@ func setupAdminHandler(mux *http.ServeMux, adminPath, adminPass string) {
 			Path:     adminPath,
 			Expires:  time.Now().Add(24 * time.Hour),
 			HttpOnly: true,
+			Secure:   isHTTPSRequest(r),
 			SameSite: http.SameSiteLaxMode,
 		})
 

@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -22,7 +24,52 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: checkWSOrigin,
+}
+
+// sameLoopbackHost treats localhost, 127.0.0.1 and [::1] on the same port as
+// one origin, so local setups work whichever alias the browser used.
+func sameLoopbackHost(a, b string) bool {
+	ha, pa, errA := net.SplitHostPort(a)
+	hb, pb, errB := net.SplitHostPort(b)
+	if errA != nil || errB != nil || pa != pb {
+		return false
+	}
+	isLoop := func(h string) bool {
+		if strings.EqualFold(h, "localhost") {
+			return true
+		}
+		ip := net.ParseIP(h)
+		return ip != nil && ip.IsLoopback()
+	}
+	return isLoop(ha) && isLoop(hb)
+}
+
+// checkWSOrigin blocks cross-site WebSocket connections from browsers: a
+// browser always sends Origin, which must be this relay's own host or one
+// listed in --ws-origins. Non-browser clients (rmte CLI, MCP, host) send no
+// Origin and are authenticated by token instead.
+func checkWSOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	if strings.EqualFold(u.Host, r.Host) || sameLoopbackHost(u.Host, r.Host) {
+		return true
+	}
+	if serverCfg != nil {
+		for _, allowed := range strings.Split(serverCfg.WSOrigins, ",") {
+			allowed = strings.TrimRight(strings.TrimSpace(allowed), "/")
+			if allowed != "" && strings.EqualFold(allowed, u.Scheme+"://"+u.Host) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type Session struct {

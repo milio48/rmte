@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+# Least privilege by default; jobs that need more ask for it.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test (${{ matrix.os }})
@@ -17,10 +21,10 @@ jobs:
         working-directory: ./rmte
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: rmte/go.mod
           cache-dependency-path: rmte/go.sum
@@ -67,10 +71,10 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: rmte/go.mod
           cache-dependency-path: rmte/go.sum
@@ -82,7 +86,7 @@ jobs:
           CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -trimpath -ldflags "-s -w -X main.appVersion=${VERSION}" -o ../rmte-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: rmte-${{ matrix.goos }}-${{ matrix.goarch }}
           path: rmte-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
@@ -92,13 +96,15 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write      # create the release
+      id-token: write      # sign the build provenance (Sigstore)
+      attestations: write  # store the attestation
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: ./binaries
           merge-multiple: true
@@ -112,8 +118,17 @@ jobs:
           sha256sum rmte-* > checksums.txt
           cat checksums.txt
 
+      # Signed SLSA build provenance, verifiable with:
+      #   gh attestation verify rmte-linux-amd64 --repo milio48/rmte
+      - name: Attest Build Provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            ./binaries/rmte-*
+            ./binaries/checksums.txt
+
       - name: Create Release and Upload Assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: |
             ./binaries/rmte-linux-amd64

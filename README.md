@@ -455,6 +455,7 @@ Connect a host to a relay server (defaults to public relay):
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 | `--admin-path`, `--path-admin` | `/admin` | HTTP path for Relay Admin Dashboard |
 | `--admin-pass`, `--password-admin` | `""` | Password for Relay Admin Dashboard (disabled if empty) |
+| `--ws-origins` | `""` | Extra browser origins allowed to open relay WebSockets, e.g. `https://ui.example.com` (own origin always allowed) |
 | `--max-buffer` | `0` | Max buffer limit in MB per session (`0` = default 256 MB; also bounds WebSocket frame size; lower it for multi-tenant relays) |
 | `--max-sessions` | `100` | Max concurrent active sessions on relay (`0` = unlimited) |
 | `--max-viewers` | `50` | Max viewer connections per session (`0` = unlimited) |
@@ -541,6 +542,7 @@ RMTE resolves credentials according to strict precedence across all subcommands 
 | `RMTE_SERVER` | `share`, `join`, `exec`, `mcp` | Default relay WebSocket URL (`--server-relay`) |
 | `RMTE_ID` | `share`, `serve`, `join`, `exec`, `mcp` | Pre-set Session ID (`--id`) |
 | `RMTE_ADMIN_PASS` | `serve` | Relay Admin Dashboard password (`--admin-pass`) |
+| `RMTE_DNS_FALLBACK` | all | Set to `off` to never redirect DNS to public resolvers (by default only Go's phantom `127.0.0.1:53`/`[::1]:53` default is redirected when no resolver is configured) |
 
 > 📖 **Security Model & Reporting:** For details on our end-to-end encryption model, filesystem sandbox boundaries (`--sandbox` files $\neq$ shell container), and responsible vulnerability disclosure, please read our [SECURITY.md](SECURITY.md).
 

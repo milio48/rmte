@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/subtle"
 	"fmt"
 	"io"
 	"net"
@@ -30,6 +31,7 @@ func handleWSProxy(w http.ResponseWriter, r *http.Request) {
 		ProxySecret string `json:"proxy_secret"`
 	}
 
+	rawConn.SetReadLimit(relayPreAuthReadLimit)
 	if err := rawConn.ReadJSON(&auth); err != nil || auth.Type != "auth" || auth.Role != "host_proxy" {
 		rawConn.Close()
 		return
@@ -39,7 +41,7 @@ func handleWSProxy(w http.ResponseWriter, r *http.Request) {
 	s, exists := sessions[auth.SessionID]
 	sessionMu.RUnlock()
 
-	if !exists || s.ProxySecret == "" || s.ProxySecret != auth.ProxySecret {
+	if !exists || s.ProxySecret == "" || subtle.ConstantTimeCompare([]byte(s.ProxySecret), []byte(auth.ProxySecret)) != 1 {
 		rawConn.WriteJSON(map[string]string{
 			"type":    "error",
 			"message": "invalid proxy credentials or session not found",
@@ -48,6 +50,7 @@ func handleWSProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rawConn.SetReadLimit(relayFrameReadLimit())
 	rawConn.WriteJSON(map[string]string{
 		"type":    "auth_success",
 		"message": "host proxy connected",
