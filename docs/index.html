@@ -2583,7 +2583,7 @@
       windows: [
         { id: 'irm', label: 'irm (PowerShell)', icon: '🟦' },
         { id: 'curl', label: 'curl.exe', icon: '⚡' },
-        { id: 'wget', label: 'wget', icon: '🌐' }
+        { id: 'iwr', label: 'iwr (PowerShell)', icon: '🌐' }
       ]
     };
 
@@ -3287,8 +3287,8 @@
           return `& ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) ${act}`;
         } else if (state.tool === 'curl') {
           return `curl.exe -sSf https://rmte.biz.id/install.ps1 -o install.ps1; powershell -ExecutionPolicy Bypass -File .\\install.ps1 ${act}`;
-        } else if (state.tool === 'wget') {
-          return `wget -q -O install.ps1 https://rmte.biz.id/install.ps1 && powershell -ExecutionPolicy Bypass -File .\\install.ps1 ${act}`;
+        } else if (state.tool === 'iwr' || state.tool === 'wget') {
+          return `iwr -useb https://rmte.biz.id/install.ps1 -OutFile install.ps1; powershell -ExecutionPolicy Bypass -File .\\install.ps1 ${act}`;
         }
       }
 
@@ -3485,8 +3485,8 @@
       if (state.section === 'public' && state.workflow === 'instant') {
         if (state.os === 'android') {
           html = '📱 <strong>Android (Termux / BusyBox):</strong> Automatically detects ARM64 / AArch64 architecture. If curl or wget is not installed yet in Termux, install it first via: <code>pkg install -y curl</code>.';
-        } else if (state.os === 'windows' && state.tool === 'irm') {
-          html = '🪟 <strong>Windows PowerShell Native:</strong> <code>irm</code> (Invoke-RestMethod) runs directly inside native Windows PowerShell without requiring external dependencies.';
+        } else if (state.os === 'windows' && (state.tool === 'irm' || state.tool === 'iwr')) {
+          html = '🪟 <strong>Windows PowerShell Native:</strong> Runs directly inside native Windows PowerShell without requiring external dependencies.';
         } else if (state.instantAction === 'run') {
           html = '⚡ <strong>Ephemeral Zero-Trace:</strong> Downloads RMTE directly to temporary memory/storage (<code>/tmp</code> or <code>%TEMP%</code>) and launches an encrypted session instantly. No binary files remain on disk when terminated.';
         } else if (state.instantAction === 'run-quiet') {
