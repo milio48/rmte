@@ -8,14 +8,14 @@
 #   & ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) download run          # Download to current dir and run
 #   & ([scriptblock]::Create((irm https://rmte.biz.id/install.ps1))) install run           # Install to bin and run
 
-# Force TLS 1.2 at the top level
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
 [CmdletBinding()]
 param(
     [Parameter(Position=0, ValueFromRemainingArguments=$true)]
     [string[]]$Actions
 )
+
+# Force TLS 1.2
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $ErrorActionPreference = "Stop"
 
