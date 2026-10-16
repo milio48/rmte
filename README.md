@@ -455,6 +455,7 @@ Connect a host to a relay server (defaults to public relay):
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 | `--admin-path`, `--path-admin` | `/admin` | HTTP path for Relay Admin Dashboard |
 | `--admin-pass`, `--password-admin` | `""` | Password for Relay Admin Dashboard (disabled if empty) |
+| `--trusted-proxies` | `loopback` | Proxies whose `CF-Connecting-IP` / `X-Forwarded-For` / `X-Real-IP` are trusted for client IPs (bans, login throttling): CIDRs/IPs, `loopback`, `private` or `none` |
 | `--ws-origins` | `""` | Extra browser origins allowed to open relay WebSockets, e.g. `https://ui.example.com` (own origin always allowed) |
 | `--max-buffer` | `0` | Max buffer limit in MB per session (`0` = default 256 MB; also bounds WebSocket frame size; lower it for multi-tenant relays) |
 | `--max-sessions` | `100` | Max concurrent active sessions on relay (`0` = unlimited) |

@@ -10,69 +10,112 @@ import (
 )
 
 func TestGetClientIP(t *testing.T) {
+	t.Cleanup(func() { setTrustedProxies(mustParseTrustedProxies("loopback")) })
+
 	tests := []struct {
 		name     string
+		trusted  string
 		headers  map[string]string
 		remote   string
 		expected string
 	}{
 		{
-			name: "Cloudflare CF-Connecting-IP priority",
-			headers: map[string]string{
-				"CF-Connecting-IP": "103.45.67.89",
-				"X-Forwarded-For":  "180.252.1.2",
-				"X-Real-IP":        "192.168.1.10",
-			},
+			name:     "direct client cannot forge CF-Connecting-IP",
+			trusted:  "loopback",
+			headers:  map[string]string{"CF-Connecting-IP": "1.2.3.4", "X-Forwarded-For": "5.6.7.8", "X-Real-IP": "9.9.9.9"},
+			remote:   "203.0.113.195:34567",
+			expected: "203.0.113.195",
+		},
+		{
+			name:     "Cloudflare header honoured from trusted proxy",
+			trusted:  "172.68.0.0/16",
+			headers:  map[string]string{"CF-Connecting-IP": "103.45.67.89", "X-Forwarded-For": "180.252.1.2"},
 			remote:   "172.68.1.1:45123",
 			expected: "103.45.67.89",
 		},
 		{
-			name: "X-Forwarded-For first IP fallback",
-			headers: map[string]string{
-				"X-Forwarded-For": "180.252.1.2, 172.68.1.1",
-				"X-Real-IP":       "192.168.1.10",
-			},
-			remote:   "10.0.0.1:54321",
+			name:     "local reverse proxy (default loopback trust)",
+			trusted:  "loopback",
+			headers:  map[string]string{"X-Forwarded-For": "180.252.1.2"},
+			remote:   "127.0.0.1:8080",
 			expected: "180.252.1.2",
 		},
 		{
-			name: "X-Real-IP fallback",
-			headers: map[string]string{
-				"X-Real-IP": "192.168.1.10",
-			},
+			name:     "client-prepended X-Forwarded-For entry is ignored",
+			trusted:  "loopback",
+			headers:  map[string]string{"X-Forwarded-For": "6.6.6.6, 180.252.1.2"},
 			remote:   "127.0.0.1:8080",
+			expected: "180.252.1.2",
+		},
+		{
+			name:     "proxy chain skips trusted hops right to left",
+			trusted:  "loopback,10.0.0.0/8",
+			headers:  map[string]string{"X-Forwarded-For": "6.6.6.6, 180.252.1.2, 10.0.0.7"},
+			remote:   "127.0.0.1:8080",
+			expected: "180.252.1.2",
+		},
+		{
+			name:     "X-Real-IP fallback from trusted proxy",
+			trusted:  "loopback",
+			headers:  map[string]string{"X-Real-IP": "192.168.1.10"},
+			remote:   "[::1]:8080",
 			expected: "192.168.1.10",
 		},
 		{
-			name:     "RemoteAddr direct socket fallback",
-			headers:  map[string]string{},
-			remote:   "203.0.113.195:34567",
-			expected: "203.0.113.195",
+			name:     "trust disabled with none",
+			trusted:  "none",
+			headers:  map[string]string{"X-Forwarded-For": "180.252.1.2"},
+			remote:   "127.0.0.1:8080",
+			expected: "127.0.0.1",
 		},
 		{
-			name: "Malicious non-IP header ignored",
-			headers: map[string]string{
-				"CF-Connecting-IP": "');alert(1)//",
-				"X-Forwarded-For":  "<script>evil()</script>",
-				"X-Real-IP":        "bad-ip-string",
-			},
-			remote:   "203.0.113.195:34567",
-			expected: "203.0.113.195",
+			name:     "malformed headers from trusted proxy fall back to the peer",
+			trusted:  "loopback",
+			headers:  map[string]string{"CF-Connecting-IP": "');alert(1)//", "X-Forwarded-For": "<script>evil()</script>", "X-Real-IP": "bad-ip-string"},
+			remote:   "127.0.0.1:34567",
+			expected: "127.0.0.1",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			setTrustedProxies(mustParseTrustedProxies(tc.trusted))
 			req := httptest.NewRequest("GET", "/", nil)
 			req.RemoteAddr = tc.remote
 			for k, v := range tc.headers {
 				req.Header.Set(k, v)
 			}
-			got := getClientIP(req)
-			if got != tc.expected {
+			if got := getClientIP(req); got != tc.expected {
 				t.Errorf("getClientIP() = %q; want %q", got, tc.expected)
 			}
 		})
+	}
+}
+
+func TestParseTrustedProxies(t *testing.T) {
+	nets, err := parseTrustedProxies("loopback, private, 203.0.113.7, 2001:db8::/32")
+	if err != nil || len(nets) != 8 {
+		t.Fatalf("parse: %d nets, %v", len(nets), err)
+	}
+	if nets, err := parseTrustedProxies("none"); err != nil || len(nets) != 0 {
+		t.Fatalf("none should trust nothing: %v %v", nets, err)
+	}
+	for _, bad := range []string{"10.0.0.0/33", "not-an-ip", "300.1.1.1"} {
+		if _, err := parseTrustedProxies(bad); err == nil {
+			t.Errorf("accepted invalid spec %q", bad)
+		}
+	}
+}
+
+// A banned client must not escape its ban by sending forwarding headers.
+func TestBanCannotBeBypassedWithForgedHeaders(t *testing.T) {
+	setTrustedProxies(mustParseTrustedProxies("loopback"))
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "198.51.100.23:5555"
+	req.Header.Set("X-Forwarded-For", "8.8.8.8")
+	req.Header.Set("CF-Connecting-IP", "8.8.4.4")
+	if got := getClientIP(req); got != "198.51.100.23" {
+		t.Fatalf("forged headers changed the client IP to %q", got)
 	}
 }
 

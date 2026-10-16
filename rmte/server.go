@@ -134,6 +134,12 @@ var (
 func runServer(cfg *ServeConfig) {
 	serverCfg = cfg
 
+	proxies, err := parseTrustedProxies(cfg.TrustedProxy)
+	if err != nil {
+		log.Fatalf("--trusted-proxies: %v", err)
+	}
+	setTrustedProxies(proxies)
+
 	// Initialize persistent admin storage (loads banned IPs and history)
 	initAdminStorage(cfg.ID)
 

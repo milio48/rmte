@@ -5,7 +5,6 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -178,10 +177,7 @@ func handlePreviewHTTPRequest(w http.ResponseWriter, r *http.Request, smuxClient
 	defer stream.Close()
 
 	// Clone or set necessary forward headers
-	clientIP := r.RemoteAddr
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		clientIP = host
-	}
+	clientIP := getClientIP(r)
 	scheme := "http"
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		scheme = "https"

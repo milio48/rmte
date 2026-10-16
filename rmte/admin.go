@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -74,37 +73,6 @@ var (
 	adminTokenMu    sync.RWMutex
 	serverStartTime = time.Now()
 )
-
-// getClientIP extracts real client IP with priority for Cloudflare CF-Connecting-IP, validating with net.ParseIP.
-func getClientIP(r *http.Request) string {
-	candidates := []string{
-		r.Header.Get("CF-Connecting-IP"),
-		"", // will populate with first X-Forwarded-For part below
-		r.Header.Get("X-Real-IP"),
-	}
-	if xff := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); xff != "" {
-		parts := strings.Split(xff, ",")
-		if len(parts) > 0 {
-			candidates[1] = parts[0]
-		}
-	}
-
-	for _, cand := range candidates {
-		cand = strings.TrimSpace(cand)
-		if cand != "" && net.ParseIP(cand) != nil {
-			return cand
-		}
-	}
-
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil && net.ParseIP(host) != nil {
-		return host
-	}
-	if net.ParseIP(r.RemoteAddr) != nil {
-		return r.RemoteAddr
-	}
-	return "unknown"
-}
 
 func isIPBanned(ip string) bool {
 	bannedMu.RLock()

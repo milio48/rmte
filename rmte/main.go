@@ -180,6 +180,7 @@ type ServeConfig struct {
 	Sandbox       bool   // Restrict file manager and MCP file tools to Dir root
 	PreviewPorts  string // Fixed Web Preview port allowlist, e.g. "3000,5173" (empty = open on demand)
 	WSOrigins     string // Extra browser origins allowed to open WebSockets (comma-separated)
+	TrustedProxy  string // Proxies whose forwarding headers are trusted for client IPs (CIDRs, "loopback", "private", "none")
 	MaxBuffer     int    // Max buffer limit in MB per session (0 = relay default of 256 MB)
 	MaxSessions   int    // Max concurrent active sessions (0 = unlimited)
 	MaxViewers    int    // Max viewer connections per session
@@ -266,6 +267,7 @@ func cmdServe() {
 	flag.BoolVar(&cfg.NoCLI, "no-cli", false, "Reject CLI clients (soft restriction)")
 	flag.BoolVar(&cfg.Preview, "web-preview", false, "Enable Embedded Web Browser Preview reverse proxy")
 	flag.BoolVar(&cfg.Preview, "preview", false, "Alias for --web-preview")
+	flag.StringVar(&cfg.TrustedProxy, "trusted-proxies", "loopback", "Proxies whose CF-Connecting-IP / X-Forwarded-For / X-Real-IP headers are trusted: CIDRs or IPs, \"loopback\", \"private\" or \"none\"")
 	flag.StringVar(&cfg.WSOrigins, "ws-origins", "", "Extra browser origins allowed to connect, e.g. https://ui.example.com (the relay's own origin is always allowed)")
 	flag.StringVar(&cfg.PreviewPorts, "preview-ports", "", "Only allow Web Preview of these ports, e.g. 3000,5173,8000-8010 (default: ports viewers open explicitly)")
 	flag.BoolVar(&cfg.AllowExec, "allow-exec", false, "Allow remote command execution via MCP or CLI exec")
