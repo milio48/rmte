@@ -2000,6 +2000,91 @@ kbd {
 }
 
 /* ═══════════════════════════════════════
+   CHEAT TABLE / COMPARISON TABLE
+   ═══════════════════════════════════════ */
+.table-container {
+    overflow: auto;
+    max-width: 100%;
+    max-height: 80vh;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    position: relative;
+}
+
+.cheat-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--text-xs);
+    text-align: left;
+    background: var(--color-paper-1);
+}
+
+.cheat-table th,
+.cheat-table td {
+    padding: var(--space-xs) var(--space-sm);
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+/* Sticky Top (Header) */
+.cheat-table thead th {
+    position: sticky;
+    top: 0;
+    background-color: var(--color-paper-2);
+    color: var(--color-ink-1);
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    z-index: 2;
+    border-bottom: 2px solid var(--color-border);
+}
+
+/* Sticky Left (Kolom Pertama) */
+.cheat-table th:first-child,
+.cheat-table td:first-child {
+    position: sticky;
+    left: 0;
+    background-color: var(--color-paper-1);
+    z-index: 1;
+    border-right: 2px solid var(--color-border);
+    white-space: nowrap;
+}
+
+/* Sticky Corner (Pojok Kiri Atas) */
+.cheat-table thead th:first-child {
+    background-color: var(--color-paper-2);
+    z-index: 3;
+}
+
+.cheat-table tr:hover td {
+    background: var(--color-paper-2);
+}
+
+.cheat-table tr:hover td:first-child {
+    background: var(--color-paper-3);
+}
+
+/* Batasi lebar kolom di baris terakhir agar membungkus (wrap) teks/code */
+.cheat-table tbody tr:last-child td:not(:first-child) {
+    min-width: 200px;
+    max-width: 250px;
+    width: 250px;
+    white-space: normal;
+    line-height: 1.6;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+/* Rapikan tampilan elemen code di dalam baris terakhir */
+.cheat-table tbody tr:last-child td code {
+    display: inline-block;
+    margin-bottom: 4px;
+    white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════
    CONFIRM MODAL
    ═══════════════════════════════════════ */
 .confirm-modal-box { max-width: 420px; }

@@ -839,15 +839,19 @@
 
     /* Comparison Table Styling */
     .table-container {
-      overflow-x: auto;
+      overflow: auto;
+      max-width: 100%;
+      max-height: 80vh;
       margin-top: 18px;
       border-radius: 8px;
       border: 1px solid var(--border);
+      position: relative;
     }
 
     .cheat-table {
       width: 100%;
-      border-collapse: collapse;
+      border-collapse: separate;
+      border-spacing: 0;
       font-size: 0.84rem;
       text-align: left;
       background: var(--code-bg);
@@ -855,18 +859,40 @@
 
     .cheat-table th,
     .cheat-table td {
-      padding: 12px 14px;
+      padding: 10px 14px;
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
     }
 
-    .cheat-table th {
-      background: #12161f;
+    /* Sticky Top (Header) */
+    .cheat-table thead th {
+      position: sticky;
+      top: 0;
+      background-color: #12161f;
       color: var(--text);
       font-weight: 600;
       font-size: 0.78rem;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+      z-index: 2;
+      border-bottom: 2px solid var(--border);
+    }
+
+    /* Sticky Left (Kolom Pertama) */
+    .cheat-table th:first-child,
+    .cheat-table td:first-child {
+      position: sticky;
+      left: 0;
+      background-color: #0b0e14;
+      z-index: 1;
+      border-right: 2px solid var(--border);
+      white-space: nowrap;
+    }
+
+    /* Sticky Corner (Pojok Kiri Atas) */
+    .cheat-table thead th:first-child {
+      background-color: #12161f;
+      z-index: 3;
     }
 
     .cheat-table tr:last-child td {
@@ -875,6 +901,28 @@
 
     .cheat-table tr:hover td {
       background: rgba(255, 255, 255, 0.02);
+    }
+
+    .cheat-table tr:hover td:first-child {
+      background: #181e28;
+    }
+
+    /* Batasi lebar kolom di baris terakhir agar membungkus (wrap) teks/code */
+    .cheat-table tbody tr:last-child td:not(:first-child) {
+      min-width: 200px;
+      max-width: 250px;
+      width: 250px;
+      white-space: normal;
+      line-height: 1.6;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+
+    /* Rapikan tampilan elemen code di dalam baris terakhir */
+    .cheat-table tbody tr:last-child td code {
+      display: inline-block;
+      margin-bottom: 4px;
+      white-space: nowrap;
     }
 
     .cheat-table code {
@@ -1706,10 +1754,10 @@
               </tr>
               <tr>
                 <td><strong>Supported Flags</strong></td>
-                <td><code>--port</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--id</code>, <code>--dir</code>, <code>--sandbox</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code>, <code>--admin-pass</code>, <code>--max-buffer</code>, <code>--max-sessions</code>, <code>--max-viewers</code></td>
-                <td><code>--port</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--id</code>, <code>--dir</code>, <code>--sandbox</code>, <code>--buffer</code>, <code>--public</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code>, <code>--max-buffer</code>, <code>--max-sessions</code>, <code>--max-viewers</code></td>
-                <td><code>--port</code>, <code>--public</code>, <code>--admin-pass</code>, <code>--admin-path</code>, <code>--public-url</code>, <code>--web-path</code>, <code>--ws-path</code>, <code>-q</code>, <code>--max-buffer</code>, <code>--max-sessions</code>, <code>--max-viewers</code></td>
-                <td><code>--server-relay</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--id</code>, <code>--dir</code>, <code>--sandbox</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code></td>
+                <td><code>--port</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--id</code>, <code>--dir</code>, <code>--sandbox</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code>, <code>--admin-pass</code>, <code>--max-buffer</code>, <code>--max-sessions</code>, <code>--max-viewers</code>, <code>--max-chat</code></td>
+                <td><code>--port</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--id</code>, <code>--dir</code>, <code>--sandbox</code>, <code>--buffer</code>, <code>--public</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code>, <code>--max-buffer</code>, <code>--max-sessions</code>, <code>--max-viewers</code>, <code>--max-chat</code></td>
+                <td><code>--port</code>, <code>--public</code>, <code>--admin-pass</code>, <code>--admin-path</code>, <code>--public-url</code>, <code>--web-path</code>, <code>--ws-path</code>, <code>-q</code>, <code>--max-buffer</code>, <code>--max-sessions</code>, <code>--max-viewers</code>, <code>--max-chat</code></td>
+                <td><code>--server-relay</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--id</code>, <code>--dir</code>, <code>--sandbox</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code>, <code>--max-chat</code></td>
                 <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--name</code></td>
                 <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--timeout</code>, <code>--bg</code>, <code>--tab-name</code>, <code>--name</code></td>
                 <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--name</code></td>
