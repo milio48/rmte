@@ -23,40 +23,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type SafeConn struct {
-	*websocket.Conn
-	mu sync.Mutex
-	// ctl, when set, seals every WriteJSON in an end-to-end control envelope.
-	// It is attached only after the relay handshake, which stays plaintext.
-	ctl *ctlChannel
-}
-
-func (c *SafeConn) WriteMessage(messageType int, data []byte) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.Conn.WriteMessage(messageType, data)
-}
-
-func (c *SafeConn) WriteJSON(v interface{}) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.ctl == nil {
-		return c.Conn.WriteJSON(v)
-	}
-	// Seal under the write lock so sequence numbers hit the wire in order.
-	payload, err := c.ctl.seal(v)
-	if err != nil || payload == nil {
-		return err
-	}
-	return c.Conn.WriteMessage(websocket.TextMessage, payload)
-}
-
-func (c *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.Conn.WriteControl(messageType, data, deadline)
-}
-
 type TabSession struct {
 	Title         string
 	IsAI          bool
@@ -240,6 +206,7 @@ type HostOptions struct {
 	Dir           string       // initial working directory
 	ID            string       // custom session ID (optional)
 	Preview       bool         // enable Embedded Web Browser Preview reverse proxy
+	PreviewPorts  []int        // fixed preview allowlist (--preview-ports); empty = open on demand
 	AllowExec     bool         // allow remote command execution via MCP or CLI exec
 	Sandbox       bool         // restrict file manager and MCP file tools to Dir root
 	Insecure      bool         // skip TLS certificate verification
@@ -327,6 +294,7 @@ func runHost(opts HostOptions) {
 	}
 	setHostOptions(opts)
 	setMaxBufferSize(opts.Buffer * 1024 * 1024)
+	setPreviewPorts(opts.PreviewPorts)
 
 	// Set working directory as sandbox root
 	if opts.Dir != "" {
@@ -623,6 +591,26 @@ func runHost(opts HostOptions) {
 						"action":      ctlHelloAction,
 						"target_conn": targetConn,
 					})
+				case "preview_open":
+					targetConn, _ := ctrl["target_conn"].(string)
+					viewerName, _ := ctrl["viewer_name"].(string)
+					portF, _ := ctrl["port"].(float64)
+					port := int(portF)
+					result := map[string]interface{}{
+						"type":        "control",
+						"action":      "preview_open_result",
+						"target_conn": targetConn,
+						"port":        port,
+						"ok":          true,
+					}
+					if err := openPreviewPort(port); err != nil {
+						result["ok"] = false
+						result["message"] = err.Error()
+						logEvent(conn, "PREVIEW_DENIED", viewerName, fmt.Sprintf("Preview of port %d refused: %v", port, err))
+					} else {
+						logEvent(conn, "PREVIEW_OPEN", viewerName, fmt.Sprintf("Port %d opened for preview", port))
+					}
+					conn.WriteJSON(result)
 				case "get_tabs":
 					tabsMu.RLock()
 					activeTabs := make([]int, 0)
@@ -658,8 +646,11 @@ func runHost(opts HostOptions) {
 						"bot_viewers": botViewers,
 					})
 				case "request_new_tab":
-					newID := nextTabID
-					nextTabID++
+					newID, ok := allocTabID()
+					if !ok {
+						logEvent(conn, "TAB_LIMIT", "system", "No free terminal tab id; close a tab first")
+						break
+					}
 					title, _ := ctrl["title"].(string)
 					if title == "" {
 						title = fmt.Sprintf("Terminal %d", newID)
@@ -858,7 +849,9 @@ func runHost(opts HostOptions) {
 					handleDeleteFile(reqPath, targetConn, conn)
 
 				case "ai_exec":
-					handleAIExec(ctrl, conn)
+					// Commands can run for a minute; never block the read loop
+					// (keystrokes, resizes and file operations of other viewers).
+					go handleAIExec(ctrl, conn)
 
 				case "ai_get_info":
 					targetConn, _ := ctrl["target_conn"].(string)
@@ -1351,11 +1344,44 @@ func randomSessionID() string {
 
 // ===== TERMINAL TAB MANAGEMENT =====
 
+// reservedTabIDs holds ids handed out by allocTabID whose tab is still being
+// created, so concurrent allocations never collide. Guarded by tabsMu.
+var reservedTabIDs = map[byte]bool{}
+
+// allocTabID returns a free terminal tab id. It never returns
+// dataChannelTabID / lobbyTabID (255) and never an id that is in use, so a
+// long-running host can no longer wrap around onto existing tabs.
+func allocTabID() (byte, bool) {
+	tabsMu.Lock()
+	defer tabsMu.Unlock()
+	for i := 0; i < 256; i++ {
+		id := nextTabID
+		nextTabID++
+		if id == dataChannelTabID || id == lobbyTabID {
+			continue
+		}
+		if _, used := tabs[id]; used || reservedTabIDs[id] {
+			continue
+		}
+		reservedTabIDs[id] = true
+		return id, true
+	}
+	return 0, false
+}
+
+// releaseTabID ends the reservation once the tab exists (or failed to start).
+func releaseTabID(id byte) {
+	tabsMu.Lock()
+	delete(reservedTabIDs, id)
+	tabsMu.Unlock()
+}
+
 func createTab(id byte, ws *SafeConn) {
 	createTabWithTitle(id, ws, fmt.Sprintf("Terminal %d", id), false)
 }
 
 func createTabWithTitle(id byte, ws *SafeConn, title string, isAI bool) {
+	defer releaseTabID(id)
 	tab, err := startPlatformTabWithTitle(id, ws, title, isAI)
 	if err != nil || tab == nil {
 		return

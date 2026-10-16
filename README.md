@@ -409,6 +409,7 @@ Run `rmte` without subcommands to share directly to `my.rmte.biz.id`:
 | `--sandbox`, `--dir-only` | `false` | Confine Web Explorer and file tools to workspace directory (files only; does not jail shell) |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
 | `--web-preview` | `true` | Embedded Web Browser Preview reverse proxy (`--preview` alias) |
+| `--preview-ports` | `""` | Fixed Web Preview allowlist, e.g. `3000,5173,8000-8010` (default: only ports a viewer opens explicitly) |
 | `--allow-exec` | `false` | Allow remote command execution via MCP or CLI exec (`--enable-ai` alias) |
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 | `--server-relay`, `--server` | `wss://my.rmte.biz.id/ws-rmte` | Relay WebSocket URL |
@@ -426,6 +427,7 @@ Connect a host to a relay server (defaults to public relay):
 | `--sandbox`, `--dir-only` | `false` | Confine Web Explorer and file tools to workspace directory (files only; does not jail shell) |
 | `--buffer` | `1` | Terminal ring buffer & max file size (MB) |
 | `--web-preview` | `true` | Embedded Web Browser Preview reverse proxy (`--preview` alias) |
+| `--preview-ports` | `""` | Fixed Web Preview allowlist, e.g. `3000,5173,8000-8010` (default: only ports a viewer opens explicitly) |
 | `--allow-exec` | `false` | Allow remote command execution via MCP or CLI exec (`--enable-ai` alias) |
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 | `--insecure`, `--skip-tls-verify` | `false` | Skip TLS certificate verification (process-wide, for self-signed relays; also disables TLS checks on update downloads) |
@@ -448,11 +450,12 @@ Connect a host to a relay server (defaults to public relay):
 | `--no-web` | `false` | Don't serve the Web UI |
 | `--no-cli` | `false` | Reject CLI clients (soft restriction: clients self-declare) |
 | `--web-preview` | `false` | Enable Embedded Web Browser Preview reverse proxy (`--preview` alias) |
+| `--preview-ports` | `""` | Fixed Web Preview allowlist, e.g. `3000,5173,8000-8010` (default: only ports a viewer opens explicitly) |
 | `--allow-exec` | `false` | Allow remote command execution via MCP or CLI exec (`--enable-ai` alias) |
 | `-q`, `--quiet` | `false` | Run in background (detached) and print connection info with PID |
 | `--admin-path`, `--path-admin` | `/admin` | HTTP path for Relay Admin Dashboard |
 | `--admin-pass`, `--password-admin` | `""` | Password for Relay Admin Dashboard (disabled if empty) |
-| `--max-buffer` | `0` | Max buffer limit in MB per session (`0` = unlimited / opt-in; enforces `SetReadLimit`, recommended for multi-tenant relays) |
+| `--max-buffer` | `0` | Max buffer limit in MB per session (`0` = default 256 MB; also bounds WebSocket frame size; lower it for multi-tenant relays) |
 | `--max-sessions` | `100` | Max concurrent active sessions on relay (`0` = unlimited) |
 | `--max-viewers` | `50` | Max viewer connections per session (`0` = unlimited) |
 | `--insecure`, `--skip-tls-verify` | `false` | Skip TLS certificate verification (process-wide) |

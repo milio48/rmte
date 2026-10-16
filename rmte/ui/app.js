@@ -940,6 +940,10 @@ async function onJson(msg) {
             break;
         }
         case'chat':appendChat(msg.sender,msg.message,msg.time);break;
+        case'preview_open_result':{
+            const w=previewOpenWaiters.get(msg.port);
+            if(w){clearTimeout(w.timer);previewOpenWaiters.delete(msg.port);msg.ok?w.resolve():w.reject(new Error(msg.message||'refused by host'));}
+        }break;
         case'event_log':appendActivityLog(msg.event);break;
         case'events_history':renderActivityHistory(msg.events);break;
         // File Manager
@@ -3469,6 +3473,19 @@ async function getPreviewTicket(sessionId, port) {
     return `${expiresAt}:${nonce}:${sigHex}`;
 }
 
+// The host forwards only ports opened explicitly; ask it (sealed, logged)
+// before loading a preview.
+const previewOpenWaiters=new Map();
+function ensurePreviewPort(port){
+    return new Promise((resolve,reject)=>{
+        const prev=previewOpenWaiters.get(port);
+        if(prev){clearTimeout(prev.timer);prev.reject(new Error('superseded'));}
+        const timer=setTimeout(()=>{previewOpenWaiters.delete(port);reject(new Error('host did not answer'));},8000);
+        previewOpenWaiters.set(port,{resolve,reject,timer});
+        sendJson({type:'control',action:'preview_open',port,viewer_name:myUsername});
+    });
+}
+
 async function previewNavigate() {
     const portInput = document.getElementById('preview-port-input');
     const pathInput = document.getElementById('preview-path-input');
@@ -3495,6 +3512,7 @@ async function previewNavigate() {
     }
 
     try {
+        await ensurePreviewPort(port);
         const ticket = await getPreviewTicket(sid, port);
         let targetUrl = `/p/${encodeURIComponent(sid)}/${port}${subPath ? subPath : '/'}`;
         if (ticket) {
@@ -3503,8 +3521,8 @@ async function previewNavigate() {
         frame.src = targetUrl;
         _log.info('Preview navigate', { port, subPath, targetUrl });
     } catch (err) {
-        _log.err('Failed to generate preview ticket', err);
-        showToast('Failed to authorize preview: ' + err.message);
+        _log.err('Failed to authorize preview', err);
+        showToast('Preview not allowed: ' + err.message);
     }
 }
 
@@ -3540,6 +3558,7 @@ async function previewOpenInNewTab() {
     const sid = document.getElementById('sessionId').value || sessionStorage.getItem('rmte_active_session') || '';
     if (!sid) return;
 
+    try { await ensurePreviewPort(port); } catch (err) { showToast('Preview not allowed: ' + err.message); return; }
     const ticket = await getPreviewTicket(sid, port);
     let targetUrl = `/p/${encodeURIComponent(sid)}/${port}${subPath ? (subPath.startsWith('/') ? subPath : '/' + subPath) : '/'}`;
     if (ticket) {

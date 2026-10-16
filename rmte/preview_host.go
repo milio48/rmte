@@ -132,6 +132,19 @@ func handleHostPreviewStream(stream *smux.Stream, sessionID string) {
 		subPath = "/" + parts[2]
 	}
 
+	// 0. Only ports opened explicitly (--preview-ports or a viewer's
+	// preview_open) are forwarded.
+	if !previewPortAllowed(targetPort) {
+		resp := &http.Response{
+			StatusCode: http.StatusForbidden,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(fmt.Sprintf("403 Forbidden: port %d has not been opened for preview on this host", targetPort))),
+		}
+		resp.Header.Set("Content-Type", "text/plain")
+		resp.Write(stream)
+		return
+	}
+
 	// 1. Ticket validation
 	ticket := req.URL.Query().Get("ticket")
 	if ticket != "" {
@@ -143,14 +156,12 @@ func handleHostPreviewStream(stream *smux.Stream, sessionID string) {
 			if len(q) > 0 {
 				cleanURL += "?" + q.Encode()
 			}
-			cookieVal := generatePreviewCookieValue(sessionID, targetPort)
 			resp := &http.Response{
 				StatusCode: http.StatusFound,
 				Header:     make(http.Header),
 			}
 			resp.Header.Set("Location", cleanURL)
-			resp.Header.Add("Set-Cookie", fmt.Sprintf("%s=%s; Path=/p/%s/%d/; HttpOnly; SameSite=Strict; Max-Age=1800",
-				previewCookieName(sessionID, targetPort), cookieVal, sessionID, targetPort))
+			resp.Header.Add("Set-Cookie", previewSetCookieHeader(sessionID, targetPort))
 			resp.Write(stream)
 			return
 		}
@@ -168,6 +179,7 @@ func handleHostPreviewStream(stream *smux.Stream, sessionID string) {
 		resp.Write(stream)
 		return
 	}
+	renewCookie := previewCookieNeedsRenewal(sessionID, targetPort, cookie.Value)
 
 	// 3. Filter internal cookies so local app cannot steal RMTE IDE authentication
 	filterInternalCookies(req)
@@ -277,6 +289,11 @@ func handleHostPreviewStream(stream *smux.Stream, sessionID string) {
 			rewritten = cookieDomainRegex.ReplaceAllString(rewritten, "")
 			resp.Header.Add("Set-Cookie", rewritten)
 		}
+	}
+
+	// Keep an actively used preview authorised past the cookie's expiry.
+	if renewCookie {
+		resp.Header.Add("Set-Cookie", previewSetCookieHeader(sessionID, targetPort))
 	}
 
 	// HTML shim injection

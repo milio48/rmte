@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -228,26 +229,71 @@ func previewCookieName(sessionID string, port int) string {
 	return fmt.Sprintf("rmte_pvw_%s_%d", sessionID, port)
 }
 
-// generatePreviewCookieValue generates a verification hash for the cookie.
+// Preview cookies are "<expiresAt>.<nonce>.<mac>" with
+// mac = HMAC(previewKey, "rmte-cookie:<session>:<port>:<expiresAt>:<nonce>"),
+// so a captured cookie stops working once it expires. The host renews it
+// while it is in use (see previewCookieNeedsRenewal).
+const (
+	previewCookieTTL     = 30 * time.Minute
+	previewCookieRenewAt = 15 * time.Minute
+)
+
+func previewCookieMAC(sessionID string, port int, expiresAt int64, nonce string) []byte {
+	h := hmac.New(sha256.New, previewKey)
+	fmt.Fprintf(h, "rmte-cookie:%s:%d:%d:%s", sessionID, port, expiresAt, nonce)
+	return h.Sum(nil)
+}
+
+// generatePreviewCookieValue issues a fresh, expiring cookie value.
 func generatePreviewCookieValue(sessionID string, port int) string {
 	if previewKey == nil {
 		return ""
 	}
-	h := hmac.New(sha256.New, previewKey)
-	h.Write([]byte(fmt.Sprintf("rmte-cookie:%s:%d", sessionID, port)))
-	return hex.EncodeToString(h.Sum(nil))
+	nonce := make([]byte, 12)
+	if _, err := rand.Read(nonce); err != nil {
+		return ""
+	}
+	n := hex.EncodeToString(nonce)
+	exp := time.Now().Add(previewCookieTTL).Unix()
+	return fmt.Sprintf("%d.%s.%s", exp, n, hex.EncodeToString(previewCookieMAC(sessionID, port, exp, n)))
+}
+
+// parsePreviewCookie returns the expiry of a valid, unexpired cookie.
+func parsePreviewCookie(sessionID string, port int, val string) (time.Time, bool) {
+	if previewKey == nil || val == "" {
+		return time.Time{}, false
+	}
+	parts := strings.Split(val, ".")
+	if len(parts) != 3 {
+		return time.Time{}, false
+	}
+	exp, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || time.Now().Unix() > exp {
+		return time.Time{}, false
+	}
+	mac, err := hex.DecodeString(parts[2])
+	if err != nil || !hmac.Equal(mac, previewCookieMAC(sessionID, port, exp, parts[1])) {
+		return time.Time{}, false
+	}
+	return time.Unix(exp, 0), true
 }
 
 // validatePreviewCookie validates the cookie value.
 func validatePreviewCookie(sessionID string, port int, val string) bool {
-	if previewKey == nil || val == "" {
-		return false
-	}
-	expected := generatePreviewCookieValue(sessionID, port)
-	if expected == "" {
-		return false
-	}
-	return hmac.Equal([]byte(val), []byte(expected))
+	_, ok := parsePreviewCookie(sessionID, port, val)
+	return ok
+}
+
+// previewCookieNeedsRenewal reports whether a valid cookie is past half its life.
+func previewCookieNeedsRenewal(sessionID string, port int, val string) bool {
+	exp, ok := parsePreviewCookie(sessionID, port, val)
+	return ok && time.Until(exp) < previewCookieRenewAt
+}
+
+// previewSetCookieHeader builds the Set-Cookie header for a fresh cookie.
+func previewSetCookieHeader(sessionID string, port int) string {
+	return fmt.Sprintf("%s=%s; Path=/p/%s/%d/; HttpOnly; SameSite=Strict; Max-Age=%d",
+		previewCookieName(sessionID, port), generatePreviewCookieValue(sessionID, port), sessionID, port, int(previewCookieTTL.Seconds()))
 }
 
 // renderFriendlyErrorHTML returns a clean HTML error page when local port is unreachable.

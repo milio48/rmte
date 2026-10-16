@@ -170,7 +170,8 @@ type ServeConfig struct {
 	AdminPass     string // Password for Admin Dashboard (disabled if empty)
 	Insecure      bool   // Skip TLS certificate verification
 	Sandbox       bool   // Restrict file manager and MCP file tools to Dir root
-	MaxBuffer     int    // Max buffer limit in MB per session (0 = unlimited / opt-in)
+	PreviewPorts  string // Fixed Web Preview port allowlist, e.g. "3000,5173" (empty = open on demand)
+	MaxBuffer     int    // Max buffer limit in MB per session (0 = relay default of 256 MB)
 	MaxSessions   int    // Max concurrent active sessions (0 = unlimited)
 	MaxViewers    int    // Max viewer connections per session
 	MaxChat       int    // Max chat history messages retained in memory on host (default 50; 0 to disable)
@@ -241,7 +242,7 @@ func cmdServe() {
 	var passFile string
 	flag.StringVar(&passFile, "pass-file", "", "Path to file containing session password")
 	flag.IntVar(&cfg.Buffer, "buffer", 1, "Max buffer size in MB (ignored in relay mode)")
-	flag.IntVar(&cfg.MaxBuffer, "max-buffer", 0, "Max buffer limit in MB per session (0 = unlimited; relay multi-tenant recommended)")
+	flag.IntVar(&cfg.MaxBuffer, "max-buffer", 0, "Max buffer limit in MB per session (0 = default 256 MB; lower recommended for multi-tenant relays)")
 	flag.IntVar(&cfg.MaxSessions, "max-sessions", 100, "Max concurrent active sessions (0 = unlimited)")
 	flag.IntVar(&cfg.MaxViewers, "max-viewers", 50, "Max viewer connections per session (0 = unlimited)")
 	flag.IntVar(&cfg.MaxChat, "max-chat", DefaultMaxChat, "Max chat history retained in memory on host (default 50; 0 to disable)")
@@ -256,6 +257,7 @@ func cmdServe() {
 	flag.BoolVar(&cfg.NoCLI, "no-cli", false, "Reject CLI clients (soft restriction)")
 	flag.BoolVar(&cfg.Preview, "web-preview", false, "Enable Embedded Web Browser Preview reverse proxy")
 	flag.BoolVar(&cfg.Preview, "preview", false, "Alias for --web-preview")
+	flag.StringVar(&cfg.PreviewPorts, "preview-ports", "", "Only allow Web Preview of these ports, e.g. 3000,5173,8000-8010 (default: ports viewers open explicitly)")
 	flag.BoolVar(&cfg.AllowExec, "allow-exec", false, "Allow remote command execution via MCP or CLI exec")
 	flag.BoolVar(&cfg.AllowExec, "enable-ai", false, "Alias for --allow-exec")
 	flag.BoolVar(&cfg.Sandbox, "sandbox", false, "Restrict file manager and MCP file tools to project directory")
@@ -447,6 +449,7 @@ func parseShareOptions(args []string) (HostOptions, error) {
 	dir := fs.String("dir", "", "Initial working directory for File Explorer and terminal")
 	webPreview := fs.Bool("web-preview", true, "Enable Embedded Web Browser Preview reverse proxy")
 	preview := fs.Bool("preview", true, "Alias for --web-preview")
+	previewPorts := fs.String("preview-ports", "", "Only allow Web Preview of these ports, e.g. 3000,5173,8000-8010")
 	allowExec := fs.Bool("allow-exec", false, "Allow remote command execution via MCP or CLI exec")
 	enableAI := fs.Bool("enable-ai", false, "Alias for --allow-exec")
 	sandbox := fs.Bool("sandbox", false, "Restrict file manager and MCP file tools to project directory")
@@ -530,21 +533,27 @@ func parseShareOptions(args []string) (HostOptions, error) {
 		cleanDir = filepath.ToSlash(absDir)
 	}
 
+	allowedPreviewPorts, err := parsePreviewPorts(*previewPorts)
+	if err != nil {
+		return HostOptions{}, err
+	}
+
 	opts := HostOptions{
-		DialURL:    relayURL,
-		PublicURL:  relayURL,
-		Pass:       resolvedPass,
-		PassSource: passSource,
-		Buffer:     *bufferMB,
-		MaxChat:    *maxChat,
-		Mode:       modeShare,
-		Dir:        cleanDir,
-		ID:         cleanID,
-		Preview:    *webPreview && *preview,
-		AllowExec:  *allowExec || *enableAI,
-		Sandbox:    *sandbox || *dirOnly,
-		Insecure:   *insecure || *skipTLS,
-		Quiet:      *quiet || *q,
+		PreviewPorts: allowedPreviewPorts,
+		DialURL:      relayURL,
+		PublicURL:    relayURL,
+		Pass:         resolvedPass,
+		PassSource:   passSource,
+		Buffer:       *bufferMB,
+		MaxChat:      *maxChat,
+		Mode:         modeShare,
+		Dir:          cleanDir,
+		ID:           cleanID,
+		Preview:      *webPreview && *preview,
+		AllowExec:    *allowExec || *enableAI,
+		Sandbox:      *sandbox || *dirOnly,
+		Insecure:     *insecure || *skipTLS,
+		Quiet:        *quiet || *q,
 	}
 	if opts.Pass == "" {
 		opts.Pass = generatePassword(12)
@@ -765,6 +774,10 @@ func cmdMCP() {
 // runServeAndShare starts the relay server, waits for it to be ready,
 // then connects an embedded host session to it — all in one process.
 func runServeAndShare(cfg *ServeConfig) {
+	previewPorts, err := parsePreviewPorts(cfg.PreviewPorts)
+	if err != nil {
+		fatalf("%v", err)
+	}
 	go runServer(cfg)
 
 	// Wait for server to be ready (poll TCP on loopback)
@@ -796,7 +809,9 @@ func runServeAndShare(cfg *ServeConfig) {
 		Dir:           cfg.Dir,
 		ID:            cfg.ID,
 		Preview:       cfg.Preview,
+		PreviewPorts:  previewPorts,
 		AllowExec:     cfg.AllowExec,
+		Sandbox:       cfg.Sandbox,
 		Serve:         cfg,
 	})
 }

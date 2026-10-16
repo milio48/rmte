@@ -56,10 +56,11 @@ func ensureAITab(conn *SafeConn) (byte, *TabSession, error) {
 		aiTabActive = false
 	}
 
-	tabsMu.Lock()
-	newID := nextTabID
-	nextTabID++
-	tabsMu.Unlock()
+	newID, ok := allocTabID()
+	if !ok {
+		aiTabMu.Unlock()
+		return 0, nil, fmt.Errorf("no free terminal tab id")
+	}
 
 	createTabWithTitle(newID, conn, "[AI]", true)
 	if conn != nil {
@@ -331,10 +332,17 @@ func handleAIExec(ctrl map[string]interface{}, conn *SafeConn) {
 	logEvent(conn, "SECURITY_AI_EXEC", targetConn, fmt.Sprintf("AI Exec: %s (bg: %v)", command, background))
 
 	if background {
-		tabsMu.Lock()
-		newID := nextTabID
-		nextTabID++
-		tabsMu.Unlock()
+		newID, ok := allocTabID()
+		if !ok {
+			conn.WriteJSON(map[string]interface{}{
+				"type":        "control",
+				"action":      "ai_exec_result",
+				"target_conn": targetConn,
+				"error":       "No free terminal tab id; close a tab first",
+				"exit_code":   1,
+			})
+			return
+		}
 
 		tabName := "DevServer"
 		if tn, ok := ctrl["tab_name"].(string); ok && tn != "" {

@@ -241,8 +241,21 @@ func TestPreviewEndToEndIntegration(t *testing.T) {
 		t.Fatalf("expected 403 Forbidden without ticket, got %d", resp.StatusCode)
 	}
 
-	// 5. Generate ticket and test ticket bootstrap -> should be 302 Found with Set-Cookie
+	// 4b. Even a valid ticket is refused until the port is opened for preview.
 	ticket := generatePreviewTicket("testsess", localPort, time.Now().Add(60*time.Second).Unix(), "nonce99")
+	unopened, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/p/testsess/%d/?ticket=%s", relayPort, localPort, ticket))
+	if err != nil {
+		t.Fatalf("GET unopened port failed: %v", err)
+	}
+	unopened.Body.Close()
+	if unopened.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 for a port not opened for preview, got %d", unopened.StatusCode)
+	}
+	if err := openPreviewPort(localPort); err != nil {
+		t.Fatalf("openPreviewPort: %v", err)
+	}
+
+	// 5. Test ticket bootstrap -> should be 302 Found with Set-Cookie
 	ticketURL := fmt.Sprintf("http://127.0.0.1:%d/p/testsess/%d/?ticket=%s", relayPort, localPort, ticket)
 	respTicket, err := client.Get(ticketURL)
 	if err != nil {
@@ -296,6 +309,9 @@ func TestPreviewEndToEndIntegration(t *testing.T) {
 
 	// 7. Test Friendly Error View when querying an offline port
 	offlinePort := 59876
+	if err := openPreviewPort(offlinePort); err != nil {
+		t.Fatalf("openPreviewPort: %v", err)
+	}
 	offlineTicket := generatePreviewTicket("testsess", offlinePort, time.Now().Add(60*time.Second).Unix(), "nonce_offline")
 	// Bootstrap ticket for offline port
 	respOfflineTicket, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/p/testsess/%d/?ticket=%s", relayPort, offlinePort, offlineTicket))

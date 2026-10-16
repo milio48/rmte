@@ -51,6 +51,30 @@ type Session struct {
 
 const maxViewersPerSession = 50
 
+const (
+	// relayDefaultMaxBufferMB caps host buffers (and so frame sizes) when
+	// --max-buffer is 0, instead of accepting frames of unbounded size.
+	relayDefaultMaxBufferMB = 256
+	relayPreAuthReadLimit   = 64 * 1024
+	relayWriteQueueDepth    = 256
+	relayWriteTimeout       = 15 * time.Second
+)
+
+// relayMaxBufferMB is the largest host buffer this relay accepts, in MB.
+func relayMaxBufferMB() int {
+	if serverCfg != nil && serverCfg.MaxBuffer > 0 {
+		return serverCfg.MaxBuffer
+	}
+	return relayDefaultMaxBufferMB
+}
+
+// relayFrameReadLimit bounds a single websocket frame. A full terminal buffer
+// can be base64-encoded twice (sync_data inside a sealed control envelope),
+// so allow twice the buffer plus headroom.
+func relayFrameReadLimit() int64 {
+	return int64(2*relayMaxBufferMB()+1) * 1024 * 1024
+}
+
 var (
 	hostReconnectGracePeriod = 120 * time.Second
 	sessions                 = make(map[string]*Session)
@@ -124,12 +148,12 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 	conn := &SafeConn{Conn: rawConn}
 	defer conn.Close()
 
-	// Apply WebSocket read limit based on --max-buffer (0 = unlimited)
-	if serverCfg != nil && serverCfg.MaxBuffer > 0 {
-		conn.SetReadLimit(int64(serverCfg.MaxBuffer+1) * 1024 * 1024)
-	} else {
-		conn.SetReadLimit(0) // Unlimited
-	}
+	// All relay writes are queued and drained with a deadline, so a peer that
+	// stops reading cannot block the relay while it holds session locks.
+	conn.startWriteQueue(relayWriteQueueDepth, relayWriteTimeout)
+
+	// Handshake messages are small; the full frame limit applies after auth.
+	conn.SetReadLimit(relayPreAuthReadLimit)
 
 	var role string
 	var sessionID string
@@ -162,6 +186,7 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 	role = auth.Role
 	sessionID = auth.SessionID
 	viewerID = auth.ViewerID
+	conn.SetReadLimit(relayFrameReadLimit())
 
 	if role == "host" {
 		// Standalone mode: only the embedded host (holding the internal token) may register
@@ -268,8 +293,8 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 		sessionMu.Unlock()
 
 		clampedBuffer := 0
-		if serverCfg != nil && serverCfg.MaxBuffer > 0 && auth.Buffer > serverCfg.MaxBuffer {
-			clampedBuffer = serverCfg.MaxBuffer
+		if maxBuf := relayMaxBufferMB(); auth.Buffer > maxBuf {
+			clampedBuffer = maxBuf
 		}
 
 		// Send back the session ID plus relay paths so the host can build correct links
