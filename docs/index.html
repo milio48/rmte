@@ -1344,7 +1344,7 @@
     <a href="#" class="brand">
       <img src="rmte.svg" alt="RMTE Logo" width="28" height="28">
       <span>RMTE</span>
-      <span class="brand-badge">v0.7.16</span>
+      <span class="brand-badge">v0.8.0</span>
     </a>
     <div class="nav-links">
       <a href="mcp.html" class="nav-link" style="color: var(--accent-purple); font-weight: 600;">
@@ -1362,7 +1362,7 @@
   <main>
     <section class="hero">
       <div class="hero-tag">
-        ✨ v0.7.16 Released • Zero-Relay Chat, CLI Flag Fix &amp; Configurable Chat Retention
+        ✨ v0.8.0 Released • End-to-End Encrypted Commands, Salted Key Derivation &amp; Relay Hardening
       </div>
       <h1>Remote Terminal Relay & Cloud IDE</h1>
       <p>
@@ -1533,8 +1533,8 @@
             <span style="font-size: 1.25rem;">🔄</span>
             <div>
               <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text);">How RMTE Connects</h3>
-              <p style="font-size: 0.78rem; color: var(--text-muted);">End-to-end encrypted packet flow through
-                zero-knowledge relay</p>
+              <p style="font-size: 0.78rem; color: var(--text-muted);">End-to-end encrypted terminal, files and
+                commands through an outbound relay</p>
             </div>
           </div>
           <span class="node-badge badge-relay" style="font-size: 0.75rem; padding: 5px 12px;">Zero Inbound Ports •
@@ -1580,7 +1580,7 @@
           <!-- 2. Middle Node: Relay Server -->
           <div class="diagram-node node-relay">
             <div class="node-header">
-              <span class="node-badge badge-relay">Zero-Knowledge Relay</span>
+              <span class="node-badge badge-relay">Encrypted Relay</span>
               <span style="font-size: 1.1rem;">🌐</span>
             </div>
             <div class="node-title-group">
@@ -1588,20 +1588,20 @@
               <div class="node-subtitle">rmte.biz.id or Self-Hosted VPS</div>
             </div>
             <ul class="node-list">
-              <li><span class="bullet-icon">🔀</span><span><strong>WebSocket Router:</strong> /ws-rmte dumb routing
-                  hub</span></li>
+              <li><span class="bullet-icon">🔀</span><span><strong>WebSocket Router:</strong> /ws-rmte routes sealed
+                  frames by session</span></li>
               <li><span class="bullet-icon">📦</span><span><strong>Web IDE Host:</strong> Embedded HTML, CSS &
                   WASM</span></li>
               <li><span class="bullet-icon">🔄</span><span><strong>HTTP Reverse Proxy:</strong> /p/ mini-browser
                   proxy</span></li>
               <li><span class="bullet-icon">🛡️</span><span><strong>Admin Dashboard:</strong> Live metrics, bandwidth TX/RX & IP bans (<code>--admin-pass</code>)</span></li>
               <li><span class="bullet-icon">⚡</span><span><strong>Resource Protection:</strong> Session limits, buffer clamping & transport frame guards (<code>--max-buffer</code>, <code>--max-sessions</code>, <code>--max-viewers</code>)</span></li>
-              <li><span class="bullet-icon">🕶️</span><span><strong>Blind Pipe:</strong> Never holds keys or
-                  plaintext</span></li>
+              <li><span class="bullet-icon">🕶️</span><span><strong>No Keys:</strong> Never receives the password
+                  or session keys</span></li>
             </ul>
             <div class="node-subcard">
-              <div class="node-subcard-title">🔐 Zero-Knowledge & Admin Control</div>
-              <p>Relay acts strictly as a dumb packet multiplexer without accessing plaintext. Self-hosted relays include a built-in <code>/admin</code> web dashboard for real-time bandwidth tracking, active viewer counts, and IP banning.</p>
+              <div class="node-subcard-title">🔐 Encrypted Routing & Admin Control</div>
+              <p>Terminal streams, files, commands and chat cross the relay sealed end to end; it only sees routing IDs, sizes and timing. Web Preview traffic and the browser UI the relay serves are not end-to-end protected, so use a relay you trust (or your own) for sensitive work &mdash; see <a href="https://github.com/milio48/rmte/blob/main/SECURITY.md" style="color: var(--accent-cyan); text-decoration: underline;" target="_blank" rel="noopener">SECURITY.md</a>. Self-hosted relays include a built-in <code>/admin</code> web dashboard for real-time bandwidth tracking, active viewer counts, and IP banning.</p>
             </div>
           </div>
 
@@ -1647,8 +1647,9 @@
             <span class="pillar-icon">🔒</span>
             <div class="pillar-content">
               <h5>AES-GCM 256-bit End-to-End Encryption</h5>
-              <p>All terminal stream buffers, file operations, and editor keystrokes are encrypted with client-side
-                keys. Passwords never touch the relay server.</p>
+              <p>Terminal streams, file contents and every control message (file operations, commands, chat) are
+                encrypted and authenticated with keys derived locally via PBKDF2. The password never reaches the relay
+                server.</p>
             </div>
           </div>
           <div class="pillar-card">
@@ -1695,7 +1696,7 @@
                 <th><code>serve --mode=standalone</code> <em>(default)</em></th>
                 <th><code>serve --mode=hybrid</code></th>
                 <th><code>serve --mode=relay</code></th>
-                <th><code>rmte share</code> / <code>./rmte</code></th>
+                <th><code>rmte share</code> / <code>rmte</code></th>
                 <th><code>rmte join</code></th>
                 <th><code>rmte exec</code></th>
                 <th><code>rmte mcp</code></th>
@@ -1723,7 +1724,7 @@
                 <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
               </tr>
               <tr>
-                <td><strong>Local PTY & Files (Host)</strong></td>
+                <td><strong>Local PTY &amp; Files (Host)</strong></td>
                 <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
                 <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
                 <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
@@ -1743,7 +1744,7 @@
                 <td>—</td>
               </tr>
               <tr>
-                <td><strong>Prints Session ID & Links</strong></td>
+                <td><strong>Prints Session ID &amp; Links</strong></td>
                 <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
                 <td><span style="color: #3fb950; font-weight: 600;">✅ Yes</span></td>
                 <td><span style="color: #f85149; font-weight: 600;">❌ No</span></td>
@@ -1753,14 +1754,14 @@
                 <td>—</td>
               </tr>
               <tr>
-                <td><strong>Supported Flags</strong></td>
-                <td><code>--port</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--id</code>, <code>--dir</code>, <code>--sandbox</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code>, <code>--admin-pass</code>, <code>--max-buffer</code>, <code>--max-sessions</code>, <code>--max-viewers</code>, <code>--max-chat</code></td>
-                <td><code>--port</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--id</code>, <code>--dir</code>, <code>--sandbox</code>, <code>--buffer</code>, <code>--public</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code>, <code>--max-buffer</code>, <code>--max-sessions</code>, <code>--max-viewers</code>, <code>--max-chat</code></td>
-                <td><code>--port</code>, <code>--public</code>, <code>--admin-pass</code>, <code>--admin-path</code>, <code>--public-url</code>, <code>--web-path</code>, <code>--ws-path</code>, <code>-q</code>, <code>--max-buffer</code>, <code>--max-sessions</code>, <code>--max-viewers</code>, <code>--max-chat</code></td>
-                <td><code>--server-relay</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--id</code>, <code>--dir</code>, <code>--sandbox</code>, <code>--buffer</code>, <code>--web-preview</code>, <code>--allow-exec</code>, <code>-q</code>, <code>--max-chat</code></td>
-                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--name</code></td>
-                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--timeout</code>, <code>--bg</code>, <code>--tab-name</code>, <code>--name</code></td>
-                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--pass-file</code>, <code>--name</code></td>
+                <td><strong>Key Flags</strong> <em>(full list in Flag Reference)</em></td>
+                <td><code>--pass</code>, <code>--id</code>, <code>--dir</code>, <code>--allow-exec</code></td>
+                <td><code>--public</code>, <code>--pass</code>, <code>--id</code>, <code>--allow-exec</code></td>
+                <td><code>--public</code>, <code>--admin-pass</code>, <code>--max-buffer</code></td>
+                <td><code>--server-relay</code>, <code>--pass</code>, <code>--id</code>, <code>--allow-exec</code></td>
+                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code></td>
+                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code>, <code>--timeout</code></td>
+                <td><code>--server-relay</code>, <code>--id</code>, <code>--pass</code></td>
               </tr>
             </tbody>
           </table>
@@ -2021,12 +2022,12 @@
           <h4 style="font-size: 0.95rem; font-weight: 700; color: #58a6ff; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
             <span>🚀</span> <code>rmte</code> & <code>rmte share</code> (Outbound Host Sharing)
           </h4>
-          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Connects outbound from your local terminal workspace to an RMTE relay. Defaults to public relay <code>wss://my.rmte.biz.id/ws-rmte</code>.</p>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Connects outbound from your local terminal workspace to an RMTE relay. Running <code>rmte</code> without a subcommand is the same as <code>rmte share</code> with all defaults. Defaults to the public relay <code>wss://my.rmte.biz.id/ws-rmte</code>.</p>
           <div class="table-container">
             <table class="cheat-table">
               <thead>
                 <tr>
-                  <th style="width: 28%;">Flag & Aliases</th>
+                  <th style="width: 28%;">Flag &amp; Aliases</th>
                   <th style="width: 24%;">Default Value</th>
                   <th>Description</th>
                 </tr>
@@ -2040,52 +2041,62 @@
                 <tr>
                   <td><code>--pass</code>, <code>--password</code></td>
                   <td><em>Auto-generated (12 chars)</em></td>
-                  <td>End-to-End Encryption (AES-GCM-256) password. Printed to terminal on startup if generated.</td>
+                  <td>Session password. Keys are derived from it with PBKDF2 (see SECURITY.md). Printed on startup if generated.</td>
                 </tr>
                 <tr>
                   <td><code>--pass-file</code></td>
                   <td><em>Disabled (empty)</em></td>
-                  <td>Read password from local file. Prevents leaking password in <code>ps aux</code> process listings. Requires permissions <code>0600</code> on Unix.</td>
+                  <td>Read the password from a local file instead, keeping it out of <code>ps aux</code> listings. Permissions <code>0600</code> are checked on Unix.</td>
                 </tr>
                 <tr>
                   <td><code>--id</code></td>
                   <td><em>Auto-generated (8 chars)</em></td>
-                  <td>Persistent custom Session ID (lowercase alphanumeric <code>a-z</code>, <code>0-9</code>, max 10 chars). Re-usable across restarts.</td>
+                  <td>Custom Session ID (<code>a-z</code>, <code>0-9</code>, max 10 chars). Restarting with the same <code>--id</code> and password resumes the session.</td>
                 </tr>
                 <tr>
                   <td><code>--dir</code></td>
-                  <td><em>Current Working Directory</em></td>
-                  <td>Initial root directory exposed to the Web File Explorer and terminal working session.</td>
+                  <td><em>Current working directory</em></td>
+                  <td>Initial directory for the Web File Explorer and terminal.</td>
                 </tr>
                 <tr>
                   <td><code>--sandbox</code>, <code>--dir-only</code></td>
                   <td><code>false</code></td>
-                  <td>Confine Web Explorer and file tools strictly to workspace directory (prevents path traversal and symlink escapes). <em>Note: files only, shell is unconfined.</em></td>
+                  <td>Confine the File Explorer and file tools to <code>--dir</code> (blocks path traversal and symlink escapes). Files only: the shell is not jailed.</td>
                 </tr>
                 <tr>
                   <td><code>--buffer</code></td>
                   <td><code>1</code> (MB)</td>
-                  <td>Max in-memory buffer limit (MB) for terminal scrollback ring-buffer and file transfer limits.</td>
+                  <td>Terminal scrollback buffer and maximum file transfer size.</td>
+                </tr>
+                <tr>
+                  <td><code>--max-chat</code></td>
+                  <td><code>50</code></td>
+                  <td>Chat messages kept in host memory for viewers who join later (<code>0</code> disables retention).</td>
                 </tr>
                 <tr>
                   <td><code>--web-preview</code>, <code>--preview</code></td>
                   <td><code>true</code></td>
-                  <td>Embedded Web Browser Preview reverse proxy. Tunnel local web dev ports (e.g. <code>3000</code>, <code>8080</code>) through encrypted tab.</td>
+                  <td>Embedded Web Browser Preview reverse proxy for local dev servers (e.g. ports 3000, 5173).</td>
+                </tr>
+                <tr>
+                  <td><code>--preview-ports</code></td>
+                  <td><em>Ports opened by viewers</em></td>
+                  <td>Fixed preview allowlist, e.g. <code>3000,5173,8000-8010</code>. Without it, the host only forwards ports a viewer opens explicitly (logged).</td>
                 </tr>
                 <tr>
                   <td><code>--allow-exec</code>, <code>--enable-ai</code></td>
                   <td><code>false</code></td>
-                  <td>Explicitly allow remote command execution via AI Agent MCP or headless CLI exec. Spawns an isolated <code>[AI]</code> spectator tab in Web IDE.</td>
+                  <td>Allow remote command execution via <code>rmte exec</code> and MCP. Commands run in a visible <code>[AI]</code> tab.</td>
                 </tr>
                 <tr>
                   <td><code>-q</code>, <code>--quiet</code></td>
                   <td><code>false</code></td>
-                  <td>Detach into a background daemon immediately after printing connection URLs and process PID.</td>
+                  <td>Run in the background: print connection info and PID, then return to the shell.</td>
                 </tr>
                 <tr>
                   <td><code>--insecure</code>, <code>--skip-tls-verify</code></td>
                   <td><code>false</code></td>
-                  <td>Skip TLS certificate verification for custom/self-signed relay domains.</td>
+                  <td>Skip TLS certificate verification (self-signed relays). Process-wide, also affects update downloads.</td>
                 </tr>
               </tbody>
             </table>
@@ -2096,12 +2107,12 @@
           <h4 style="font-size: 0.95rem; font-weight: 700; color: #bc8cff; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
             <span>🖥️</span> <code>rmte serve</code> (Self-Hosted Relay & Admin Dashboard)
           </h4>
-          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Hosts an RMTE WebSocket router, Web UI, and optional administrative dashboard. Available in <code>standalone</code>, <code>hybrid</code>, or <code>relay</code> modes.</p>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Runs an RMTE relay with the Web UI and an optional admin dashboard. Modes: <code>standalone</code> (relay + local host only), <code>hybrid</code> (relay + local host + external hosts) or <code>relay</code> (router only, no local shell).</p>
           <div class="table-container">
             <table class="cheat-table">
               <thead>
                 <tr>
-                  <th style="width: 28%;">Flag & Aliases</th>
+                  <th style="width: 28%;">Flag &amp; Aliases</th>
                   <th style="width: 24%;">Default Value</th>
                   <th>Description</th>
                 </tr>
@@ -2110,112 +2121,132 @@
                 <tr>
                   <td><code>--mode</code></td>
                   <td><code>standalone</code></td>
-                  <td>Operating mode: <code>standalone</code> (relay + local host only), <code>hybrid</code> (relay + host + accept external), or <code>relay</code> (dedicated router without local PTY).</td>
+                  <td><code>standalone</code>, <code>hybrid</code> or <code>relay</code>.</td>
                 </tr>
                 <tr>
                   <td><code>--port</code></td>
                   <td><code>8048</code></td>
-                  <td>TCP port to listen on for both HTTP Web UI and WebSocket traffic.</td>
+                  <td>TCP port for the Web UI and WebSocket traffic.</td>
                 </tr>
                 <tr>
                   <td><code>--public</code></td>
                   <td><code>false</code> (<code>127.0.0.1</code>)</td>
-                  <td>Bind to <code>0.0.0.0</code> instead of loopback, making the relay accessible over public IP or local network.</td>
-                </tr>
-                <tr>
-                  <td><code>--admin-pass</code>, <code>--password-admin</code></td>
-                  <td><em>Disabled (empty)</em></td>
-                  <td>Password to activate the built-in Relay Admin Dashboard. Enables real-time traffic stats, live session tracking, termination, and IP banning.</td>
-                </tr>
-                <tr>
-                  <td><code>--admin-path</code>, <code>--path-admin</code></td>
-                  <td><code>/admin</code></td>
-                  <td>HTTP path for Relay Admin Dashboard. Protected against collisions with <code>/p</code> (Web Preview), <code>/favicon.ico</code>, or Web UI.</td>
-                </tr>
-                <tr>
-                  <td><code>--pass</code></td>
-                  <td><em>Auto-generated (12 chars)</em></td>
-                  <td>E2EE password for the local host session. <em>(Ignored in <code>relay</code> mode)</em>.</td>
-                </tr>
-                <tr>
-                  <td><code>--pass-file</code></td>
-                  <td><em>Disabled (empty)</em></td>
-                  <td>Read password from local file (`0600` on Unix). <em>(Ignored in <code>relay</code> mode)</em>.</td>
-                </tr>
-                <tr>
-                  <td><code>--id</code></td>
-                  <td><em>Auto-generated (8 chars)</em></td>
-                  <td>Custom Session ID for the local host session. <em>(Ignored in <code>relay</code> mode)</em>.</td>
-                </tr>
-                <tr>
-                  <td><code>--dir</code></td>
-                  <td><em>Current Working Directory</em></td>
-                  <td>Root directory for File Explorer and terminal shell. <em>(Ignored in <code>relay</code> mode)</em>.</td>
-                </tr>
-                <tr>
-                  <td><code>--sandbox</code>, <code>--dir-only</code></td>
-                  <td><code>false</code></td>
-                  <td>Confine Web Explorer and file tools strictly to workspace directory (files only; does not jail shell). <em>(Ignored in <code>relay</code> mode)</em>.</td>
-                </tr>
-                <tr>
-                  <td><code>--buffer</code></td>
-                  <td><code>1</code> (MB)</td>
-                  <td>Terminal ring buffer and file size limit. <em>(Ignored in <code>relay</code> mode)</em>.</td>
-                </tr>
-                <tr>
-                  <td><code>--web-preview</code>, <code>--preview</code></td>
-                  <td><code>false</code></td>
-                  <td>Enable Embedded Web Browser Preview reverse proxy for serve sessions.</td>
-                </tr>
-                <tr>
-                  <td><code>--web-path</code></td>
-                  <td><code>/</code></td>
-                  <td>HTTP subpath under which the Web IDE client is served (e.g. <code>/web/</code>).</td>
-                </tr>
-                <tr>
-                  <td><code>--ws-path</code></td>
-                  <td><code>/ws-rmte</code></td>
-                  <td>WebSocket endpoint used for client and host connections.</td>
+                  <td>Bind <code>0.0.0.0</code> instead of loopback, making the relay reachable from the network.</td>
                 </tr>
                 <tr>
                   <td><code>--public-url</code>, <code>--url</code></td>
                   <td><em>Disabled (empty)</em></td>
-                  <td>Full public base URL or domain advertised in links (e.g. <code>https://my.rmte.biz.id</code> or <code>http://host:8041</code>). Automatically sets TLS/WSS schemes and preserves custom ports.</td>
+                  <td>Public base URL or domain used in printed links (e.g. <code>https://my.rmte.biz.id</code> or <code>http://host:8041</code>). Picks TLS/WSS schemes and keeps custom ports.</td>
+                </tr>
+                <tr>
+                  <td><code>--web-path</code></td>
+                  <td><code>/</code></td>
+                  <td>HTTP path of the Web UI (e.g. <code>/web</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>--ws-path</code></td>
+                  <td><code>/ws-rmte</code></td>
+                  <td>WebSocket endpoint for hosts and clients.</td>
                 </tr>
                 <tr>
                   <td><code>--no-web</code></td>
                   <td><code>false</code></td>
-                  <td>Disable serving the HTTP Web UI altogether (WebSocket and Admin API only).</td>
+                  <td>Don't serve the Web UI (WebSocket and admin API only).</td>
                 </tr>
                 <tr>
                   <td><code>--no-cli</code></td>
                   <td><code>false</code></td>
-                  <td>Soft restriction rejecting incoming connections originating from CLI / TUI clients.</td>
+                  <td>Reject CLI / TUI clients (soft restriction: clients self-declare).</td>
+                </tr>
+                <tr>
+                  <td><code>--pass</code></td>
+                  <td><em>Auto-generated (12 chars)</em></td>
+                  <td>Password of the local host session. <em>(Not used in <code>relay</code> mode.)</em></td>
+                </tr>
+                <tr>
+                  <td><code>--pass-file</code></td>
+                  <td><em>Disabled (empty)</em></td>
+                  <td>Read the password from a local file (<code>0600</code> on Unix). <em>(Not used in <code>relay</code> mode.)</em></td>
+                </tr>
+                <tr>
+                  <td><code>--id</code></td>
+                  <td><em>Auto-generated (8 chars)</em></td>
+                  <td>Session ID of the local host session. <em>(Not used in <code>relay</code> mode.)</em></td>
+                </tr>
+                <tr>
+                  <td><code>--dir</code></td>
+                  <td><em>Current working directory</em></td>
+                  <td>Root directory for the File Explorer and terminal. <em>(Not used in <code>relay</code> mode.)</em></td>
+                </tr>
+                <tr>
+                  <td><code>--sandbox</code>, <code>--dir-only</code></td>
+                  <td><code>false</code></td>
+                  <td>Confine the File Explorer and file tools to <code>--dir</code> (files only; the shell is not jailed). <em>(Not used in <code>relay</code> mode.)</em></td>
+                </tr>
+                <tr>
+                  <td><code>--buffer</code></td>
+                  <td><code>1</code> (MB)</td>
+                  <td>Terminal scrollback buffer and maximum file transfer size. <em>(Not used in <code>relay</code> mode.)</em></td>
+                </tr>
+                <tr>
+                  <td><code>--max-chat</code></td>
+                  <td><code>50</code></td>
+                  <td>Chat messages kept in host memory (<code>0</code> disables retention). <em>(Not used in <code>relay</code> mode.)</em></td>
+                </tr>
+                <tr>
+                  <td><code>--web-preview</code>, <code>--preview</code></td>
+                  <td><code>false</code></td>
+                  <td>Enable the Embedded Web Browser Preview reverse proxy.</td>
+                </tr>
+                <tr>
+                  <td><code>--preview-ports</code></td>
+                  <td><em>Ports opened by viewers</em></td>
+                  <td>Fixed preview allowlist, e.g. <code>3000,5173,8000-8010</code>. Without it, only ports a viewer opens explicitly are forwarded. <em>(Not used in <code>relay</code> mode.)</em></td>
                 </tr>
                 <tr>
                   <td><code>--allow-exec</code>, <code>--enable-ai</code></td>
                   <td><code>false</code></td>
-                  <td>Allow remote command execution via MCP or CLI exec on local host session. <em>(Ignored in <code>relay</code> mode)</em>.</td>
+                  <td>Allow remote command execution via <code>rmte exec</code> and MCP on the local host. <em>(Not used in <code>relay</code> mode.)</em></td>
                 </tr>
                 <tr>
                   <td><code>-q</code>, <code>--quiet</code></td>
                   <td><code>false</code></td>
-                  <td>Run detached in background daemon mode and print process PID.</td>
+                  <td>Run in the background and print the process PID.</td>
+                </tr>
+                <tr>
+                  <td><code>--admin-pass</code>, <code>--password-admin</code></td>
+                  <td><em>Disabled (empty)</em></td>
+                  <td>Enables the Relay Admin Dashboard (live sessions, traffic, termination, IP bans). Failed logins are rate-limited.</td>
+                </tr>
+                <tr>
+                  <td><code>--admin-path</code>, <code>--path-admin</code></td>
+                  <td><code>/admin</code></td>
+                  <td>HTTP path of the Relay Admin Dashboard. Cannot collide with <code>/p</code> (Web Preview), <code>/favicon.ico</code> or the Web UI.</td>
                 </tr>
                 <tr>
                   <td><code>--max-buffer</code></td>
-                  <td><code>0</code> (MB, unlimited / opt-in)</td>
-                  <td>Relay maximum buffer cap and transport WebSocket frame size limit (<code>SetReadLimit</code>). If an external host requests a buffer larger than this limit, it is adaptively clamped. Recommended for multi-tenant relays.</td>
+                  <td><code>0</code> (= 256 MB)</td>
+                  <td>Largest host buffer accepted per session, also bounding WebSocket frame size. Larger host requests are clamped. Lower it for multi-tenant relays.</td>
                 </tr>
                 <tr>
                   <td><code>--max-sessions</code></td>
                   <td><code>100</code> (<code>0</code> = unlimited)</td>
-                  <td>Maximum concurrent active sessions permitted on the relay. New sessions exceeding capacity are rejected fail-closed, while existing host reconnects are always allowed.</td>
+                  <td>Maximum concurrent sessions. New sessions over the limit are rejected; host reconnects are always allowed.</td>
                 </tr>
                 <tr>
                   <td><code>--max-viewers</code></td>
                   <td><code>50</code> (<code>0</code> = unlimited)</td>
-                  <td>Maximum total concurrent viewer WebSocket connections per session across all viewer IDs and tabs.</td>
+                  <td>Maximum viewer connections per session, across all viewers and tabs.</td>
+                </tr>
+                <tr>
+                  <td><code>--trusted-proxies</code></td>
+                  <td><code>loopback</code></td>
+                  <td>Proxies whose <code>CF-Connecting-IP</code> / <code>X-Forwarded-For</code> / <code>X-Real-IP</code> headers are trusted for client IPs (bans, login throttling): CIDRs/IPs, <code>loopback</code>, <code>private</code> or <code>none</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>--ws-origins</code></td>
+                  <td><em>Own origin only</em></td>
+                  <td>Extra browser origins allowed to open WebSockets, e.g. <code>https://ui.example.com</code>.</td>
                 </tr>
                 <tr>
                   <td><code>--insecure</code>, <code>--skip-tls-verify</code></td>
@@ -2231,41 +2262,46 @@
           <h4 style="font-size: 0.95rem; font-weight: 700; color: #3fb950; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
             <span>👥</span> <code>rmte join</code> (Interactive CLI / TUI Client)
           </h4>
-          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Connects from another terminal prompt into an active shared session.</p>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Connects from another terminal into a shared session as an interactive CLI / TUI client.</p>
           <div class="table-container">
             <table class="cheat-table">
               <thead>
                 <tr>
-                  <th style="width: 28%;">Flag & Aliases</th>
+                  <th style="width: 28%;">Flag &amp; Aliases</th>
                   <th style="width: 24%;">Default Value</th>
                   <th>Description</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td><code>--server-relay</code></td>
+                  <td><code>--server-relay</code>, <code>--server</code></td>
                   <td><code>wss://my.rmte.biz.id/ws-rmte</code></td>
-                  <td>Relay server WebSocket URL (defaults to public relay; override for self-hosted relays).</td>
+                  <td>Relay WebSocket URL (override for self-hosted relays).</td>
                 </tr>
                 <tr>
                   <td><code>--id</code></td>
                   <td><em>Required</em></td>
-                  <td>Target Session ID to connect to.</td>
+                  <td>Session ID to join.</td>
                 </tr>
                 <tr>
                   <td><code>--pass</code>, <code>--password</code></td>
                   <td><em>Required</em></td>
-                  <td>Shared E2EE password required to decrypt terminal streams.</td>
+                  <td>Session password (or <code>--pass-file</code> / <code>RMTE_PASS</code>).</td>
                 </tr>
                 <tr>
                   <td><code>--pass-file</code></td>
                   <td><em>Disabled (empty)</em></td>
-                  <td>Read password from local file.</td>
+                  <td>Read the password from a local file.</td>
                 </tr>
                 <tr>
                   <td><code>--name</code></td>
-                  <td><em>Interactive Prompt</em></td>
-                  <td>Display name of the viewer in the collaborative terminal presence and chat.</td>
+                  <td><em>Interactive prompt</em></td>
+                  <td>Display name shown in presence and chat.</td>
+                </tr>
+                <tr>
+                  <td><code>--insecure</code>, <code>--skip-tls-verify</code></td>
+                  <td><code>false</code></td>
+                  <td>Skip TLS certificate verification (self-signed relays).</td>
                 </tr>
               </tbody>
             </table>
@@ -2276,12 +2312,12 @@
           <h4 style="font-size: 0.95rem; font-weight: 700; color: #39c5cf; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
             <span>⚡</span> <code>rmte exec</code> (Headless Remote CLI Execution)
           </h4>
-          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Executes a shell command remotely over E2EE relay, prints the output directly to your local terminal upon completion, and propagates the exact exit status code.</p>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Runs one shell command on a host started with <code>--allow-exec</code>, prints its output and exits with the command's exit code. Ideal for scripts and CI/CD.</p>
           <div class="table-container">
             <table class="cheat-table">
               <thead>
                 <tr>
-                  <th style="width: 28%;">Flag & Aliases</th>
+                  <th style="width: 28%;">Flag &amp; Aliases</th>
                   <th style="width: 24%;">Default Value</th>
                   <th>Description</th>
                 </tr>
@@ -2290,52 +2326,52 @@
                 <tr>
                   <td><code>--server-relay</code>, <code>--server</code></td>
                   <td><code>wss://my.rmte.biz.id/ws-rmte</code></td>
-                  <td>Relay server WebSocket URL.</td>
+                  <td>Relay WebSocket URL.</td>
                 </tr>
                 <tr>
                   <td><code>--id</code></td>
                   <td><em>Required</em></td>
-                  <td>Target host Session ID to execute command on.</td>
+                  <td>Session ID of the target host.</td>
                 </tr>
                 <tr>
                   <td><code>--pass</code>, <code>--password</code></td>
                   <td><em>Required</em></td>
-                  <td>Shared E2EE password for session decryption.</td>
+                  <td>Session password (or <code>--pass-file</code> / <code>RMTE_PASS</code>).</td>
                 </tr>
                 <tr>
                   <td><code>--pass-file</code></td>
                   <td><em>Disabled (empty)</em></td>
-                  <td>Read password from local file.</td>
+                  <td>Read the password from a local file.</td>
                 </tr>
                 <tr>
                   <td><code>--timeout</code></td>
                   <td><code>60</code> (seconds)</td>
-                  <td>Execution timeout limit. Process is cleanly reaped and terminated if exceeded.</td>
+                  <td>Execution timeout; the process is terminated when it is exceeded.</td>
                 </tr>
                 <tr>
                   <td><code>--bg</code>, <code>--background</code></td>
                   <td><code>false</code></td>
-                  <td>Run command asynchronously in a dedicated background tab rather than the shared <code>[AI]</code> tab.</td>
+                  <td>Run in a dedicated background tab instead of the shared <code>[AI]</code> tab and return immediately.</td>
                 </tr>
                 <tr>
                   <td><code>--tab-name</code>, <code>--name-tab</code></td>
                   <td><em>Empty</em></td>
-                  <td>Custom display title for the background tab (e.g. <code>--tab-name="DevServer"</code>).</td>
+                  <td>Title of the background tab (e.g. <code>--tab-name=DevServer</code>).</td>
                 </tr>
                 <tr>
                   <td><code>--name</code></td>
                   <td><code>rmte-exec</code></td>
-                  <td>Client display name shown in Web IDE presence badge.</td>
+                  <td>Client name shown in the Web IDE presence badge.</td>
                 </tr>
                 <tr>
                   <td><code>--insecure</code>, <code>--skip-tls-verify</code></td>
                   <td><code>false</code></td>
-                  <td>Skip TLS certificate verification for self-signed relay setups.</td>
+                  <td>Skip TLS certificate verification (self-signed relays).</td>
                 </tr>
                 <tr>
                   <td><code>-- &lt;command&gt;</code></td>
                   <td><em>Required</em></td>
-                  <td>Positional arguments after double-dash representing the full command string to execute.</td>
+                  <td>Everything after <code>--</code> is the command to run.</td>
                 </tr>
               </tbody>
             </table>
@@ -2346,12 +2382,12 @@
           <h4 style="font-size: 0.95rem; font-weight: 700; color: #bc8cff; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
             <span>🤖</span> <code>rmte mcp</code> (Model Context Protocol AI Server)
           </h4>
-          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Launches a standard stdio JSON-RPC 2.0 MCP server enabling AI coding assistants (Claude Desktop, Cursor, Antigravity) to control remote host workspaces.</p>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Starts a stdio JSON-RPC 2.0 Model Context Protocol server so AI agents (Claude Desktop, Cursor, Claude Code, Antigravity) can work on a host started with <code>--allow-exec</code>.</p>
           <div class="table-container">
             <table class="cheat-table">
               <thead>
                 <tr>
-                  <th style="width: 28%;">Flag & Aliases</th>
+                  <th style="width: 28%;">Flag &amp; Aliases</th>
                   <th style="width: 24%;">Default Value</th>
                   <th>Description</th>
                 </tr>
@@ -2360,32 +2396,32 @@
                 <tr>
                   <td><code>--server-relay</code>, <code>--server</code></td>
                   <td><code>wss://my.rmte.biz.id/ws-rmte</code></td>
-                  <td>Relay server WebSocket URL.</td>
+                  <td>Relay WebSocket URL.</td>
                 </tr>
                 <tr>
                   <td><code>--id</code></td>
                   <td><em>Required</em></td>
-                  <td>Target host Session ID to connect AI assistant to.</td>
+                  <td>Session ID of the target host.</td>
                 </tr>
                 <tr>
                   <td><code>--pass</code>, <code>--password</code></td>
                   <td><em>Required</em></td>
-                  <td>Shared E2EE password for session decryption.</td>
+                  <td>Session password (or <code>--pass-file</code> / <code>RMTE_PASS</code>).</td>
                 </tr>
                 <tr>
                   <td><code>--pass-file</code></td>
                   <td><em>Disabled (empty)</em></td>
-                  <td>Read password from local file.</td>
+                  <td>Read the password from a local file.</td>
                 </tr>
                 <tr>
                   <td><code>--name</code></td>
                   <td><code>Claude-MCP</code></td>
-                  <td>Bot display name shown in Web IDE presence badge (e.g. <code>[AI] Claude-MCP</code>).</td>
+                  <td>Bot name shown in the Web IDE presence badge (e.g. <code>[AI] Claude-MCP</code>).</td>
                 </tr>
                 <tr>
                   <td><code>--insecure</code>, <code>--skip-tls-verify</code></td>
                   <td><code>false</code></td>
-                  <td>Skip TLS certificate verification for self-signed relay setups.</td>
+                  <td>Skip TLS certificate verification (self-signed relays).</td>
                 </tr>
               </tbody>
             </table>
@@ -2396,7 +2432,7 @@
           <h4 style="font-size: 0.95rem; font-weight: 700; color: #e3b341; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
             <span>🛑</span> <code>rmte stop</code> & <code>rmte update</code> (Session Lifecycle & Upgrades)
           </h4>
-          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Terminate detached daemons or perform seamless in-place updates from GitHub releases.</p>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Stops background sessions started with <code>-q</code>, and updates the binary in place from official GitHub releases (<code>rmte upgrade</code> is an alias).</p>
           <div class="table-container">
             <table class="cheat-table">
               <thead>
@@ -2410,37 +2446,37 @@
                 <tr>
                   <td><code>rmte stop &lt;session_id&gt;</code></td>
                   <td>Session ID (e.g. <code>a1b2c3d4</code>)</td>
-                  <td>Finds and terminates the background daemon associated with the session ID.</td>
+                  <td>Stops the background session with that ID.</td>
                 </tr>
                 <tr>
                   <td><code>rmte stop &lt;pid&gt;</code></td>
-                  <td>Operating System PID</td>
-                  <td>Sends graceful termination signal to the background daemon PID.</td>
+                  <td>Process ID</td>
+                  <td>Sends a graceful termination signal to that background process.</td>
                 </tr>
                 <tr>
-                  <td><code>rmte update --check</code></td>
-                  <td>Metadata check</td>
-                  <td>Queries GitHub releases for newer version without downloading binary.</td>
+                  <td><code>rmte update --check</code>, <code>-c</code></td>
+                  <td>Version check</td>
+                  <td>Checks GitHub releases for a newer version without downloading.</td>
                 </tr>
                 <tr>
                   <td><code>rmte update</code></td>
                   <td>In-place upgrade</td>
-                  <td>Downloads latest matching OS/arch binary from GitHub and replaces the executable.</td>
+                  <td>Downloads the binary for your OS/arch, verifies it against <code>checksums.txt</code> (fail-closed) and replaces the executable.</td>
                 </tr>
                 <tr>
                   <td><code>rmte update --force</code></td>
-                  <td>Re-install binary</td>
-                  <td>Forces fresh download and binary replacement even if current version is up to date.</td>
+                  <td>Re-install</td>
+                  <td>Downloads and replaces the binary even when already up to date.</td>
                 </tr>
                 <tr>
-                  <td><code>rmte update --restart</code></td>
+                  <td><code>rmte update --restart</code>, <code>-r</code></td>
                   <td>Seamless restart</td>
-                  <td>Updates binary and gracefully relaunches active background daemon without dropping web sessions.</td>
+                  <td>Updates, then restarts the running background session. Browsers reconnect automatically without re-entering credentials.</td>
                 </tr>
                 <tr>
-                  <td><code>rmte update --skip-checksum-verify</code></td>
+                  <td><code>rmte update --skip-checksum-verify</code>, <code>--no-checksum</code></td>
                   <td>Bypass integrity check</td>
-                  <td>Disables fail-closed SHA-256 verification against release <code>checksums.txt</code>. <em>(Use with caution)</em>.</td>
+                  <td>Skips SHA-256 verification against <code>checksums.txt</code>. Use with caution.</td>
                 </tr>
               </tbody>
             </table>
@@ -2452,9 +2488,7 @@
           <h4 style="font-size: 0.95rem; font-weight: 700; color: #3fb950; margin-bottom: 8px; display:flex; align-items:center; gap:6px;">
             <span>🔐</span> Environment Variables &amp; Credential Precedence
           </h4>
-          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">
-            RMTE supports credential ingestion via environment variables for CI/CD runners, systemd units, and automated scripts without exposing secrets in <code>ps aux</code> process listings.
-          </p>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 10px;">Credentials and defaults can come from environment variables (CI/CD runners, systemd units, scripts) instead of command-line flags visible in <code>ps aux</code>.</p>
           <div class="table-container">
             <table class="cheat-table">
               <thead>
@@ -2468,22 +2502,27 @@
                 <tr>
                   <td><code>RMTE_PASS</code></td>
                   <td><code>share</code>, <code>serve</code>, <code>join</code>, <code>exec</code>, <code>mcp</code></td>
-                  <td>Pre-set session encryption password. <em>(Host displays startup warning banner to prevent accidental predictable reuse)</em>.</td>
+                  <td>Session password. The host prints a warning banner when it is used, to prevent accidental long-term reuse.</td>
                 </tr>
                 <tr>
                   <td><code>RMTE_SERVER</code></td>
                   <td><code>share</code>, <code>join</code>, <code>exec</code>, <code>mcp</code></td>
-                  <td>Default relay server WebSocket URL (equivalent to <code>--server-relay</code>).</td>
+                  <td>Default relay WebSocket URL (same as <code>--server-relay</code>).</td>
                 </tr>
                 <tr>
                   <td><code>RMTE_ID</code></td>
                   <td><code>share</code>, <code>serve</code>, <code>join</code>, <code>exec</code>, <code>mcp</code></td>
-                  <td>Pre-set session identifier (equivalent to <code>--id</code>).</td>
+                  <td>Session ID (same as <code>--id</code>).</td>
                 </tr>
                 <tr>
                   <td><code>RMTE_ADMIN_PASS</code></td>
-                  <td><code>serve</code> (<code>standalone</code>, <code>hybrid</code>, <code>relay</code>)</td>
-                  <td>Relay Admin Dashboard password (equivalent to <code>--admin-pass</code>).</td>
+                  <td><code>serve</code></td>
+                  <td>Relay Admin Dashboard password (same as <code>--admin-pass</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>RMTE_DNS_FALLBACK</code></td>
+                  <td>All commands</td>
+                  <td>Set to <code>off</code> to never redirect DNS to public resolvers. By default only Go's built-in <code>127.0.0.1:53</code> / <code>[::1]:53</code> fallback is redirected, and only when no resolver is configured.</td>
                 </tr>
               </tbody>
             </table>

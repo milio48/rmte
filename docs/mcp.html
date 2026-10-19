@@ -582,7 +582,7 @@
     <a href="index.html" class="brand">
       <img src="rmte.svg" alt="RMTE Logo" width="28" height="28">
       <span>RMTE</span>
-      <span class="brand-badge">v0.7.16</span>
+      <span class="brand-badge">v0.8.0</span>
     </a>
     <div class="nav-links">
       <a href="index.html" class="nav-link">
@@ -661,11 +661,11 @@
         <!-- Node 2: RMTE Relay Hub -->
         <div class="flow-node">
           <div class="flow-node-title">
-            <span>Zero-Knowledge Relay</span>
+            <span>Encrypted Relay</span>
             <span>🌐</span>
           </div>
           <p class="flow-node-desc">
-            Blind packet router (<code>my.rmte.biz.id</code> or private). Never sees plaintext commands or files.
+            Routes sealed frames (<code>my.rmte.biz.id</code> or private). Commands, output and files are end-to-end encrypted.
           </p>
         </div>
 
@@ -1058,7 +1058,7 @@ echo "Remote test status: $?"</code></pre>
       <div class="faq-item">
         <div class="faq-q"><span>🔒</span> Can the central relay server see my AI prompts or code?</div>
         <div class="faq-a">
-          No. All traffic passing through the relay server is encrypted end-to-end using AES-GCM 256-bit with client-side derived keys. The relay only routes encrypted binary frames and target session IDs without accessing plaintext.
+          No. Commands, their output and file contents are encrypted and authenticated end to end with AES-GCM 256-bit keys derived locally from the session password, which never reaches the relay. The relay only sees routing IDs, message sizes and timing. (Web Preview traffic is the exception; see <a href="https://github.com/milio48/rmte/blob/main/SECURITY.md" style="color: var(--accent-cyan); text-decoration: underline;" target="_blank" rel="noopener">SECURITY.md</a>.)
         </div>
       </div>
 
