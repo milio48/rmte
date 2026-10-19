@@ -663,17 +663,16 @@ async function connect() {
     manualDisconnect=false;
     if(ws){try{ws.close();}catch(e){}}
     try {
-        const enc=new TextEncoder();
-        const keyHash=await rmteCrypto.sha256(enc.encode(password));
-        rawAesKeyBytes=keyHash;
-        aesKey=await rmteCrypto.importKey(keyHash);
+        btn.innerText='Deriving key...';
+        const keys=await deriveSessionKeys(password,sessionId);
+        aesKey=await rmteCrypto.importKey(keys.enc);
+        rawAesKeyBytes=keys.preview;
         ctl=newCtlState(sessionId);
-        const authHash=await rmteCrypto.sha256(enc.encode('rmte-auth:'+password));
-        const authToken=Array.from(authHash).map(b=>b.toString(16).padStart(2,'0')).join('');
+        btn.innerText='Connecting...';
         ws=new WebSocket(server); ws.binaryType='arraybuffer';
         ws.onopen=()=>{
             _log.info('WS connected');
-            sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:authToken,protocol_version:'0.7',client:'web'}));
+            sendRaw(JSON.stringify({type:'auth',role:'viewer',session_id:sessionId,viewer_id:myViewerId,viewer_name:myUsername,auth_token:keys.authToken,protocol_version:'0.8',client:'web'}));
             startPing();
         };
         ws.onclose=e=>{
@@ -754,7 +753,7 @@ const RELAY_PLAIN_ACTIONS=new Set(['pong','host_status','session_closed']);
 let ctl=null, rxChain=Promise.resolve();
 function newCtlState(sessionId){
     const id=Array.from(rmteCrypto.randomBytes(16)).map(b=>b.toString(16).padStart(2,'0')).join('');
-    return {sessionId, stream:id, seq:0, epoch:null, seen:new Map(), queue:[], tx:Promise.resolve()};
+    return {sessionId:normalizeSessionId(sessionId), stream:id, seq:0, epoch:null, seen:new Map(), queue:[], tx:Promise.resolve()};
 }
 function ctlAAD(dir){
     const enc=new TextEncoder(), p=enc.encode(CTL_AAD_PREFIX), sid=enc.encode(ctl.sessionId);
@@ -794,6 +793,33 @@ async function openCtl(outer){
     }
     return inner.m;
 }
+// ===== KEY DERIVATION =====
+// master = PBKDF2-SHA256(password, salt = "rmte-kdf-v1:" + session id, 600000)
+// enc/auth/preview = HKDF-SHA256(master, info). Must match crypto.go.
+const KDF_ITERATIONS=600000;
+const kdfCache=new Map();
+function normalizeSessionId(id){return String(id||'').trim().toLowerCase();}
+async function hkdfSha256(master,info){
+    const prk=await rmteCrypto.hmacSha256(new Uint8Array(32),master);
+    const infoBytes=new TextEncoder().encode(info);
+    const t=new Uint8Array(infoBytes.length+1);t.set(infoBytes);t[infoBytes.length]=1;
+    return rmteCrypto.hmacSha256(prk,t);
+}
+async function deriveSessionKeys(password,sessionId){
+    sessionId=normalizeSessionId(sessionId);
+    const cacheKey=sessionId+'|'+password;
+    if(kdfCache.has(cacheKey))return kdfCache.get(cacheKey);
+    const enc=new TextEncoder();
+    const master=await rmteCrypto.pbkdf2Sha256(enc.encode(password),enc.encode('rmte-kdf-v1:'+sessionId),KDF_ITERATIONS);
+    const keys={
+        enc:await hkdfSha256(master,'rmte enc v1'),
+        authToken:Array.from(await hkdfSha256(master,'rmte auth v1')).map(b=>b.toString(16).padStart(2,'0')).join(''),
+        preview:await hkdfSha256(master,'rmte preview v1'),
+    };
+    kdfCache.set(cacheKey,keys);
+    return keys;
+}
+
 async function onText(text){
     const msg=JSON.parse(text);
     if(msg.type==='e2e'){

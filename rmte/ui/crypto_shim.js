@@ -22,6 +22,11 @@ const rmteCrypto = (function() {
             const pt = await crypto.subtle.decrypt(params, key, ciphertext);
             return new Uint8Array(pt);
         },
+        async pbkdf2Sha256(passwordBytes, salt, iterations) {
+            const base = await crypto.subtle.importKey('raw', passwordBytes, 'PBKDF2', false, ['deriveBits']);
+            const bits = await crypto.subtle.deriveBits({name:'PBKDF2', hash:'SHA-256', salt, iterations}, base, 256);
+            return new Uint8Array(bits);
+        },
         async hmacSha256(keyBytes, dataBytes) {
             const hmacKey = await crypto.subtle.importKey('raw', keyBytes, {name: 'HMAC', hash: 'SHA-256'}, false, ['sign']);
             const sig = await crypto.subtle.sign('HMAC', hmacKey, dataBytes);
@@ -51,6 +56,10 @@ const rmteCrypto = (function() {
         async decrypt(iv, key, ciphertext, aad) {
             // asmCrypto.AES_GCM.decrypt(data, key, nonce, adata, tagSize)
             return new Uint8Array(asmCrypto.AES_GCM.decrypt(ciphertext, key, iv, aad, 16));
+        },
+        async pbkdf2Sha256(passwordBytes, salt, iterations) {
+            // asmCrypto.Pbkdf2HmacSha256(password, salt, count, length)
+            return new Uint8Array(asmCrypto.Pbkdf2HmacSha256(passwordBytes, salt, iterations, 32));
         },
         async hmacSha256(keyBytes, dataBytes) {
             let key = keyBytes;
@@ -102,6 +111,7 @@ const rmteCrypto = (function() {
         encrypt: impl.encrypt,
         decrypt: impl.decrypt,
         hmacSha256: impl.hmacSha256,
+        pbkdf2Sha256: impl.pbkdf2Sha256,
         randomBytes: impl.randomBytes,
     };
 })();

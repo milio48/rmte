@@ -42,8 +42,8 @@ RMTE provides remote terminal and workspace sharing over zero-inbound WebSocket 
 
 Other notes:
 - **No relay storage.** The relay stores no terminal buffers, files or chat history. Chat history is kept in memory by the host process and served to viewers on request (`get_chat_history`).
-- **Authentication tokens** are `SHA-256("rmte-auth:" + password)` and are sent to the relay, so a relay can brute-force weak passwords offline. The random default password (12 characters) is not practical to brute-force; user-chosen `--pass` values may be.
-- **Host and viewer credentials are the same.** Anyone who knows the session password can also register as the host for that session.
+- **Key derivation (protocol 0.8+).** `master = PBKDF2-HMAC-SHA256(password, "rmte-kdf-v1:" + session id, 600000)` (session id lower-cased, as the relay does). HKDF-SHA256 then derives independent subkeys: `enc` (AES-256-GCM), `auth` (the token the relay checks) and `preview` (Web Preview ticket/cookie MAC). The salt is not secret; it makes each session's derivation different. The iteration count is fixed in the code, so a relay cannot lower it. A relay that learns the auth token still has to run PBKDF2 per password guess: the random default password (12 characters) is out of reach, short user-chosen `--pass` values may not be. Nothing is written to disk or kept on the relay for this, so a host restarted with the same `--id` and password derives the same keys and resumes its session.
+- **Every password holder is fully trusted (by design).** RMTE has no viewer-only role: whoever has the session password is part of the host's team and can run commands, transfer files and also register as the host for that session (this is how a restarted host resumes). Share the password only with people you would give a shell to.
 - **Envelope replay state** is kept in memory per host process for up to 4096 viewer streams (one per viewer connection); the least recently used stream is forgotten first. A relay could replay messages from a forgotten stream only if more than 4096 newer viewer connections were made in the same host process.
 - **`--sandbox` is off by default.** Without it, forged file operations can reach any path the host user can access.
 
@@ -97,7 +97,7 @@ When `--sandbox` is enabled on the host:
 ## Security Roadmap (v0.8.0)
 
 The following architectural enhancements are scheduled for the next major milestone:
-1. **Session Password Key Derivation (PBKDF2-HMAC-SHA256)**: Transitioning from raw SHA-256 key hashing to standard library `crypto/pbkdf2` (available in Go 1.25 stdlib) and native browser WebCrypto PBKDF2 with public session salt, resisting offline precomputation attacks while maintaining zero external WASM/library bloat.
+1. **Memory-Hard Key Derivation**: Evaluating Argon2id (needs a WASM build in the browser) on top of the PBKDF2 + HKDF scheme shipped in protocol 0.8.
 2. **Binary Frame Sequence Numbers**: Extending the replay protection of the control envelope (done in protocol 0.7) to terminal and file-channel binary frames.
 3. **Cryptographic Release Signing**: Adding Minisign / Cosign digital signatures alongside SHA-256 checksums for verified binary distribution.
 4. **Relay Rate Limiting**: Implementing IP-level and session-level throttling on public relay endpoints to mitigate resource abuse and denial of service.

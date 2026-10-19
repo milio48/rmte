@@ -92,7 +92,7 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
 └───────────────┘  (Raw Binary)    └──────────────┘  (Raw Binary)    └───────────────┘
 ```
 
-1. **E2EE Key Derivation**: A 256-bit key is derived locally from the shared password using SHA-256 (no salt or KDF yet, so use the random default password or a strong `--pass`).
+1. **E2EE Key Derivation**: Keys are derived locally with PBKDF2-HMAC-SHA256 (600,000 iterations) from the password, salted with the session id, then split with HKDF into separate encryption, relay-auth and preview subkeys. The relay only sees the auth subkey, so guessing a password costs a full PBKDF2 run per guess. Nothing is stored on disk or on the relay: the same session id and password always give the same keys, so a host resumes its session after a restart or reboot.
 2. **AES-GCM Binary Frames**: Terminal I/O and file contents (Tab 255) are encrypted with AES-GCM and a random 12-byte IV per frame. The frame header (direction, tab id, transfer id) is authenticated as additional data, so the relay cannot redirect, reflect or re-wrap frames.
 3. **Sealed Control Envelope**: Every viewer↔host control message (file operations, `ai_exec` and its output, tab management, presence, chat) is sealed with AES-GCM, bound to the session id and direction, and carries a per-sender sequence number plus the host's per-process epoch. The relay sees only a routing id; it cannot read, forge, reorder or replay these messages, including across host restarts.
 

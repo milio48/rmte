@@ -177,11 +177,11 @@ func filterInternalCookies(req *http.Request) {
 
 // generatePreviewTicket creates an HMAC preview ticket using the derived preview subkey.
 func generatePreviewTicket(sessionID string, port int, expiresAt int64, nonce string) string {
-	if rawEncryptionKey == nil {
+	if previewKey == nil {
 		return ""
 	}
-	// Derive subkey: HMAC(rawEncryptionKey, "rmte-preview-subauth")
-	hKey := hmac.New(sha256.New, rawEncryptionKey)
+	// Derive subkey: HMAC(previewKey, "rmte-preview-subauth")
+	hKey := hmac.New(sha256.New, previewKey)
 	hKey.Write([]byte("rmte-preview-subauth"))
 	subKey := hKey.Sum(nil)
 
@@ -194,7 +194,7 @@ func generatePreviewTicket(sessionID string, port int, expiresAt int64, nonce st
 
 // validatePreviewTicket validates a ticket string formatted as "expiresAt:nonce:sig".
 func validatePreviewTicket(sessionID string, port int, ticket string) bool {
-	if rawEncryptionKey == nil || ticket == "" {
+	if previewKey == nil || ticket == "" {
 		return false
 	}
 	parts := strings.Split(ticket, ":")
@@ -211,7 +211,7 @@ func validatePreviewTicket(sessionID string, port int, ticket string) bool {
 		return false
 	}
 
-	hKey := hmac.New(sha256.New, rawEncryptionKey)
+	hKey := hmac.New(sha256.New, previewKey)
 	hKey.Write([]byte("rmte-preview-subauth"))
 	subKey := hKey.Sum(nil)
 
@@ -230,17 +230,17 @@ func previewCookieName(sessionID string, port int) string {
 
 // generatePreviewCookieValue generates a verification hash for the cookie.
 func generatePreviewCookieValue(sessionID string, port int) string {
-	if rawEncryptionKey == nil {
+	if previewKey == nil {
 		return ""
 	}
-	h := hmac.New(sha256.New, rawEncryptionKey)
+	h := hmac.New(sha256.New, previewKey)
 	h.Write([]byte(fmt.Sprintf("rmte-cookie:%s:%d", sessionID, port)))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
 // validatePreviewCookie validates the cookie value.
 func validatePreviewCookie(sessionID string, port int, val string) bool {
-	if rawEncryptionKey == nil || val == "" {
+	if previewKey == nil || val == "" {
 		return false
 	}
 	expected := generatePreviewCookieValue(sessionID, port)

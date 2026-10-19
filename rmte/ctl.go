@@ -98,7 +98,7 @@ func newCtlChannel(aead cipher.AEAD, sessionID string, isHost bool) *ctlChannel 
 	c := &ctlChannel{
 		aead:      aead,
 		isHost:    isHost,
-		sessionID: sessionID,
+		sessionID: normalizeSessionID(sessionID),
 		stream:    hex.EncodeToString(id[:]),
 		streams:   make(map[string]*ctlStreamState),
 	}
@@ -106,6 +106,14 @@ func newCtlChannel(aead cipher.AEAD, sessionID string, isHost bool) *ctlChannel 
 		c.epoch = c.stream
 	}
 	return c
+}
+
+// setAEAD swaps the cipher, e.g. when a viewer reconnects to a restarted host
+// with a new salt. Sequence state is kept.
+func (c *ctlChannel) setAEAD(aead cipher.AEAD) {
+	c.mu.Lock()
+	c.aead = aead
+	c.mu.Unlock()
 }
 
 func (c *ctlChannel) aad(dir byte) []byte {
@@ -156,17 +164,18 @@ func (c *ctlChannel) seal(v interface{}) ([]byte, error) {
 	if !c.isHost {
 		inner.Epoch = c.epoch
 	}
+	aead := c.aead
 	c.mu.Unlock()
 
 	plain, err := json.Marshal(inner)
 	if err != nil {
 		return nil, err
 	}
-	nonce := make([]byte, c.aead.NonceSize())
+	nonce := make([]byte, aead.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, err
 	}
-	sealed := c.aead.Seal(nonce, nonce, plain, c.aad(c.sendDir()))
+	sealed := aead.Seal(nonce, nonce, plain, c.aad(c.sendDir()))
 
 	outer := ctlOuter{Type: ctlEnvelopeType, Data: base64.StdEncoding.EncodeToString(sealed)}
 	if c.isHost {
@@ -181,12 +190,18 @@ func (c *ctlChannel) seal(v interface{}) ([]byte, error) {
 // returns any messages that were queued while the host epoch was unknown,
 // which the caller must now send.
 func (c *ctlChannel) open(outer *ctlOuter) (map[string]interface{}, []interface{}, error) {
+	c.mu.Lock()
+	aead := c.aead
+	c.mu.Unlock()
+	if aead == nil {
+		return nil, nil, errCtlDecrypt
+	}
 	sealed, err := base64.StdEncoding.DecodeString(outer.Data)
-	if err != nil || len(sealed) < c.aead.NonceSize() {
+	if err != nil || len(sealed) < aead.NonceSize() {
 		return nil, nil, errCtlMalformed
 	}
-	ns := c.aead.NonceSize()
-	plain, err := c.aead.Open(nil, sealed[:ns], sealed[ns:], c.aad(c.recvDir()))
+	ns := aead.NonceSize()
+	plain, err := aead.Open(nil, sealed[:ns], sealed[ns:], c.aad(c.recvDir()))
 	if err != nil {
 		return nil, nil, errCtlDecrypt
 	}

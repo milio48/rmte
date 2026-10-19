@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -356,24 +358,33 @@ func runHost(opts HostOptions) {
 	conn := &SafeConn{Conn: rawConn}
 	defer conn.Close()
 
-	if err := setupCrypto(opts.Pass); err != nil {
+	// The session id is part of the key derivation, so the host picks it.
+	sessionID := opts.ID
+	if sessionID == "" {
+		sessionID = randomSessionID()
+	}
+	sessionID = normalizeSessionID(sessionID)
+	keys, err := deriveSessionKeys(opts.Pass, sessionID)
+	if err != nil {
 		log.Fatal(err)
 	}
+	if err := installSessionKeys(keys); err != nil {
+		log.Fatal(err)
+	}
+	hostAuthToken = keys.authToken
 
 	// Auth as host
 	auth := map[string]interface{}{
 		"type":             "auth",
 		"role":             "host",
-		"auth_token":       generateAuthToken(opts.Pass),
+		"session_id":       sessionID,
+		"auth_token":       hostAuthToken,
 		"protocol_version": protocolVersion,
 		"preview":          opts.Preview,
 		"buffer":           opts.Buffer,
 	}
 	if opts.InternalToken != "" {
 		auth["internal_token"] = opts.InternalToken
-	}
-	if opts.ID != "" {
-		auth["session_id"] = opts.ID
 	}
 	conn.WriteJSON(auth)
 
@@ -899,7 +910,7 @@ func reconnectToRelay(opts HostOptions, sessionID string, timeout time.Duration)
 		auth := map[string]interface{}{
 			"type":             "auth",
 			"role":             "host",
-			"auth_token":       generateAuthToken(opts.Pass),
+			"auth_token":       hostAuthToken,
 			"protocol_version": protocolVersion,
 			"preview":          opts.Preview,
 			"session_id":       sessionID,
@@ -1324,6 +1335,18 @@ func handleDataChannelWrite(transferID uint32, plaintext []byte, conn *SafeConn)
 	})
 	log.Printf("[FileManager] Saved %s (%d bytes)", ps.Path, len(plaintext))
 	logEvent(conn, "SAVE_FILE", ps.TargetConn, fmt.Sprintf("Saved %s (%d bytes)", filepath.ToSlash(ps.Path), len(plaintext)))
+}
+
+// hostAuthToken is this host's relay auth token, reused on reconnect.
+var hostAuthToken string
+
+// randomSessionID returns an 8-hex-character session id.
+func randomSessionID() string {
+	b := make([]byte, 4)
+	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+		panic("rmte: crypto/rand failed: " + err.Error())
+	}
+	return hex.EncodeToString(b)
 }
 
 // ===== TERMINAL TAB MANAGEMENT =====

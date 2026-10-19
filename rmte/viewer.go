@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"regexp"
@@ -39,13 +38,25 @@ func dialAndAuthViewer(serverURL, sessionID, password, viewerID, displayName str
 	}
 	conn := &SafeConn{Conn: rawConn}
 
+	// Keys come from the password and session id alone (see crypto.go).
+	keys, err := deriveSessionKeys(password, sessionID)
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	if err := installSessionKeys(keys); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	ctl.setAEAD(aesGCM)
+
 	auth := map[string]string{
 		"type":             "auth",
 		"role":             "viewer",
 		"session_id":       sessionID,
 		"viewer_id":        viewerID,
 		"viewer_name":      displayName,
-		"auth_token":       generateAuthToken(password),
+		"auth_token":       keys.authToken,
 		"protocol_version": protocolVersion,
 		"client":           "cli",
 	}
@@ -209,12 +220,8 @@ func runViewer(serverURL, sessionID, password, displayName string) {
 		}
 	}
 
-	if err := setupCrypto(password); err != nil {
-		log.Fatal(err)
-	}
-
 	viewerID := generateViewerID()
-	ctl := newCtlChannel(aesGCM, sessionID, false)
+	ctl := newCtlChannel(nil, sessionID, false)
 	conn, err := dialAndAuthViewer(serverURL, sessionID, password, viewerID, myDispName, ctl)
 	if err != nil {
 		fatalf("Connection failed: %v", err)

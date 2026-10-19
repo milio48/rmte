@@ -181,6 +181,8 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if existingSess, exists := sessions[reqID]; exists {
+				// Every password holder is trusted, so the password-derived
+				// token also lets a (restarted) host resume its session.
 				if existingSess.AuthToken != "" && subtle.ConstantTimeCompare([]byte(existingSess.AuthToken), []byte(auth.AuthToken)) == 1 {
 					fmt.Printf("Host reconnecting for active session %s from %s. Replacing stale connection.\n", reqID, r.RemoteAddr)
 					existingSess.Mutex.Lock()

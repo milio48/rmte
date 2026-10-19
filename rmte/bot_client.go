@@ -53,16 +53,12 @@ func newBotClient(serverURL, sessionID, password, name string, insecure bool) (*
 		setupTLSConfig(true)
 	}
 
-	if err := setupCrypto(password); err != nil {
-		return nil, fmt.Errorf("crypto setup failed: %w", err)
-	}
-
 	viewerID := generateViewerID()
 	if name == "" {
 		name = "rmte-bot"
 	}
 
-	conn, err := dialAndAuthViewer(serverURL, sessionID, password, viewerID, name, newCtlChannel(aesGCM, sessionID, false))
+	conn, err := dialAndAuthViewer(serverURL, sessionID, password, viewerID, name, newCtlChannel(nil, sessionID, false))
 	if err != nil {
 		return nil, fmt.Errorf("relay auth failed: %w", err)
 	}
