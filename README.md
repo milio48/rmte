@@ -8,13 +8,14 @@ It allows hosts to share terminal sessions, navigate directories using a clean a
 
 ---
 
-## Screenshots
+## Screenshots & Showcase
 
-### Login
-![Login Page](screenshots/login.jpeg)
+| 📱/💻 Workspaces & Mobile UI | 🛡️ Relay Admin Dashboard | 🔑 Secure Login |
+| :---: | :---: | :---: |
+| <a href="screenshots/overview.jpg" target="_blank"><img src="screenshots/overview.jpg" width="220" alt="Overview Showcase"></a> | <a href="screenshots/admin.jpg" target="_blank"><img src="screenshots/admin.jpg" width="340" alt="Admin Dashboard"></a> | <a href="screenshots/login.jpeg" target="_blank"><img src="screenshots/login.jpeg" width="340" alt="Login Page"></a> |
+| <sub><i>Overview: Multi-Tab, Split IDE & Mobile</i></sub> | <sub><i>Live Traffic, Bandwidth & Session Monitor</i></sub> | <sub><i>Zero-Knowledge Auth Interface</i></sub> |
 
-### IDE Workspace
-![IDE Workspace](screenshots/ide.jpeg)
+> 💡 *Click any image to view in full resolution.*
 
 ---
 

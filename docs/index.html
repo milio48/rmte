@@ -1521,6 +1521,61 @@
       </div>
     </div>
 
+    <!-- Visual Showcase Gallery -->
+    <section class="gallery-section" id="gallery" style="max-width: 1100px; margin: 36px auto 44px; width: 100%;">
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.15rem;">📸</span>
+          <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text); margin: 0;">Interface &amp; Dashboard Showcase</h3>
+        </div>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Click thumbnail for full-resolution raw view ↗</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+        <!-- Card 1: Cloud IDE & Workspaces -->
+        <a href="https://raw.githubusercontent.com/milio48/rmte/main/screenshots/overview.jpg" target="_blank" rel="noopener"
+           style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; text-decoration: none; display: flex; flex-direction: column; transition: transform 0.2s, border-color 0.2s;"
+           onmouseover="this.style.borderColor='var(--accent-cyan)'; this.style.transform='translateY(-2px)'"
+           onmouseout="this.style.borderColor='var(--border)'; this.style.transform='none'">
+          <div style="height: 180px; width: 100%; display: flex; align-items: center; justify-content: center; background: #080b10; border-radius: 6px; overflow: hidden;">
+            <img src="https://raw.githubusercontent.com/milio48/rmte/main/screenshots/overview.jpg" alt="RMTE Terminal &amp; Cloud IDE Overview" style="max-height: 100%; max-width: 100%; object-fit: contain;">
+          </div>
+          <div style="margin-top: 10px; text-align: center;">
+            <span style="font-size: 0.86rem; font-weight: 600; color: var(--text); display: block;">Terminal, Web IDE &amp; Mobile UI</span>
+            <span style="font-size: 0.74rem; color: var(--text-muted);">Multi-tab workbench, split editor &amp; real-time sync</span>
+          </div>
+        </a>
+
+        <!-- Card 2: Relay Admin Dashboard -->
+        <a href="https://raw.githubusercontent.com/milio48/rmte/main/screenshots/admin.jpg" target="_blank" rel="noopener"
+           style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; text-decoration: none; display: flex; flex-direction: column; transition: transform 0.2s, border-color 0.2s;"
+           onmouseover="this.style.borderColor='var(--accent-cyan)'; this.style.transform='translateY(-2px)'"
+           onmouseout="this.style.borderColor='var(--border)'; this.style.transform='none'">
+          <div style="height: 180px; width: 100%; display: flex; align-items: center; justify-content: center; background: #080b10; border-radius: 6px; overflow: hidden;">
+            <img src="https://raw.githubusercontent.com/milio48/rmte/main/screenshots/admin.jpg" alt="Relay Admin Dashboard" style="max-height: 100%; max-width: 100%; object-fit: contain;">
+          </div>
+          <div style="margin-top: 10px; text-align: center;">
+            <span style="font-size: 0.86rem; font-weight: 600; color: var(--text); display: block;">Relay Administration Hub</span>
+            <span style="font-size: 0.74rem; color: var(--text-muted);">Live session tracker, cumulative bandwidth &amp; IP ban list</span>
+          </div>
+        </a>
+
+        <!-- Card 3: Secure Session Login -->
+        <a href="https://raw.githubusercontent.com/milio48/rmte/main/screenshots/login.jpeg" target="_blank" rel="noopener"
+           style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; text-decoration: none; display: flex; flex-direction: column; transition: transform 0.2s, border-color 0.2s;"
+           onmouseover="this.style.borderColor='var(--accent-cyan)'; this.style.transform='translateY(-2px)'"
+           onmouseout="this.style.borderColor='var(--border)'; this.style.transform='none'">
+          <div style="height: 180px; width: 100%; display: flex; align-items: center; justify-content: center; background: #080b10; border-radius: 6px; overflow: hidden;">
+            <img src="https://raw.githubusercontent.com/milio48/rmte/main/screenshots/login.jpeg" alt="Secure Web Viewer Login" style="max-height: 100%; max-width: 100%; object-fit: contain;">
+          </div>
+          <div style="margin-top: 10px; text-align: center;">
+            <span style="font-size: 0.86rem; font-weight: 600; color: var(--text); display: block;">Zero-Knowledge Web Onboarding</span>
+            <span style="font-size: 0.74rem; color: var(--text-muted);">One-click auto-fill, server relay dialer &amp; E2EE auth</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
     <!-- Architecture & Workflow Diagram Section -->
     <section class="workflow-section" id="workflow">
       <h2 class="section-title">Architecture & Workflow</h2>
